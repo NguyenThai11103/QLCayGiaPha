@@ -16,16 +16,16 @@ class UpdateNguoiRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'id' => 'required|integer|exists:nguois,id',
+            'id' => 'required|integer|exists:thanh_viens,id',
             'id_dong_ho' => 'sometimes|integer|exists:dong_hos,id',
             'ten_day_du' => 'sometimes|string|max:255',
             'gioi_tinh' => 'sometimes|string|in:nam,nu',
             'ngay_sinh' => 'nullable|date',
             'da_mat' => 'sometimes|boolean',
             'ngay_mat' => 'nullable|date',
-            'id_cha' => 'nullable|integer|exists:nguois,id',
-            'id_me' => 'nullable|integer|exists:nguois,id',
-            'id_vo_chong' => 'nullable|integer|exists:nguois,id',
+            'id_cha' => 'nullable|integer|exists:thanh_viens,id',
+            'id_me' => 'nullable|integer|exists:thanh_viens,id',
+            'id_vo_chong' => 'nullable|integer|exists:thanh_viens,id',
             'tieu_su' => 'nullable|string',
             'anh_dai_dien' => 'nullable|string',
         ];
@@ -34,16 +34,29 @@ class UpdateNguoiRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            $nguoi = DB::table('nguois')->where('id', $this->input('id'))->first();
+            $nguoi = DB::table('thanh_viens')->where('id', $this->input('id'))->first();
 
             if (!$nguoi) {
                 return;
             }
 
             $idNguoi = (int) $this->input('id');
-            $idDongHo = $this->has('id_dong_ho') ? (int) $this->input('id_dong_ho') : (int) $nguoi->id_dong_ho;
-            $idCha = $this->has('id_cha') ? $this->input('id_cha') : $nguoi->id_cha;
-            $idMe = $this->has('id_me') ? $this->input('id_me') : $nguoi->id_me;
+            $idDongHo = $this->has('id_dong_ho') ? (int) $this->input('id_dong_ho') : (int) $nguoi->dong_ho_id;
+            
+            $chaCon = DB::table('quan_hes')
+                ->where('node_2_id', $idNguoi)
+                ->where('loai_quan_he', 'cha_con')
+                ->first();
+            $meCon = DB::table('quan_hes')
+                ->where('node_2_id', $idNguoi)
+                ->where('loai_quan_he', 'me_con')
+                ->first();
+                
+            $idChaHienTai = $chaCon ? $chaCon->node_1_id : null;
+            $idMeHienTai = $meCon ? $meCon->node_1_id : null;
+
+            $idCha = $this->has('id_cha') ? $this->input('id_cha') : $idChaHienTai;
+            $idMe = $this->has('id_me') ? $this->input('id_me') : $idMeHienTai;
             $idVoChong = $this->has('id_vo_chong') ? $this->input('id_vo_chong') : $this->layVoChongHienTai($idNguoi);
 
             if ($idCha && (int) $idCha === $idNguoi) {
@@ -75,9 +88,9 @@ class UpdateNguoiRequest extends FormRequest
             }
 
             if ($idVoChong) {
-                $nguoiVoChong = DB::table('nguois')->where('id', $idVoChong)->first();
+                $nguoiVoChong = DB::table('thanh_viens')->where('id', $idVoChong)->first();
 
-                if ($nguoiVoChong && (int) $nguoiVoChong->id_dong_ho !== $idDongHo) {
+                if ($nguoiVoChong && (int) $nguoiVoChong->dong_ho_id !== $idDongHo) {
                     $validator->errors()->add('id_vo_chong', 'Vo chong phai thuoc cung dong ho de hien thi trong cay.');
                 }
 
@@ -102,22 +115,30 @@ class UpdateNguoiRequest extends FormRequest
             }
 
             $daXem[$idHienTai] = true;
-            $nguoi = DB::table('nguois')->select('id_cha', 'id_me')->where('id', $idHienTai)->first();
+            
+            $chaCon = DB::table('quan_hes')
+                ->where('node_2_id', $idHienTai)
+                ->where('loai_quan_he', 'cha_con')
+                ->first();
+                
+            $meCon = DB::table('quan_hes')
+                ->where('node_2_id', $idHienTai)
+                ->where('loai_quan_he', 'me_con')
+                ->first();
 
-            if (!$nguoi) {
-                continue;
-            }
+            $idCha = $chaCon ? (int) $chaCon->node_1_id : null;
+            $idMe = $meCon ? (int) $meCon->node_1_id : null;
 
-            if ((int) $nguoi->id_cha === $idToTien || (int) $nguoi->id_me === $idToTien) {
+            if ($idCha === $idToTien || $idMe === $idToTien) {
                 return true;
             }
 
-            if ($nguoi->id_cha) {
-                $hangDoi[] = (int) $nguoi->id_cha;
+            if ($idCha) {
+                $hangDoi[] = $idCha;
             }
 
-            if ($nguoi->id_me) {
-                $hangDoi[] = (int) $nguoi->id_me;
+            if ($idMe) {
+                $hangDoi[] = $idMe;
             }
         }
 
@@ -127,10 +148,10 @@ class UpdateNguoiRequest extends FormRequest
     private function layVoChongHienTai(int $idNguoi): ?int
     {
         $quanHe = DB::table('quan_hes')
-            ->where('loai', 'vo_chong')
+            ->where('loai_quan_he', 'vo_chong')
             ->where(function ($query) use ($idNguoi) {
-                $query->where('id_nguoi', $idNguoi)
-                    ->orWhere('id_nguoi_lien_quan', $idNguoi);
+                $query->where('node_1_id', $idNguoi)
+                    ->orWhere('node_2_id', $idNguoi);
             })
             ->first();
 
@@ -138,20 +159,20 @@ class UpdateNguoiRequest extends FormRequest
             return null;
         }
 
-        return (int) ($quanHe->id_nguoi === $idNguoi ? $quanHe->id_nguoi_lien_quan : $quanHe->id_nguoi);
+        return (int) ($quanHe->node_1_id === $idNguoi ? $quanHe->node_2_id : $quanHe->node_1_id);
     }
 
     private function nguoiDaCoVoChongKhac(int|string $idNguoi, int $idHienTai): bool
     {
         return DB::table('quan_hes')
-            ->where('loai', 'vo_chong')
+            ->where('loai_quan_he', 'vo_chong')
             ->where(function ($query) use ($idNguoi) {
-                $query->where('id_nguoi', $idNguoi)
-                    ->orWhere('id_nguoi_lien_quan', $idNguoi);
+                $query->where('node_1_id', $idNguoi)
+                    ->orWhere('node_2_id', $idNguoi);
             })
             ->where(function ($query) use ($idHienTai) {
-                $query->where('id_nguoi', '!=', $idHienTai)
-                    ->where('id_nguoi_lien_quan', '!=', $idHienTai);
+                $query->where('node_1_id', '!=', $idHienTai)
+                    ->where('node_2_id', '!=', $idHienTai);
             })
             ->exists();
     }

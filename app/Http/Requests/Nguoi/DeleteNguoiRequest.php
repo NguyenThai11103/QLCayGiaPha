@@ -14,7 +14,7 @@ class DeleteNguoiRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'id' => 'required|integer|exists:nguois,id',
+            'id' => 'required|integer|exists:thanh_viens,id',
         ];
     }
 }

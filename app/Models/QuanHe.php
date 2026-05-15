@@ -12,18 +12,39 @@ class QuanHe extends Model
     protected $table = 'quan_hes';
 
     protected $fillable = [
-        'id_nguoi',
-        'id_nguoi_lien_quan',
-        'loai',
+        'node_1_id',
+        'node_2_id',
+        'loai_quan_he',
+        'tinh_chat_quan_he',
+        'tinh_trang_hon_nhan',
     ];
 
-    public function nguoi()
+    // ─── Relationships ─────────────────────────────────────────────────────────
+
+    public function node1()
     {
-        return $this->belongsTo(Nguoi::class, 'id_nguoi');
+        return $this->belongsTo(ThanhVien::class, 'node_1_id');
     }
 
-    public function nguoiLienQuan()
+    public function node2()
     {
-        return $this->belongsTo(Nguoi::class, 'id_nguoi_lien_quan');
+        return $this->belongsTo(ThanhVien::class, 'node_2_id');
+    }
+
+    // ─── Helpers ───────────────────────────────────────────────────────────────
+
+    public function laVoChong(): bool
+    {
+        return $this->loai_quan_he === 'vo_chong';
+    }
+
+    public function laChaCon(): bool
+    {
+        return $this->loai_quan_he === 'cha_con';
+    }
+
+    public function laMeCon(): bool
+    {
+        return $this->loai_quan_he === 'me_con';
     }
 }

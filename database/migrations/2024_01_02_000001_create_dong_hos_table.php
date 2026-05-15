@@ -12,6 +12,9 @@ return new class extends Migration
             $table->id();
             $table->string('ten_dong_ho');
             $table->text('mo_ta')->nullable();
+            $table->string('dia_chi_tu_duong')->nullable();
+            $table->unsignedBigInteger('thuy_to_id')->nullable();
+            $table->unsignedBigInteger('nguoi_tao')->nullable();
             $table->timestamps();
         });
     }

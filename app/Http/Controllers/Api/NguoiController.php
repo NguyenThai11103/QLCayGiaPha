@@ -15,13 +15,14 @@ class NguoiController extends Controller
     public function index(Request $request)
     {
         $idDongHo = $request->query('id_dong_ho');
-        $query = DB::table('nguois');
+        $query = DB::table('thanh_viens');
 
         if ($idDongHo) {
-            $query->where('id_dong_ho', $idDongHo);
+            $query->where('dong_ho_id', $idDongHo);
         }
 
-        $data = $this->ganQuanHeVoChong($query->get());
+        $thanhViens = $query->get();
+        $data = $this->mapThanhVienToNguoi($thanhViens);
 
         return response()->json([
             'success' => true,
@@ -36,27 +37,29 @@ class NguoiController extends Controller
             return response()->json(['success' => false, 'message' => 'Thieu id']);
         }
 
-        $nguoi = DB::table('nguois')->where('id', $id)->first();
-        if (!$nguoi) {
+        $nguoiDb = DB::table('thanh_viens')->where('id', $id)->first();
+        if (!$nguoiDb) {
             return response()->json(['success' => false, 'message' => 'Khong tim thay']);
         }
 
-        $tatCa = DB::table('nguois')->where('id_dong_ho', $nguoi->id_dong_ho)->get();
+        $tatCa = DB::table('thanh_viens')->where('dong_ho_id', $nguoiDb->dong_ho_id)->get();
+        $tatCaNguoi = $this->mapThanhVienToNguoi($tatCa);
 
         $map = [];
-        foreach ($tatCa as $n) {
-            $map[$n->id] = $n;
+        foreach ($tatCaNguoi as $n) {
+            $map[$n['id']] = $n;
         }
 
+        $nguoi = $map[$id];
         $ketQuaQuanHe = [];
 
-        foreach ($tatCa as $n) {
-            if ($n->id === $nguoi->id) {
+        foreach ($tatCaNguoi as $n) {
+            if ($n['id'] === $nguoi['id']) {
                 continue;
             }
 
-            $path1 = $this->getPathToRoot($nguoi->id, $map);
-            $path2 = $this->getPathToRoot($n->id, $map);
+            $path1 = $this->getPathToRoot($nguoi['id'], $map);
+            $path2 = $this->getPathToRoot($n['id'], $map);
 
             $lcaId = null;
             $dist1 = 0;
@@ -90,9 +93,9 @@ class NguoiController extends Controller
                     }
                 } elseif ($dist2 === 0) {
                     if ($dist1 === 1) {
-                        $xungHo = $n->gioi_tinh === 'nam' ? 'Cha' : 'Me';
+                        $xungHo = $n['gioi_tinh'] === 'nam' ? 'Cha' : 'Me';
                     } elseif ($dist1 === 2) {
-                        $xungHo = $n->gioi_tinh === 'nam' ? 'Ong' : 'Ba';
+                        $xungHo = $n['gioi_tinh'] === 'nam' ? 'Ong' : 'Ba';
                     } elseif ($dist1 === 3) {
                         $xungHo = 'Cu';
                     } elseif ($dist1 === 4) {
@@ -106,7 +109,7 @@ class NguoiController extends Controller
                     } elseif ($dist1 > $dist2) {
                         $diff = $dist1 - $dist2;
                         $xungHo = $diff === 1
-                            ? ($n->gioi_tinh === 'nam' ? 'Chu/Bac/Cau' : 'Co/Di/Bac')
+                            ? ($n['gioi_tinh'] === 'nam' ? 'Chu/Bac/Cau' : 'Co/Di/Bac')
                             : 'Ong/Ba ho';
                     } else {
                         $diff = $dist2 - $dist1;
@@ -134,14 +137,27 @@ class NguoiController extends Controller
     {
         $data = $request->validated();
         $idVoChong = $data['id_vo_chong'] ?? null;
-        unset($data['id_vo_chong']);
+        $idCha = $data['id_cha'] ?? null;
+        $idMe = $data['id_me'] ?? null;
 
-        $id = DB::transaction(function () use ($data, $idVoChong) {
-            $data['created_at'] = now();
-            $data['updated_at'] = now();
+        $insertData = [
+            'dong_ho_id' => $data['id_dong_ho'],
+            'ho_ten' => $data['ten_day_du'],
+            'gioi_tinh' => $data['gioi_tinh'],
+            'ngay_sinh_duong' => $data['ngay_sinh'] ?? null,
+            'tinh_trang_song' => $data['da_mat'] ? 'mat' : 'song',
+            'ngay_mat_am' => $data['ngay_mat'] ?? null,
+            'tieu_su' => $data['tieu_su'] ?? null,
+            'anh_dai_dien' => $data['anh_dai_dien'] ?? null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
 
-            $id = DB::table('nguois')->insertGetId($data);
+        $id = DB::transaction(function () use ($insertData, $idVoChong, $idCha, $idMe) {
+            $id = DB::table('thanh_viens')->insertGetId($insertData);
+            
             $this->dongBoQuanHeVoChong($id, $idVoChong);
+            $this->dongBoQuanHeChaMe($id, $idCha, $idMe);
 
             return $id;
         });
@@ -157,13 +173,38 @@ class NguoiController extends Controller
     {
         $data = $request->validated();
         $id = $data['id'];
-        $idVoChong = $data['id_vo_chong'] ?? null;
-        unset($data['id'], $data['id_vo_chong']);
-        $data['updated_at'] = now();
 
-        DB::transaction(function () use ($id, $data, $idVoChong) {
-            DB::table('nguois')->where('id', $id)->update($data);
-            $this->dongBoQuanHeVoChong($id, $idVoChong);
+        $updateData = ['updated_at' => now()];
+        if (array_key_exists('id_dong_ho', $data)) $updateData['dong_ho_id'] = $data['id_dong_ho'];
+        if (array_key_exists('ten_day_du', $data)) $updateData['ho_ten'] = $data['ten_day_du'];
+        if (array_key_exists('gioi_tinh', $data)) $updateData['gioi_tinh'] = $data['gioi_tinh'];
+        if (array_key_exists('ngay_sinh', $data)) $updateData['ngay_sinh_duong'] = $data['ngay_sinh'];
+        if (array_key_exists('da_mat', $data)) {
+            $updateData['tinh_trang_song'] = $data['da_mat'] ? 'mat' : 'song';
+        }
+        if (array_key_exists('ngay_mat', $data)) $updateData['ngay_mat_am'] = $data['ngay_mat'];
+        if (array_key_exists('tieu_su', $data)) $updateData['tieu_su'] = $data['tieu_su'];
+        if (array_key_exists('anh_dai_dien', $data)) $updateData['anh_dai_dien'] = $data['anh_dai_dien'];
+
+        DB::transaction(function () use ($id, $updateData, $data) {
+            if (!empty($updateData)) {
+                DB::table('thanh_viens')->where('id', $id)->update($updateData);
+            }
+            
+            if (array_key_exists('id_vo_chong', $data)) {
+                $this->dongBoQuanHeVoChong($id, $data['id_vo_chong']);
+            }
+            
+            if (array_key_exists('id_cha', $data) || array_key_exists('id_me', $data)) {
+                $chaCon = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'cha_con')->first();
+                $meCon = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'me_con')->first();
+                $idChaHienTai = $chaCon ? $chaCon->node_1_id : null;
+                $idMeHienTai = $meCon ? $meCon->node_1_id : null;
+                
+                $idChaMoi = array_key_exists('id_cha', $data) ? $data['id_cha'] : $idChaHienTai;
+                $idMeMoi = array_key_exists('id_me', $data) ? $data['id_me'] : $idMeHienTai;
+                $this->dongBoQuanHeChaMe($id, $idChaMoi, $idMeMoi);
+            }
         });
 
         return response()->json([
@@ -176,7 +217,7 @@ class NguoiController extends Controller
     {
         $data = $request->validated();
 
-        DB::table('nguois')->where('id', $data['id'])->delete();
+        DB::table('thanh_viens')->where('id', $data['id'])->delete();
 
         return response()->json([
             'success' => true,
@@ -191,7 +232,7 @@ class NguoiController extends Controller
 
         while ($currentId && isset($map[$currentId])) {
             $path[] = $currentId;
-            $currentId = $map[$currentId]->id_cha;
+            $currentId = $map[$currentId]['id_cha'];
 
             if (in_array($currentId, $path, true)) {
                 break;
@@ -201,39 +242,59 @@ class NguoiController extends Controller
         return $path;
     }
 
-    private function ganQuanHeVoChong(Collection $nguoiCollection): Collection
+    private function mapThanhVienToNguoi(Collection $thanhViens): Collection
     {
-        if ($nguoiCollection->isEmpty()) {
-            return $nguoiCollection;
+        if ($thanhViens->isEmpty()) {
+            return $thanhViens;
         }
 
-        $ids = $nguoiCollection->pluck('id');
-        $quanHeVoChong = DB::table('quan_hes')
-            ->where('loai', 'vo_chong')
-            ->whereIn('id_nguoi', $ids)
-            ->whereIn('id_nguoi_lien_quan', $ids)
+        $ids = $thanhViens->pluck('id');
+        
+        $quanHes = DB::table('quan_hes')
+            ->whereIn('node_1_id', $ids)
+            ->orWhereIn('node_2_id', $ids)
             ->get();
 
         $mapVoChong = [];
-        foreach ($quanHeVoChong as $quanHe) {
-            $mapVoChong[$quanHe->id_nguoi][] = (int) $quanHe->id_nguoi_lien_quan;
-            $mapVoChong[$quanHe->id_nguoi_lien_quan][] = (int) $quanHe->id_nguoi;
+        $mapCha = [];
+        $mapMe = [];
+
+        foreach ($quanHes as $quanHe) {
+            if ($quanHe->loai_quan_he === 'vo_chong') {
+                $mapVoChong[$quanHe->node_1_id][] = (int) $quanHe->node_2_id;
+                $mapVoChong[$quanHe->node_2_id][] = (int) $quanHe->node_1_id;
+            } elseif ($quanHe->loai_quan_he === 'cha_con') {
+                $mapCha[$quanHe->node_2_id] = (int) $quanHe->node_1_id;
+            } elseif ($quanHe->loai_quan_he === 'me_con') {
+                $mapMe[$quanHe->node_2_id] = (int) $quanHe->node_1_id;
+            }
         }
 
-        return $nguoiCollection->map(function ($nguoi) use ($mapVoChong) {
-            $nguoi->vo_chong_ids = array_values(array_unique($mapVoChong[$nguoi->id] ?? []));
-
-            return $nguoi;
+        return $thanhViens->map(function ($tv) use ($mapVoChong, $mapCha, $mapMe) {
+            return [
+                'id' => $tv->id,
+                'id_dong_ho' => $tv->dong_ho_id,
+                'ten_day_du' => $tv->ho_ten,
+                'gioi_tinh' => $tv->gioi_tinh,
+                'ngay_sinh' => $tv->ngay_sinh_duong,
+                'ngay_mat' => $tv->ngay_mat_am,
+                'da_mat' => $tv->tinh_trang_song === 'mat',
+                'id_cha' => $mapCha[$tv->id] ?? null,
+                'id_me' => $mapMe[$tv->id] ?? null,
+                'vo_chong_ids' => array_values(array_unique($mapVoChong[$tv->id] ?? [])),
+                'tieu_su' => $tv->tieu_su,
+                'anh_dai_dien' => $tv->anh_dai_dien,
+            ];
         });
     }
 
     private function dongBoQuanHeVoChong(int $idNguoi, $idVoChong): void
     {
         DB::table('quan_hes')
-            ->where('loai', 'vo_chong')
+            ->where('loai_quan_he', 'vo_chong')
             ->where(function ($query) use ($idNguoi) {
-                $query->where('id_nguoi', $idNguoi)
-                    ->orWhere('id_nguoi_lien_quan', $idNguoi);
+                $query->where('node_1_id', $idNguoi)
+                    ->orWhere('node_2_id', $idNguoi);
             })
             ->delete();
 
@@ -241,12 +302,44 @@ class NguoiController extends Controller
             return;
         }
 
+        // Always put smaller ID as node_1_id for vo_chong to avoid uniqueness issues,
+        // though uniqueness is ['node_1_id', 'node_2_id', 'loai_quan_he']
+        $node1 = min($idNguoi, $idVoChong);
+        $node2 = max($idNguoi, $idVoChong);
+
         DB::table('quan_hes')->insert([
-            'id_nguoi' => $idNguoi,
-            'id_nguoi_lien_quan' => $idVoChong,
-            'loai' => 'vo_chong',
+            'node_1_id' => $node1,
+            'node_2_id' => $node2,
+            'loai_quan_he' => 'vo_chong',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    private function dongBoQuanHeChaMe(int $idCon, $idCha, $idMe): void
+    {
+        DB::table('quan_hes')
+            ->where('node_2_id', $idCon)
+            ->whereIn('loai_quan_he', ['cha_con', 'me_con'])
+            ->delete();
+
+        if ($idCha) {
+            DB::table('quan_hes')->insert([
+                'node_1_id' => $idCha,
+                'node_2_id' => $idCon,
+                'loai_quan_he' => 'cha_con',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+        if ($idMe) {
+            DB::table('quan_hes')->insert([
+                'node_1_id' => $idMe,
+                'node_2_id' => $idCon,
+                'loai_quan_he' => 'me_con',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
     }
 }

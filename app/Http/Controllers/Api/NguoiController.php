@@ -58,65 +58,7 @@ class NguoiController extends Controller
                 continue;
             }
 
-            $path1 = $this->getPathToRoot($nguoi['id'], $map);
-            $path2 = $this->getPathToRoot($n['id'], $map);
-
-            $lcaId = null;
-            $dist1 = 0;
-            $dist2 = 0;
-
-            foreach ($path1 as $d1 => $p1) {
-                $d2 = array_search($p1, $path2, true);
-                if ($d2 !== false) {
-                    $lcaId = $p1;
-                    $dist1 = $d1;
-                    $dist2 = $d2;
-                    break;
-                }
-            }
-
-            $xungHo = 'Khong ro';
-            if ($lcaId) {
-                if ($dist1 === 0) {
-                    if ($dist2 === 1) {
-                        $xungHo = 'Con';
-                    } elseif ($dist2 === 2) {
-                        $xungHo = 'Chau';
-                    } elseif ($dist2 === 3) {
-                        $xungHo = 'Chat';
-                    } elseif ($dist2 === 4) {
-                        $xungHo = 'Chut';
-                    } elseif ($dist2 === 5) {
-                        $xungHo = 'Chit';
-                    } else {
-                        $xungHo = 'Hau due doi thu ' . $dist2;
-                    }
-                } elseif ($dist2 === 0) {
-                    if ($dist1 === 1) {
-                        $xungHo = $n['gioi_tinh'] === 'nam' ? 'Cha' : 'Me';
-                    } elseif ($dist1 === 2) {
-                        $xungHo = $n['gioi_tinh'] === 'nam' ? 'Ong' : 'Ba';
-                    } elseif ($dist1 === 3) {
-                        $xungHo = 'Cu';
-                    } elseif ($dist1 === 4) {
-                        $xungHo = 'Ky';
-                    } else {
-                        $xungHo = 'To tien doi thu ' . $dist1;
-                    }
-                } else {
-                    if ($dist1 === $dist2) {
-                        $xungHo = 'Anh/Chi/Em ho';
-                    } elseif ($dist1 > $dist2) {
-                        $diff = $dist1 - $dist2;
-                        $xungHo = $diff === 1
-                            ? ($n['gioi_tinh'] === 'nam' ? 'Chu/Bac/Cau' : 'Co/Di/Bac')
-                            : 'Ong/Ba ho';
-                    } else {
-                        $diff = $dist2 - $dist1;
-                        $xungHo = $diff === 1 ? 'Chau ho' : 'Chat/Chut ho';
-                    }
-                }
-            }
+            $xungHo = $this->tinhXungHoGiuaHaiNguoi($nguoi, $n, $map);
 
             $ketQuaQuanHe[] = [
                 'nguoi' => $n,
@@ -240,6 +182,224 @@ class NguoiController extends Controller
         }
 
         return $path;
+    }
+
+    private function tinhXungHoGiuaHaiNguoi(array $nguoi, array $nguoiKhac, array $map): string
+    {
+        if (in_array($nguoiKhac['id'], $nguoi['vo_chong_ids'] ?? [], true)) {
+            return $nguoi['gioi_tinh'] === 'nam' ? 'Vợ' : 'Chồng';
+        }
+
+        $distance = $this->getBloodDistance($nguoi['id'], $nguoiKhac['id'], $map);
+
+        if (!$distance) {
+            return $this->tinhVoChongCuaToTienTrucHe($nguoi, $nguoiKhac, $map)
+                ?? $this->tinhQuanHeThongGiaTrucHe($nguoi, $nguoiKhac, $map)
+                ?? 'Khong ro';
+        }
+
+        $dist1 = $distance['dA'];
+        $dist2 = $distance['dB'];
+
+        if ($dist1 === 0) {
+            if ($dist2 === 1) {
+                return 'Con';
+            } elseif ($dist2 === 2) {
+                return 'Chau';
+            } elseif ($dist2 === 3) {
+                return 'Chat';
+            } elseif ($dist2 === 4) {
+                return 'Chut';
+            } elseif ($dist2 === 5) {
+                return 'Chit';
+            }
+
+            return 'Hau due doi thu ' . $dist2;
+        }
+
+        if ($dist2 === 0) {
+            if ($dist1 === 1) {
+                return $nguoiKhac['gioi_tinh'] === 'nam' ? 'Cha' : 'Me';
+            } elseif ($dist1 === 2) {
+                return $nguoiKhac['gioi_tinh'] === 'nam' ? 'Ong' : 'Ba';
+            } elseif ($dist1 === 3) {
+                return 'Cu';
+            } elseif ($dist1 === 4) {
+                return 'Ky';
+            }
+
+            return 'To tien doi thu ' . $dist1;
+        }
+
+        if ($dist1 === $dist2) {
+            return 'Anh/Chi/Em ho';
+        }
+
+        if ($dist1 > $dist2) {
+            $diff = $dist1 - $dist2;
+
+            return $diff === 1
+                ? ($nguoiKhac['gioi_tinh'] === 'nam' ? 'Chu/Bac/Cau' : 'Co/Di/Bac')
+                : 'Ong/Ba ho';
+        }
+
+        $diff = $dist2 - $dist1;
+
+        return $diff === 1 ? 'Chau ho' : 'Chat/Chut ho';
+    }
+
+    private function getBloodDistance($idA, $idB, array $map): ?array
+    {
+        $ancestorsA = $this->getAncestorDistances($idA, $map);
+        $ancestorsB = $this->getAncestorDistances($idB, $map);
+        $best = null;
+
+        foreach ($ancestorsA as $ancestorId => $dA) {
+            if (!array_key_exists($ancestorId, $ancestorsB)) {
+                continue;
+            }
+
+            $dB = $ancestorsB[$ancestorId];
+            if (!$best || $dA + $dB < $best['dA'] + $best['dB']) {
+                $best = [
+                    'lcaId' => $ancestorId,
+                    'dA' => $dA,
+                    'dB' => $dB,
+                ];
+            }
+        }
+
+        return $best;
+    }
+
+    private function getAncestorDistances($id, array $map): array
+    {
+        $distances = [];
+        $queue = [['id' => $id, 'distance' => 0]];
+
+        while ($queue) {
+            $current = array_shift($queue);
+            $currentId = $current['id'];
+
+            if (!$currentId || isset($distances[$currentId]) || !isset($map[$currentId])) {
+                continue;
+            }
+
+            $distances[$currentId] = $current['distance'];
+            foreach ([$map[$currentId]['id_cha'], $map[$currentId]['id_me']] as $parentId) {
+                if ($parentId) {
+                    $queue[] = [
+                        'id' => $parentId,
+                        'distance' => $current['distance'] + 1,
+                    ];
+                }
+            }
+        }
+
+        return $distances;
+    }
+
+    private function tinhVoChongCuaToTienTrucHe(array $nguoi, array $nguoiKhac, array $map): ?string
+    {
+        foreach ($nguoiKhac['vo_chong_ids'] ?? [] as $idVoChongNguoiKhac) {
+            $voChongNguoiKhac = $map[$idVoChongNguoiKhac] ?? null;
+            if (!$voChongNguoiKhac) {
+                continue;
+            }
+
+            $distance = $this->getBloodDistance($nguoi['id'], $voChongNguoiKhac['id'], $map);
+            if (($distance['dB'] ?? null) === 0 && ($distance['dA'] ?? 0) >= 1) {
+                return $this->ancestorLabel($nguoiKhac, $distance['dA']);
+            }
+        }
+
+        foreach ($nguoi['vo_chong_ids'] ?? [] as $idVoChongNguoi) {
+            $voChongNguoi = $map[$idVoChongNguoi] ?? null;
+            if (!$voChongNguoi) {
+                continue;
+            }
+
+            $distance = $this->getBloodDistance($nguoiKhac['id'], $voChongNguoi['id'], $map);
+            if (($distance['dB'] ?? null) === 0 && ($distance['dA'] ?? 0) >= 1) {
+                return $this->descendantLabel($distance['dA']);
+            }
+        }
+
+        return null;
+    }
+
+    private function tinhQuanHeThongGiaTrucHe(array $nguoi, array $nguoiKhac, array $map): ?string
+    {
+        foreach ($nguoiKhac['vo_chong_ids'] ?? [] as $idVoChongNguoiKhac) {
+            $voChongNguoiKhac = $map[$idVoChongNguoiKhac] ?? null;
+            if (!$voChongNguoiKhac) {
+                continue;
+            }
+
+            $distance = $this->getBloodDistance($nguoi['id'], $voChongNguoiKhac['id'], $map);
+            if (($distance['dA'] ?? null) === 0 && ($distance['dB'] ?? null) === 1) {
+                return $this->childInLawLabel($voChongNguoiKhac) . ' của ' . $nguoi['ten_day_du'];
+            }
+        }
+
+        foreach ($nguoi['vo_chong_ids'] ?? [] as $idVoChongNguoi) {
+            $voChongNguoi = $map[$idVoChongNguoi] ?? null;
+            if (!$voChongNguoi) {
+                continue;
+            }
+
+            $distance = $this->getBloodDistance($nguoiKhac['id'], $voChongNguoi['id'], $map);
+            if (($distance['dA'] ?? null) === 0 && ($distance['dB'] ?? null) === 1) {
+                return $this->parentInLawLabel($nguoiKhac, $voChongNguoi) . ' của ' . $nguoi['ten_day_du'];
+            }
+        }
+
+        return null;
+    }
+
+    private function parentInLawLabel(array $parent, array $spouse): string
+    {
+        $parentLabel = $parent['gioi_tinh'] === 'nam' ? 'cha' : 'mẹ';
+        $side = $spouse['gioi_tinh'] === 'nam' ? 'chồng' : 'vợ';
+
+        return $parentLabel . ' ' . $side;
+    }
+
+    private function childInLawLabel(array $spouse): string
+    {
+        return $spouse['gioi_tinh'] === 'nam' ? 'con dâu' : 'con rể';
+    }
+
+    private function ancestorLabel(array $person, int $distance): string
+    {
+        if ($distance === 1) {
+            return $person['gioi_tinh'] === 'nam' ? 'Cha' : 'Me';
+        } elseif ($distance === 2) {
+            return $person['gioi_tinh'] === 'nam' ? 'Ong' : 'Ba';
+        } elseif ($distance === 3) {
+            return 'Cu';
+        } elseif ($distance === 4) {
+            return 'Ky';
+        }
+
+        return 'To tien doi thu ' . $distance;
+    }
+
+    private function descendantLabel(int $distance): string
+    {
+        if ($distance === 1) {
+            return 'Con';
+        } elseif ($distance === 2) {
+            return 'Chau';
+        } elseif ($distance === 3) {
+            return 'Chat';
+        } elseif ($distance === 4) {
+            return 'Chut';
+        } elseif ($distance === 5) {
+            return 'Chit';
+        }
+
+        return 'Hau due doi thu ' . $distance;
     }
 
     private function mapThanhVienToNguoi(Collection $thanhViens): Collection

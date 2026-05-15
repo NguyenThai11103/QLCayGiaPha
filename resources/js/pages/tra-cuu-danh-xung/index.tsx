@@ -17,11 +17,134 @@ function getPathToRoot(id: number, map: Map<number, Nguoi>): number[] {
     return path;
 }
 
+function getAncestorDistances(id: number, map: Map<number, Nguoi>): Map<number, number> {
+    const distances = new Map<number, number>();
+    const queue: Array<{ id: number; distance: number }> = [{ id, distance: 0 }];
+
+    while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (distances.has(current.id) || !map.has(current.id)) continue;
+
+        distances.set(current.id, current.distance);
+        const person = map.get(current.id)!;
+        const parents = [person.id_cha, person.id_me].filter((parentId): parentId is number => parentId != null);
+
+        for (const parentId of parents) {
+            queue.push({ id: parentId, distance: current.distance + 1 });
+        }
+    }
+
+    return distances;
+}
+
+function getBloodDistance(aId: number, bId: number, map: Map<number, Nguoi>) {
+    const ancestorsA = getAncestorDistances(aId, map);
+    const ancestorsB = getAncestorDistances(bId, map);
+    let best: { lcaId: number; dA: number; dB: number } | null = null;
+
+    for (const [ancestorId, dA] of ancestorsA) {
+        const dB = ancestorsB.get(ancestorId);
+        if (dB == null) continue;
+
+        if (!best || dA + dB < best.dA + best.dB) {
+            best = { lcaId: ancestorId, dA, dB };
+        }
+    }
+
+    return best;
+}
+
 interface KinshipResult {
     loai: string;           // e.g. "Huyết thống", "Hôn nhân", ...
     aTuongQuanB: string;    // A gọi B là ...
     bTuongQuanA: string;    // B gọi A là ...
     buoc: string[];         // path explanation
+}
+
+function parentLabel(person: Nguoi): string {
+    return person.gioi_tinh === 'nam' ? 'Cha' : 'Mẹ';
+}
+
+function spouseLabel(person: Nguoi): string {
+    return person.gioi_tinh === 'nam' ? 'chồng' : 'vợ';
+}
+
+function parentInLawLabel(parent: Nguoi, spouse: Nguoi): string {
+    const side = spouse.gioi_tinh === 'nam' ? 'chồng' : 'vợ';
+    return `${parentLabel(parent).toLowerCase()} ${side}`;
+}
+
+function childInLawLabel(spouse: Nguoi): string {
+    return spouse.gioi_tinh === 'nam' ? 'con dâu' : 'con rể';
+}
+
+function directAncestorLabel(person: Nguoi, distance: number): string {
+    if (distance === 1) return parentLabel(person);
+    if (distance === 2) return person.gioi_tinh === 'nam' ? 'Ông' : 'Bà';
+    if (distance === 3) return 'Cụ';
+    if (distance === 4) return 'Kỵ';
+    return `Tổ tiên đời ${distance}`;
+}
+
+function directDescendantLabel(distance: number): string {
+    if (distance === 1) return 'Con';
+    if (distance === 2) return 'Cháu';
+    if (distance === 3) return 'Chắt';
+    if (distance === 4) return 'Chút';
+    if (distance === 5) return 'Chít';
+    return `Hậu duệ đời ${distance}`;
+}
+
+function computeDirectInLaw(a: Nguoi, b: Nguoi, map: Map<number, Nguoi>): KinshipResult | null {
+    for (const spouseId of b.vo_chong_ids || []) {
+        const spouse = map.get(spouseId);
+        if (!spouse) continue;
+
+        const distance = getBloodDistance(a.id, spouse.id, map);
+        if (distance?.dA === 0 && distance.dB === 1) {
+            return {
+                loai: 'Hôn nhân - Huyết thống',
+                aTuongQuanB: `${childInLawLabel(spouse)} của ${a.ten_day_du}`,
+                bTuongQuanA: `${parentInLawLabel(a, spouse)} của ${b.ten_day_du}`,
+                buoc: [`${a.ten_day_du} là ${parentLabel(a).toLowerCase()} của ${spouse.ten_day_du} (${spouseLabel(spouse)} của ${b.ten_day_du}).`],
+            };
+        }
+
+        if (distance?.dB === 0 && distance.dA >= 1) {
+            return {
+                loai: 'Hôn nhân - Huyết thống',
+                aTuongQuanB: directAncestorLabel(b, distance.dA),
+                bTuongQuanA: directDescendantLabel(distance.dA),
+                buoc: [`${b.ten_day_du} là ${spouseLabel(b)} của ${spouse.ten_day_du}, tổ tiên đời ${distance.dA} của ${a.ten_day_du}.`],
+            };
+        }
+    }
+
+    for (const spouseId of a.vo_chong_ids || []) {
+        const spouse = map.get(spouseId);
+        if (!spouse) continue;
+
+        const distance = getBloodDistance(b.id, spouse.id, map);
+        if (distance?.dA === 0 && distance.dB === 1) {
+            return {
+                loai: 'Hôn nhân - Huyết thống',
+                aTuongQuanB: `${parentInLawLabel(b, spouse)} của ${a.ten_day_du}`,
+                bTuongQuanA: `${childInLawLabel(spouse)} của ${b.ten_day_du}`,
+                buoc: [`${b.ten_day_du} là ${parentLabel(b).toLowerCase()} của ${spouse.ten_day_du} (${spouseLabel(spouse)} của ${a.ten_day_du}).`],
+            };
+        }
+
+        if (distance?.dB === 0 && distance.dA >= 1) {
+            return {
+                loai: 'Hôn nhân - Huyết thống',
+                aTuongQuanB: directDescendantLabel(distance.dA),
+                bTuongQuanA: directAncestorLabel(a, distance.dA),
+                buoc: [`${a.ten_day_du} là ${spouseLabel(a)} của ${spouse.ten_day_du}, tổ tiên đời ${distance.dA} của ${b.ten_day_du}.`],
+            };
+        }
+    }
+
+    return null;
 }
 
 function tinhDanhXung(a: Nguoi, b: Nguoi, allPeople: Nguoi[]): KinshipResult {
@@ -37,37 +160,12 @@ function tinhDanhXung(a: Nguoi, b: Nguoi, allPeople: Nguoi[]): KinshipResult {
         };
     }
 
-    const pathA = getPathToRoot(a.id, map);
-    const pathB = getPathToRoot(b.id, map);
+    const bloodDistance = getBloodDistance(a.id, b.id, map);
 
-    // LCA
-    let lcaId: number | null = null;
-    let dA = 0, dB = 0;
-    for (let i = 0; i < pathA.length; i++) {
-        const j = pathB.indexOf(pathA[i]);
-        if (j !== -1) { lcaId = pathA[i]; dA = i; dB = j; break; }
-    }
+    if (bloodDistance == null) {
+        const inLawResult = computeDirectInLaw(a, b, map);
+        if (inLawResult) return inLawResult;
 
-    if (lcaId == null) {
-        // Check spouse's ancestor path
-        const spouseB = (b.vo_chong_ids || []).map((sid) => map.get(sid)).filter(Boolean) as Nguoi[];
-        for (const sp of spouseB) {
-            const pathSp = getPathToRoot(sp.id, map);
-            for (let i = 0; i < pathA.length; i++) {
-                const j = pathSp.indexOf(pathA[i]);
-                if (j !== -1) {
-                    lcaId = pathA[i]; dA = i; dB = j;
-                    const spLabel = sp.gioi_tinh === 'nam' ? 'chồng' : 'vợ';
-                    const rel = computeBlood(a, sp, dA, dB);
-                    return {
-                        loai: 'Hôn nhân - Huyết thống',
-                        aTuongQuanB: `${rel.aTuongQuanB} của ${spLabel} ${b.ten_day_du}`,
-                        bTuongQuanA: `${spLabel} của ${rel.bTuongQuanA}`,
-                        buoc: [`${a.ten_day_du} là ${rel.aTuongQuanB} của ${sp.ten_day_du} (${spLabel} của ${b.ten_day_du}).`],
-                    };
-                }
-            }
-        }
         return {
             loai: 'Không xác định',
             aTuongQuanB: '—',
@@ -76,6 +174,7 @@ function tinhDanhXung(a: Nguoi, b: Nguoi, allPeople: Nguoi[]): KinshipResult {
         };
     }
 
+    const { lcaId, dA, dB } = bloodDistance;
     const result = computeBlood(a, b, dA, dB);
     const lcaName = map.get(lcaId)?.ten_day_du || '';
     const buoc: string[] = [];
@@ -95,18 +194,18 @@ function computeBlood(a: Nguoi, b: Nguoi, dA: number, dB: number): Pick<KinshipR
 
     // A là tổ tiên của B
     if (dA === 0) {
-        if (dB === 1) return { loai: 'Trực hệ', aTuongQuanB: 'Con', bTuongQuanA: gB === 'nam' ? 'Cha' : 'Mẹ' };
-        if (dB === 2) return { loai: 'Trực hệ', aTuongQuanB: 'Cháu', bTuongQuanA: gB === 'nam' ? 'Ông' : 'Bà' };
-        if (dB === 3) return { loai: 'Trực hệ', aTuongQuanB: 'Chắt', bTuongQuanA: gB === 'nam' ? 'Cụ' : 'Cụ' };
+        if (dB === 1) return { loai: 'Trực hệ', aTuongQuanB: 'Con', bTuongQuanA: gA === 'nam' ? 'Cha' : 'Mẹ' };
+        if (dB === 2) return { loai: 'Trực hệ', aTuongQuanB: 'Cháu', bTuongQuanA: gA === 'nam' ? 'Ông' : 'Bà' };
+        if (dB === 3) return { loai: 'Trực hệ', aTuongQuanB: 'Chắt', bTuongQuanA: 'Cụ' };
         if (dB === 4) return { loai: 'Trực hệ', aTuongQuanB: 'Chút', bTuongQuanA: 'Kỵ' };
         return { loai: 'Trực hệ', aTuongQuanB: `Hậu duệ đời ${dB}`, bTuongQuanA: `Tổ tiên đời ${dB}` };
     }
 
     // B là tổ tiên của A
     if (dB === 0) {
-        if (dA === 1) return { loai: 'Trực hệ', aTuongQuanB: gA === 'nam' ? 'Cha' : 'Mẹ', bTuongQuanA: 'Con' };
-        if (dA === 2) return { loai: 'Trực hệ', aTuongQuanB: gA === 'nam' ? 'Ông' : 'Bà', bTuongQuanA: 'Cháu' };
-        if (dA === 3) return { loai: 'Trực hệ', aTuongQuanB: gA === 'nam' ? 'Cụ' : 'Cụ', bTuongQuanA: 'Chắt' };
+        if (dA === 1) return { loai: 'Trực hệ', aTuongQuanB: gB === 'nam' ? 'Cha' : 'Mẹ', bTuongQuanA: 'Con' };
+        if (dA === 2) return { loai: 'Trực hệ', aTuongQuanB: gB === 'nam' ? 'Ông' : 'Bà', bTuongQuanA: 'Cháu' };
+        if (dA === 3) return { loai: 'Trực hệ', aTuongQuanB: 'Cụ', bTuongQuanA: 'Chắt' };
         if (dA === 4) return { loai: 'Trực hệ', aTuongQuanB: 'Kỵ', bTuongQuanA: 'Chút' };
         return { loai: 'Trực hệ', aTuongQuanB: `Tổ tiên đời ${dA}`, bTuongQuanA: `Hậu duệ đời ${dA}` };
     }

@@ -10,9 +10,12 @@ return new class extends Migration
     {
         Schema::create('quan_hes', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_nguoi')->constrained('nguois')->cascadeOnDelete();
-            $table->foreignId('id_nguoi_lien_quan')->constrained('nguois')->cascadeOnDelete();
-            $table->string('loai');
+            $table->foreignId('node_1_id')->constrained('thanh_viens')->cascadeOnDelete();
+            $table->foreignId('node_2_id')->constrained('thanh_viens')->cascadeOnDelete();
+            $table->string('loai_quan_he', 50);
+            $table->string('tinh_chat_quan_he', 50)->nullable();
+            $table->string('tinh_trang_hon_nhan', 50)->nullable();
+            $table->unique(['node_1_id', 'node_2_id', 'loai_quan_he']);
             $table->timestamps();
         });
     }

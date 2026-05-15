@@ -10,12 +10,14 @@ return new class extends Migration
     {
         Schema::create('su_kiens', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('id_dong_ho')->constrained('dong_hos')->cascadeOnDelete();
-            $table->string('tieu_de');
-            $table->text('noi_dung')->nullable();
-            $table->date('ngay_dien_ra')->nullable();
+            $table->foreignId('dong_ho_id')->constrained('dong_hos')->cascadeOnDelete();
+            $table->string('ten_su_kien');
+            $table->string('loai_su_kien')->nullable();
+            $table->date('ngay_duong')->nullable();
+            $table->date('ngay_am')->nullable();
+            $table->boolean('lap_lai_hang_nam')->default(false);
             $table->string('dia_diem')->nullable();
-            $table->foreignId('id_nguoi_tao')->nullable()->constrained('tai_khoans')->nullOnDelete();
+            $table->text('mo_ta')->nullable();
             $table->timestamps();
         });
     }

@@ -22,9 +22,9 @@ class CreateNguoiRequest extends FormRequest
             'ngay_sinh' => 'nullable|date',
             'da_mat' => 'required|boolean',
             'ngay_mat' => 'nullable|date',
-            'id_cha' => 'nullable|integer|exists:nguois,id',
-            'id_me' => 'nullable|integer|exists:nguois,id',
-            'id_vo_chong' => 'nullable|integer|exists:nguois,id',
+            'id_cha' => 'nullable|integer|exists:thanh_viens,id',
+            'id_me' => 'nullable|integer|exists:thanh_viens,id',
+            'id_vo_chong' => 'nullable|integer|exists:thanh_viens,id',
             'tieu_su' => 'nullable|string',
             'anh_dai_dien' => 'nullable|string',
         ];
@@ -46,9 +46,9 @@ class CreateNguoiRequest extends FormRequest
             }
 
             if ($idVoChong) {
-                $nguoiVoChong = DB::table('nguois')->where('id', $idVoChong)->first();
+                $nguoiVoChong = DB::table('thanh_viens')->where('id', $idVoChong)->first();
 
-                if ($nguoiVoChong && (int) $nguoiVoChong->id_dong_ho !== (int) $this->input('id_dong_ho')) {
+                if ($nguoiVoChong && (int) $nguoiVoChong->dong_ho_id !== (int) $this->input('id_dong_ho')) {
                     $validator->errors()->add('id_vo_chong', 'Vo chong phai thuoc cung dong ho de hien thi trong cay.');
                 }
 
@@ -73,22 +73,30 @@ class CreateNguoiRequest extends FormRequest
             }
 
             $daXem[$idHienTai] = true;
-            $nguoi = DB::table('nguois')->select('id_cha', 'id_me')->where('id', $idHienTai)->first();
+            
+            $chaCon = DB::table('quan_hes')
+                ->where('node_2_id', $idHienTai)
+                ->where('loai_quan_he', 'cha_con')
+                ->first();
+                
+            $meCon = DB::table('quan_hes')
+                ->where('node_2_id', $idHienTai)
+                ->where('loai_quan_he', 'me_con')
+                ->first();
 
-            if (!$nguoi) {
-                continue;
-            }
+            $idCha = $chaCon ? (int) $chaCon->node_1_id : null;
+            $idMe = $meCon ? (int) $meCon->node_1_id : null;
 
-            if ((int) $nguoi->id_cha === $idToTien || (int) $nguoi->id_me === $idToTien) {
+            if ($idCha === $idToTien || $idMe === $idToTien) {
                 return true;
             }
 
-            if ($nguoi->id_cha) {
-                $hangDoi[] = (int) $nguoi->id_cha;
+            if ($idCha) {
+                $hangDoi[] = $idCha;
             }
 
-            if ($nguoi->id_me) {
-                $hangDoi[] = (int) $nguoi->id_me;
+            if ($idMe) {
+                $hangDoi[] = $idMe;
             }
         }
 
@@ -98,10 +106,10 @@ class CreateNguoiRequest extends FormRequest
     private function nguoiDaCoVoChong(int|string $idNguoi): bool
     {
         return DB::table('quan_hes')
-            ->where('loai', 'vo_chong')
+            ->where('loai_quan_he', 'vo_chong')
             ->where(function ($query) use ($idNguoi) {
-                $query->where('id_nguoi', $idNguoi)
-                    ->orWhere('id_nguoi_lien_quan', $idNguoi);
+                $query->where('node_1_id', $idNguoi)
+                    ->orWhere('node_2_id', $idNguoi);
             })
             ->exists();
     }

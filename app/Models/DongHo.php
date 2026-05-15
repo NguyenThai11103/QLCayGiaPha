@@ -14,27 +14,40 @@ class DongHo extends Model
     protected $fillable = [
         'ten_dong_ho',
         'mo_ta',
+        'dia_chi_tu_duong',
+        'thuy_to_id',
+        'nguoi_tao',
     ];
 
-    public function nguois()
+    // ─── Relationships ─────────────────────────────────────────────────────────
+
+    public function thuyTo()
     {
-        return $this->hasMany(Nguoi::class, 'id_dong_ho');
+        return $this->belongsTo(ThanhVien::class, 'thuy_to_id');
     }
 
-    public function taiKhoans()
+    public function nguoiTao()
     {
-        return $this->belongsToMany(TaiKhoan::class, 'dong_ho_tai_khoans', 'id_dong_ho', 'id_tai_khoan')
-            ->withPivot('vai_tro')
-            ->withTimestamps();
+        return $this->belongsTo(NguoiDung::class, 'nguoi_tao');
+    }
+
+    public function thanhViens()
+    {
+        return $this->hasMany(ThanhVien::class, 'dong_ho_id');
     }
 
     public function suKiens()
     {
-        return $this->hasMany(SuKien::class, 'id_dong_ho');
+        return $this->hasMany(SuKien::class, 'dong_ho_id');
     }
 
-    public function tepTins()
+    public function taiLieus()
     {
-        return $this->hasMany(TepTin::class, 'id_dong_ho');
+        return $this->hasMany(TaiLieu::class, 'dong_ho_id');
+    }
+
+    public function cacheXungHos()
+    {
+        return $this->hasMany(CacheXungHo::class, 'dong_ho_id');
     }
 }

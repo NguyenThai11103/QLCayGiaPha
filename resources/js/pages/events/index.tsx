@@ -17,10 +17,10 @@
  * (e.g. vn-lunar-calendar) and populate `lunarDate` server-side.
  */
 
-import { Head, router } from "@inertiajs/react";
-import React, { useState, useMemo } from "react";
-import IconBase from "../../components/gia-pha/Icon";
-import AuthenticatedLayout from "../../layouts/AuthenticatedLayout";
+import { Head, router } from '@inertiajs/react';
+import React, { useMemo, useState } from 'react';
+import IconBase from '../../components/gia-pha/Icon';
+import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
 
 // ============================================================
 // External shared modules — adjust import paths to your codebase
@@ -35,19 +35,19 @@ const Icon: React.FC<{
     size?: number;
     color?: string;
     strokeWidth?: number;
-}> = ({ name, ...props }) => <IconBase name={name as React.ComponentProps<typeof IconBase>["name"]} {...props} />;
+}> = ({ name, ...props }) => <IconBase name={name as React.ComponentProps<typeof IconBase>['name']} {...props} />;
 
 // ============================================================
 // Types
 // ============================================================
 export type EventType =
-    | "anniversary"  // Lễ giỗ
-    | "wedding"      // Lễ cưới
-    | "ceremony"     // Lễ truyền thống
-    | "longevity"    // Mừng thọ
-    | "birthday";    // Đầy tháng / Sinh nhật
+    | 'anniversary' // Lễ giỗ
+    | 'wedding' // Lễ cưới
+    | 'ceremony' // Lễ truyền thống
+    | 'longevity' // Mừng thọ
+    | 'birthday'; // Đầy tháng / Sinh nhật
 
-export type RsvpStatus = "going" | "maybe" | "declined" | "pending";
+export type RsvpStatus = 'going' | 'maybe' | 'declined' | 'pending';
 
 export interface FamilyEvent {
     id: string;
@@ -73,7 +73,7 @@ export interface Member {
     id: string;
     name: string;
     short: string;
-    gender: "M" | "F";
+    gender: 'M' | 'F';
     birth: number;
     death: number | null;
     gen: number;
@@ -94,24 +94,24 @@ export interface EventsPageProps {
 }
 
 const MEMBERS: Member[] = [
-    { id: "m1", name: "Nguyễn Văn Trường", short: "NVT", gender: "M", birth: 1850, death: 1920, gen: 1, parents: [], spouse: "m2", title: "Cụ Tổ" },
-    { id: "m2", name: "Trần Thị Lan", short: "TTL", gender: "F", birth: 1855, death: 1925, gen: 1, parents: [], spouse: "m1", title: "Cụ Bà" },
-    { id: "m13", name: "Nguyễn Văn Tùng", short: "NVT", gender: "M", birth: 1942, death: 2018, gen: 4, parents: [], spouse: null, title: "Ông" },
-    { id: "m15", name: "Nguyễn Văn Quang", short: "NVQ", gender: "M", birth: 1945, death: null, gen: 4, parents: [], spouse: null, title: "Ông" },
-    { id: "m23", name: "Nguyễn Minh Anh", short: "NMA", gender: "F", birth: 1995, death: null, gen: 6, parents: [], spouse: null, me: true },
-    { id: "m24", name: "Nguyễn Đức Long", short: "NĐL", gender: "M", birth: 1998, death: null, gen: 6, parents: [], spouse: null },
+    { id: 'm1', name: 'Nguyễn Văn Trường', short: 'NVT', gender: 'M', birth: 1850, death: 1920, gen: 1, parents: [], spouse: 'm2', title: 'Cụ Tổ' },
+    { id: 'm2', name: 'Trần Thị Lan', short: 'TTL', gender: 'F', birth: 1855, death: 1925, gen: 1, parents: [], spouse: 'm1', title: 'Cụ Bà' },
+    { id: 'm13', name: 'Nguyễn Văn Tùng', short: 'NVT', gender: 'M', birth: 1942, death: 2018, gen: 4, parents: [], spouse: null, title: 'Ông' },
+    { id: 'm15', name: 'Nguyễn Văn Quang', short: 'NVQ', gender: 'M', birth: 1945, death: null, gen: 4, parents: [], spouse: null, title: 'Ông' },
+    { id: 'm23', name: 'Nguyễn Minh Anh', short: 'NMA', gender: 'F', birth: 1995, death: null, gen: 6, parents: [], spouse: null, me: true },
+    { id: 'm24', name: 'Nguyễn Đức Long', short: 'NĐL', gender: 'M', birth: 1998, death: null, gen: 6, parents: [], spouse: null },
 ];
 
 const BY_ID: Record<string, Member> = Object.fromEntries(MEMBERS.map((member) => [member.id, member]));
 
 function avatarGrad(seed: number): string {
     const palettes = [
-        ["#B8902C", "#5C3A1E"],
-        ["#2F5D3A", "#4A7A52"],
-        ["#B4502E", "#8A3A1E"],
-        ["#8A6F3F", "#5C4A2E"],
-        ["#9B6B2E", "#D4AF55"],
-        ["#4A7A52", "#2F5D3A"],
+        ['#B8902C', '#5C3A1E'],
+        ['#2F5D3A', '#4A7A52'],
+        ['#B4502E', '#8A3A1E'],
+        ['#8A6F3F', '#5C4A2E'],
+        ['#9B6B2E', '#D4AF55'],
+        ['#4A7A52', '#2F5D3A'],
     ];
     const palette = palettes[Math.abs(seed) % palettes.length];
     return `linear-gradient(135deg, ${palette[0]}, ${palette[1]})`;
@@ -124,41 +124,150 @@ interface EventTypeMeta {
     label: string;
     icon: string;
     /** CSS custom-property suffix (e.g. "brown" → var(--brown)) */
-    color: "brown" | "terracotta" | "jade" | "gold" | "crimson";
+    color: 'brown' | 'terracotta' | 'jade' | 'gold' | 'crimson';
 }
 
 const EVENT_META: Record<EventType, EventTypeMeta> = {
-    anniversary: { label: "Lễ giỗ", icon: "scroll", color: "brown" },
-    wedding: { label: "Lễ cưới", icon: "heart", color: "terracotta" },
-    ceremony: { label: "Lễ truyền thống", icon: "lotus", color: "jade" },
-    longevity: { label: "Mừng thọ", icon: "sparkle", color: "gold" },
-    birthday: { label: "Đầy tháng / Sinh nhật", icon: "users", color: "crimson" },
+    anniversary: { label: 'Lễ giỗ', icon: 'scroll', color: 'brown' },
+    wedding: { label: 'Lễ cưới', icon: 'heart', color: 'terracotta' },
+    ceremony: { label: 'Lễ truyền thống', icon: 'lotus', color: 'jade' },
+    longevity: { label: 'Mừng thọ', icon: 'sparkle', color: 'gold' },
+    birthday: { label: 'Đầy tháng / Sinh nhật', icon: 'users', color: 'crimson' },
 };
 
 // ============================================================
 // Sample event data — replace in production
 // ============================================================
 const EVENTS_2026: FamilyEvent[] = [
-    { id: "e1", date: "2026-03-27", lunarDate: "15 tháng 3 ÂL", title: "Giỗ Tổ — Cụ Nguyễn Văn Trường (176 năm)", type: "anniversary", honoreeId: "m1", location: "Từ đường Tiên Điền, Hà Tĩnh", attendees: 47, rsvpStatus: "going", pinned: true, description: "Lễ giỗ Tổ năm thứ 176 — toàn họ tụ hội. Trưởng họ Ông Nguyễn Văn Quang chủ tế. Cỗ chay 12 mâm, cỗ mặn 8 mâm." },
-    { id: "e2", date: "2026-04-20", title: "Lễ cưới — Nguyễn Đức Long & Phạm Thúy Quỳnh", type: "wedding", honoreeId: "m24", location: "Trung tâm Tiệc cưới Bến Thành, Hà Nội", attendees: 120, rsvpStatus: "going", description: "Đại diện họ Nguyễn: Ông Bác Nguyễn Văn Hải. Lễ rước dâu lúc 9:30." },
-    { id: "e3", date: "2026-05-15", lunarDate: "29 tháng 3 ÂL", title: "Mừng thọ Ông Nguyễn Văn Quang — 81 tuổi", type: "longevity", honoreeId: "m15", location: "Nhà thờ tổ, Tiên Điền", attendees: 38, rsvpStatus: "going", description: "Mừng thọ bát tuần. Mời cụ ngồi ghế thất phẩm, con cháu mừng tuổi đỏ." },
-    { id: "e4", date: "2026-05-25", lunarDate: "10 tháng 4 ÂL", title: "Giỗ Cụ Bà Trần Thị Lan", type: "anniversary", honoreeId: "m2", location: "Từ đường Tiên Điền", attendees: 35, rsvpStatus: "going" },
-    { id: "e5", date: "2026-06-19", lunarDate: "5 tháng 5 ÂL", title: "Lễ Đoan Ngọ — Diệt sâu bọ", type: "ceremony", location: "Từ đường Tiên Điền", attendees: 22, rsvpStatus: "maybe" },
-    { id: "e6", date: "2026-08-26", lunarDate: "14 tháng 7 ÂL", title: "Lễ Vu Lan — Báo hiếu cha mẹ", type: "ceremony", location: "Chùa Hương Tích", attendees: 80, rsvpStatus: "going", pinned: true },
-    { id: "e7", date: "2026-09-25", lunarDate: "15 tháng 8 ÂL", title: "Tết Trung Thu — Họp mặt trẻ em họ Nguyễn", type: "ceremony", location: "Sân nhà thờ tổ", attendees: 65, rsvpStatus: "going" },
-    { id: "e8", date: "2026-10-12", title: "Đầy tháng cháu Nguyễn Bảo Nhi", type: "birthday", hostId: "m23", location: "Hà Nội", attendees: 25, rsvpStatus: "going", description: "Con đầu lòng của vợ chồng Minh Anh và Bảo Khang." },
-    { id: "e9", date: "2026-11-24", lunarDate: "15 tháng 10 ÂL", title: "Giỗ Ông Nguyễn Văn Tùng (8 năm)", type: "anniversary", honoreeId: "m13", location: "Từ đường Tiên Điền", attendees: 28, rsvpStatus: "going" },
-    { id: "e10", date: "2026-12-25", title: "Họp mặt cuối năm — Toàn Phái Cả", type: "ceremony", location: "Tiên Điền + livestream", attendees: 95, rsvpStatus: "pending" },
+    {
+        id: 'e1',
+        date: '2026-03-27',
+        lunarDate: '15 tháng 3 ÂL',
+        title: 'Giỗ Tổ — Cụ Nguyễn Văn Trường (176 năm)',
+        type: 'anniversary',
+        honoreeId: 'm1',
+        location: 'Từ đường Tiên Điền, Hà Tĩnh',
+        attendees: 47,
+        rsvpStatus: 'going',
+        pinned: true,
+        description: 'Lễ giỗ Tổ năm thứ 176 — toàn họ tụ hội. Trưởng họ Ông Nguyễn Văn Quang chủ tế. Cỗ chay 12 mâm, cỗ mặn 8 mâm.',
+    },
+    {
+        id: 'e2',
+        date: '2026-04-20',
+        title: 'Lễ cưới — Nguyễn Đức Long & Phạm Thúy Quỳnh',
+        type: 'wedding',
+        honoreeId: 'm24',
+        location: 'Trung tâm Tiệc cưới Bến Thành, Hà Nội',
+        attendees: 120,
+        rsvpStatus: 'going',
+        description: 'Đại diện họ Nguyễn: Ông Bác Nguyễn Văn Hải. Lễ rước dâu lúc 9:30.',
+    },
+    {
+        id: 'e3',
+        date: '2026-05-15',
+        lunarDate: '29 tháng 3 ÂL',
+        title: 'Mừng thọ Ông Nguyễn Văn Quang — 81 tuổi',
+        type: 'longevity',
+        honoreeId: 'm15',
+        location: 'Nhà thờ tổ, Tiên Điền',
+        attendees: 38,
+        rsvpStatus: 'going',
+        description: 'Mừng thọ bát tuần. Mời cụ ngồi ghế thất phẩm, con cháu mừng tuổi đỏ.',
+    },
+    {
+        id: 'e4',
+        date: '2026-05-25',
+        lunarDate: '10 tháng 4 ÂL',
+        title: 'Giỗ Cụ Bà Trần Thị Lan',
+        type: 'anniversary',
+        honoreeId: 'm2',
+        location: 'Từ đường Tiên Điền',
+        attendees: 35,
+        rsvpStatus: 'going',
+    },
+    {
+        id: 'e5',
+        date: '2026-06-19',
+        lunarDate: '5 tháng 5 ÂL',
+        title: 'Lễ Đoan Ngọ — Diệt sâu bọ',
+        type: 'ceremony',
+        location: 'Từ đường Tiên Điền',
+        attendees: 22,
+        rsvpStatus: 'maybe',
+    },
+    {
+        id: 'e6',
+        date: '2026-08-26',
+        lunarDate: '14 tháng 7 ÂL',
+        title: 'Lễ Vu Lan — Báo hiếu cha mẹ',
+        type: 'ceremony',
+        location: 'Chùa Hương Tích',
+        attendees: 80,
+        rsvpStatus: 'going',
+        pinned: true,
+    },
+    {
+        id: 'e7',
+        date: '2026-09-25',
+        lunarDate: '15 tháng 8 ÂL',
+        title: 'Tết Trung Thu — Họp mặt trẻ em họ Nguyễn',
+        type: 'ceremony',
+        location: 'Sân nhà thờ tổ',
+        attendees: 65,
+        rsvpStatus: 'going',
+    },
+    {
+        id: 'e8',
+        date: '2026-10-12',
+        title: 'Đầy tháng cháu Nguyễn Bảo Nhi',
+        type: 'birthday',
+        hostId: 'm23',
+        location: 'Hà Nội',
+        attendees: 25,
+        rsvpStatus: 'going',
+        description: 'Con đầu lòng của vợ chồng Minh Anh và Bảo Khang.',
+    },
+    {
+        id: 'e9',
+        date: '2026-11-24',
+        lunarDate: '15 tháng 10 ÂL',
+        title: 'Giỗ Ông Nguyễn Văn Tùng (8 năm)',
+        type: 'anniversary',
+        honoreeId: 'm13',
+        location: 'Từ đường Tiên Điền',
+        attendees: 28,
+        rsvpStatus: 'going',
+    },
+    {
+        id: 'e10',
+        date: '2026-12-25',
+        title: 'Họp mặt cuối năm — Toàn Phái Cả',
+        type: 'ceremony',
+        location: 'Tiên Điền + livestream',
+        attendees: 95,
+        rsvpStatus: 'pending',
+    },
 ];
 
 // ============================================================
 // Date utilities
 // ============================================================
 const VI_MONTHS: readonly string[] = [
-    "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
-    "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
+    'Tháng 1',
+    'Tháng 2',
+    'Tháng 3',
+    'Tháng 4',
+    'Tháng 5',
+    'Tháng 6',
+    'Tháng 7',
+    'Tháng 8',
+    'Tháng 9',
+    'Tháng 10',
+    'Tháng 11',
+    'Tháng 12',
 ];
-const VI_WEEKDAYS: readonly string[] = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+const VI_WEEKDAYS: readonly string[] = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
 interface ParsedDate {
     y: number;
@@ -168,14 +277,12 @@ interface ParsedDate {
 }
 
 function parseISO(iso: string): ParsedDate {
-    const [y, m, d] = iso.split("-").map(Number);
+    const [y, m, d] = iso.split('-').map(Number);
     return { y, m, d };
 }
 
 function daysBetween(aISO: string, bISO: string): number {
-    return Math.round(
-        (new Date(bISO).getTime() - new Date(aISO).getTime()) / 86400000
-    );
+    return Math.round((new Date(bISO).getTime() - new Date(aISO).getTime()) / 86400000);
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -212,25 +319,20 @@ const Countdown: React.FC<CountdownProps> = ({ targetISO, today }) => {
     return (
         <div
             style={{
-                display: "inline-flex",
-                alignItems: "baseline",
+                display: 'inline-flex',
+                alignItems: 'baseline',
                 gap: 6,
-                padding: "4px 10px",
+                padding: '4px 10px',
                 borderRadius: 999,
-                background: isPast ? "var(--card-soft)" : "var(--gold-glow)",
-                border: `1px solid ${isPast ? "var(--line)" : "var(--gold-pale)"}`,
-                color: isPast ? "var(--ink-mute)" : "var(--brown)",
+                background: isPast ? 'var(--card-soft)' : 'var(--gold-glow)',
+                border: `1px solid ${isPast ? 'var(--line)' : 'var(--gold-pale)'}`,
+                color: isPast ? 'var(--ink-mute)' : 'var(--brown)',
             }}
         >
-            <span
-                className="font-serif"
-                style={{ fontSize: 18, fontWeight: 700, lineHeight: 1 }}
-            >
+            <span className="font-serif" style={{ fontSize: 18, fontWeight: 700, lineHeight: 1 }}>
                 {Math.abs(days)}
             </span>
-            <span style={{ fontSize: 11, letterSpacing: 0.5 }}>
-                {isPast ? "ngày trước" : days === 0 ? "hôm nay" : "ngày nữa"}
-            </span>
+            <span style={{ fontSize: 11, letterSpacing: 0.5 }}>{isPast ? 'ngày trước' : days === 0 ? 'hôm nay' : 'ngày nữa'}</span>
         </div>
     );
 };
@@ -251,31 +353,30 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
             style={{
                 padding: 28,
                 marginBottom: 24,
-                position: "relative",
-                overflow: "hidden",
-                background:
-                    "linear-gradient(135deg, var(--card) 0%, color-mix(in srgb, var(--gold) 6%, var(--card)) 100%)",
-                borderColor: "var(--gold-soft)",
+                position: 'relative',
+                overflow: 'hidden',
+                background: 'linear-gradient(135deg, var(--card) 0%, color-mix(in srgb, var(--gold) 6%, var(--card)) 100%)',
+                borderColor: 'var(--gold-soft)',
             }}
         >
             <div
                 style={{
-                    position: "absolute",
+                    position: 'absolute',
                     top: -40,
                     right: -40,
                     width: 200,
                     height: 200,
-                    background: "radial-gradient(circle, var(--gold-glow), transparent 70%)",
+                    background: 'radial-gradient(circle, var(--gold-glow), transparent 70%)',
                     opacity: 0.7,
                 }}
             />
             <div
                 style={{
-                    position: "absolute",
+                    position: 'absolute',
                     top: 24,
                     right: 28,
                     opacity: 0.12,
-                    color: "var(--gold)",
+                    color: 'var(--gold)',
                 }}
             >
                 <Icon name={meta.icon} size={96} />
@@ -283,31 +384,31 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
 
             <div
                 style={{
-                    position: "relative",
-                    display: "flex",
+                    position: 'relative',
+                    display: 'flex',
                     gap: 28,
-                    alignItems: "flex-start",
+                    alignItems: 'flex-start',
                 }}
             >
                 <div
                     style={{
                         flexShrink: 0,
-                        padding: "14px 18px",
-                        background: "var(--card)",
-                        border: "1.5px solid var(--gold-soft)",
+                        padding: '14px 18px',
+                        background: 'var(--card)',
+                        border: '1.5px solid var(--gold-soft)',
                         borderRadius: 16,
-                        textAlign: "center",
+                        textAlign: 'center',
                         minWidth: 110,
-                        boxShadow: "var(--shadow-md)",
+                        boxShadow: 'var(--shadow-md)',
                     }}
                 >
                     <div
                         style={{
                             fontSize: 10,
                             letterSpacing: 2,
-                            color: "var(--brown)",
+                            color: 'var(--brown)',
                             fontWeight: 700,
-                            textTransform: "uppercase",
+                            textTransform: 'uppercase',
                         }}
                     >
                         {VI_MONTHS[m - 1]}
@@ -317,9 +418,9 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
                         style={{
                             fontSize: 56,
                             fontWeight: 600,
-                            color: "var(--gold)",
+                            color: 'var(--gold)',
                             lineHeight: 1,
-                            margin: "4px 0",
+                            margin: '4px 0',
                         }}
                     >
                         {d}
@@ -328,8 +429,8 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
                         <div
                             style={{
                                 fontSize: 11,
-                                color: "var(--ink-mute)",
-                                borderTop: "1px solid var(--line)",
+                                color: 'var(--ink-mute)',
+                                borderTop: '1px solid var(--line)',
                                 paddingTop: 4,
                             }}
                         >
@@ -341,20 +442,20 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
                 <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                         style={{
-                            display: "flex",
-                            alignItems: "center",
+                            display: 'flex',
+                            alignItems: 'center',
                             gap: 8,
                             marginBottom: 8,
-                            flexWrap: "wrap",
+                            flexWrap: 'wrap',
                         }}
                     >
                         <span
                             style={{
                                 fontSize: 10.5,
                                 letterSpacing: 2,
-                                color: "var(--gold)",
+                                color: 'var(--gold)',
                                 fontWeight: 700,
-                                textTransform: "uppercase",
+                                textTransform: 'uppercase',
                             }}
                         >
                             Sự kiện tiếp theo
@@ -372,10 +473,10 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
                         style={{
                             fontSize: 32,
                             fontWeight: 600,
-                            color: "var(--ink)",
+                            color: 'var(--ink)',
                             lineHeight: 1.15,
                             marginBottom: 10,
-                            letterSpacing: "-0.3px",
+                            letterSpacing: '-0.3px',
                         }}
                     >
                         {event.title}
@@ -384,7 +485,7 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
                         <p
                             style={{
                                 fontSize: 14,
-                                color: "var(--ink-soft)",
+                                color: 'var(--ink-soft)',
                                 lineHeight: 1.5,
                                 marginBottom: 14,
                                 maxWidth: 640,
@@ -395,21 +496,19 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
                     )}
                     <div
                         style={{
-                            display: "flex",
-                            flexWrap: "wrap",
+                            display: 'flex',
+                            flexWrap: 'wrap',
                             gap: 12,
                             fontSize: 13,
-                            color: "var(--ink-soft)",
+                            color: 'var(--ink-soft)',
                             marginBottom: 18,
                         }}
                     >
                         <Stat icon="home" label={event.location} />
                         <Stat icon="users" label={`${event.attendees} người dự`} />
-                        {honoree && (
-                            <Stat icon="heart" label={`Người được tưởng nhớ: ${honoree.name}`} />
-                        )}
+                        {honoree && <Stat icon="heart" label={`Người được tưởng nhớ: ${honoree.name}`} />}
                     </div>
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                         <button className="btn btn-primary">
                             <Icon name="plus" size={14} />
                             Xác nhận tham dự
@@ -430,7 +529,7 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
 };
 
 const Stat: React.FC<{ icon: string; label: string }> = ({ icon, label }) => (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
         <Icon name={icon} size={14} color="var(--ink-mute)" />
         {label}
     </span>
@@ -453,21 +552,13 @@ interface DayCell {
     iso: string;
 }
 
-const CalendarView: React.FC<CalendarViewProps> = ({
-    year,
-    month,
-    events,
-    selected,
-    today,
-    onSelect,
-    onMonthChange,
-}) => {
+const CalendarView: React.FC<CalendarViewProps> = ({ year, month, events, selected, today, onSelect, onMonthChange }) => {
     const totalDays = daysInMonth(year, month);
     const startWeekday = firstWeekdayOf(year, month);
     const cells: (DayCell | null)[] = [];
     for (let i = 0; i < startWeekday; i++) cells.push(null);
     for (let d = 1; d <= totalDays; d++) {
-        const iso = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        const iso = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
         cells.push({ day: d, iso });
     }
     while (cells.length % 7 !== 0) cells.push(null);
@@ -484,48 +575,32 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
     return (
         <div className="card" style={{ padding: 20 }}>
-            <div className="row" style={{ justifyContent: "space-between", marginBottom: 16 }}>
+            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 16 }}>
                 <div>
                     <div
                         style={{
                             fontSize: 11,
                             letterSpacing: 2,
-                            color: "var(--gold)",
+                            color: 'var(--gold)',
                             fontWeight: 700,
-                            textTransform: "uppercase",
+                            textTransform: 'uppercase',
                             marginBottom: 2,
                         }}
                     >
                         Lịch tháng
                     </div>
-                    <h2
-                        className="font-serif"
-                        style={{ fontSize: 26, fontWeight: 600, color: "var(--ink)" }}
-                    >
+                    <h2 className="font-serif" style={{ fontSize: 26, fontWeight: 600, color: 'var(--ink)' }}>
                         {VI_MONTHS[month - 1]} {year}
                     </h2>
                 </div>
                 <div className="row gap-2">
-                    <button
-                        className="icon-btn"
-                        onClick={() => onMonthChange(-1)}
-                        title="Tháng trước"
-                        aria-label="Tháng trước"
-                    >
+                    <button className="icon-btn" onClick={() => onMonthChange(-1)} title="Tháng trước" aria-label="Tháng trước">
                         <Icon name="chevron-down" size={16} />
                     </button>
-                    <button
-                        className="btn btn-ghost"
-                        style={{ padding: "6px 12px", fontSize: 12 }}
-                    >
+                    <button className="btn btn-ghost" style={{ padding: '6px 12px', fontSize: 12 }}>
                         Hôm nay
                     </button>
-                    <button
-                        className="icon-btn"
-                        onClick={() => onMonthChange(1)}
-                        title="Tháng sau"
-                        aria-label="Tháng sau"
-                    >
+                    <button className="icon-btn" onClick={() => onMonthChange(1)} title="Tháng sau" aria-label="Tháng sau">
                         <Icon name="chevron-right" size={16} />
                     </button>
                 </div>
@@ -533,8 +608,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
             <div
                 style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(7, 1fr)",
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 1fr)',
                     gap: 4,
                     marginBottom: 6,
                 }}
@@ -543,12 +618,12 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                     <div
                         key={i}
                         style={{
-                            textAlign: "center",
+                            textAlign: 'center',
                             fontSize: 10.5,
                             letterSpacing: 1.5,
-                            color: i === 0 ? "var(--crimson)" : "var(--ink-mute)",
+                            color: i === 0 ? 'var(--crimson)' : 'var(--ink-mute)',
                             fontWeight: 700,
-                            padding: "6px 0",
+                            padding: '6px 0',
                         }}
                     >
                         {w}
@@ -558,8 +633,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
 
             <div
                 style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(7, 1fr)",
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(7, 1fr)',
                     gap: 4,
                 }}
             >
@@ -574,50 +649,42 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                             key={i}
                             onClick={() => onSelect(cell.iso)}
                             style={{
-                                aspectRatio: "1 / 1",
+                                aspectRatio: '1 / 1',
                                 background: isSelected
-                                    ? "var(--gold-glow)"
+                                    ? 'var(--gold-glow)'
                                     : isToday
-                                        ? "color-mix(in srgb, var(--gold) 6%, transparent)"
-                                        : "transparent",
-                                border: isSelected
-                                    ? "1.5px solid var(--gold)"
-                                    : isToday
-                                        ? "1.5px solid var(--gold-soft)"
-                                        : "1px solid transparent",
+                                      ? 'color-mix(in srgb, var(--gold) 6%, transparent)'
+                                      : 'transparent',
+                                border: isSelected ? '1.5px solid var(--gold)' : isToday ? '1.5px solid var(--gold-soft)' : '1px solid transparent',
                                 borderRadius: 10,
                                 padding: 6,
-                                cursor: "pointer",
-                                fontFamily: "inherit",
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "stretch",
-                                justifyContent: "space-between",
-                                position: "relative",
-                                transition: "all 0.15s",
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'stretch',
+                                justifyContent: 'space-between',
+                                position: 'relative',
+                                transition: 'all 0.15s',
                             }}
                         >
-                            <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+                            <div className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <span
                                     className="font-serif"
                                     style={{
                                         fontSize: 16,
                                         fontWeight: 600,
-                                        color: isSelected
-                                            ? "var(--gold)"
-                                            : isSunday
-                                                ? "var(--crimson)"
-                                                : "var(--ink)",
+                                        color: isSelected ? 'var(--gold)' : isSunday ? 'var(--crimson)' : 'var(--ink)',
                                         lineHeight: 1,
                                     }}
                                 >
                                     {cell.day}
                                 </span>
-                                <span style={{ fontSize: 9, color: "var(--ink-faint)", fontWeight: 500 }}>
+                                <span style={{ fontSize: 9, color: 'var(--ink-faint)', fontWeight: 500 }}>
                                     {approximateLunar(year, month, cell.day)}
                                 </span>
                             </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                 {dayEvents.slice(0, 2).map((e) => {
                                     const evMeta = EVENT_META[e.type];
                                     return (
@@ -625,18 +692,18 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                                             key={e.id}
                                             style={{
                                                 fontSize: 9.5,
-                                                padding: "1px 5px",
+                                                padding: '1px 5px',
                                                 background: `color-mix(in srgb, var(--${evMeta.color}) 14%, transparent)`,
                                                 color: `var(--${evMeta.color})`,
                                                 borderRadius: 4,
                                                 fontWeight: 600,
-                                                whiteSpace: "nowrap",
-                                                overflow: "hidden",
-                                                textOverflow: "ellipsis",
-                                                textAlign: "left",
+                                                whiteSpace: 'nowrap',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                textAlign: 'left',
                                             }}
                                         >
-                                            {e.title.split(" — ")[0].split(" ").slice(0, 3).join(" ")}
+                                            {e.title.split(' — ')[0].split(' ').slice(0, 3).join(' ')}
                                         </div>
                                     );
                                 })}
@@ -644,8 +711,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({
                                     <div
                                         style={{
                                             fontSize: 9,
-                                            color: "var(--ink-mute)",
-                                            textAlign: "left",
+                                            color: 'var(--ink-mute)',
+                                            textAlign: 'left',
                                             paddingLeft: 5,
                                         }}
                                     >
@@ -673,14 +740,14 @@ const UpcomingItem: React.FC<UpcomingItemProps> = ({ event, honoree, isLast, tod
     const meta = EVENT_META[event.type];
     const { d, m } = parseISO(event.date);
     return (
-        <div style={{ display: "flex", gap: 12, position: "relative" }}>
+        <div style={{ display: 'flex', gap: 12, position: 'relative' }}>
             <div
                 style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
                     flexShrink: 0,
-                    position: "relative",
+                    position: 'relative',
                 }}
             >
                 <div
@@ -691,8 +758,8 @@ const UpcomingItem: React.FC<UpcomingItemProps> = ({ event, honoree, isLast, tod
                         background: `color-mix(in srgb, var(--${meta.color}) 14%, transparent)`,
                         border: `1px solid color-mix(in srgb, var(--${meta.color}) 25%, transparent)`,
                         color: `var(--${meta.color})`,
-                        display: "grid",
-                        placeItems: "center",
+                        display: 'grid',
+                        placeItems: 'center',
                         zIndex: 1,
                     }}
                 >
@@ -701,13 +768,13 @@ const UpcomingItem: React.FC<UpcomingItemProps> = ({ event, honoree, isLast, tod
                 {!isLast && (
                     <div
                         style={{
-                            position: "absolute",
+                            position: 'absolute',
                             top: 36,
                             bottom: -20,
-                            left: "50%",
+                            left: '50%',
                             width: 1,
-                            background: "var(--line)",
-                            transform: "translateX(-50%)",
+                            background: 'var(--line)',
+                            transform: 'translateX(-50%)',
                         }}
                     />
                 )}
@@ -716,28 +783,19 @@ const UpcomingItem: React.FC<UpcomingItemProps> = ({ event, honoree, isLast, tod
             <div style={{ flex: 1, paddingBottom: 20, minWidth: 0 }}>
                 <div
                     style={{
-                        display: "flex",
-                        alignItems: "baseline",
+                        display: 'flex',
+                        alignItems: 'baseline',
                         gap: 8,
                         marginBottom: 4,
-                        flexWrap: "wrap",
+                        flexWrap: 'wrap',
                     }}
                 >
-                    <span
-                        className="font-serif"
-                        style={{ fontSize: 18, fontWeight: 600, color: "var(--ink)" }}
-                    >
+                    <span className="font-serif" style={{ fontSize: 18, fontWeight: 600, color: 'var(--ink)' }}>
                         {d}
                     </span>
-                    <span style={{ fontSize: 11, color: "var(--ink-mute)", letterSpacing: 0.5 }}>
-                        {VI_MONTHS[m - 1]}
-                    </span>
-                    {event.lunarDate && (
-                        <span style={{ fontSize: 10.5, color: "var(--gold)" }}>
-                            · {event.lunarDate}
-                        </span>
-                    )}
-                    <span style={{ marginLeft: "auto" }}>
+                    <span style={{ fontSize: 11, color: 'var(--ink-mute)', letterSpacing: 0.5 }}>{VI_MONTHS[m - 1]}</span>
+                    {event.lunarDate && <span style={{ fontSize: 10.5, color: 'var(--gold)' }}>· {event.lunarDate}</span>}
+                    <span style={{ marginLeft: 'auto' }}>
                         <Countdown targetISO={event.date} today={today} />
                     </span>
                 </div>
@@ -745,7 +803,7 @@ const UpcomingItem: React.FC<UpcomingItemProps> = ({ event, honoree, isLast, tod
                     style={{
                         fontSize: 13.5,
                         fontWeight: 600,
-                        color: "var(--ink)",
+                        color: 'var(--ink)',
                         lineHeight: 1.3,
                         marginBottom: 4,
                     }}
@@ -754,12 +812,12 @@ const UpcomingItem: React.FC<UpcomingItemProps> = ({ event, honoree, isLast, tod
                 </div>
                 <div
                     style={{
-                        display: "flex",
+                        display: 'flex',
                         gap: 8,
-                        alignItems: "center",
+                        alignItems: 'center',
                         fontSize: 11.5,
-                        color: "var(--ink-mute)",
-                        flexWrap: "wrap",
+                        color: 'var(--ink-mute)',
+                        flexWrap: 'wrap',
                     }}
                 >
                     <span
@@ -782,7 +840,7 @@ const UpcomingItem: React.FC<UpcomingItemProps> = ({ event, honoree, isLast, tod
 };
 
 // ============================================================
-type FilterValue = EventType | "all";
+type FilterValue = EventType | 'all';
 
 interface FilterBarProps {
     active: FilterValue;
@@ -791,59 +849,45 @@ interface FilterBarProps {
 }
 
 const FILTER_LABELS: Record<FilterValue, string> = {
-    all: "Tất cả",
-    anniversary: "Lễ giỗ",
-    wedding: "Lễ cưới",
-    ceremony: "Lễ truyền thống",
-    longevity: "Mừng thọ",
-    birthday: "Sinh nhật",
+    all: 'Tất cả',
+    anniversary: 'Lễ giỗ',
+    wedding: 'Lễ cưới',
+    ceremony: 'Lễ truyền thống',
+    longevity: 'Mừng thọ',
+    birthday: 'Sinh nhật',
 };
 
 const FilterBar: React.FC<FilterBarProps> = ({ active, onChange, counts }) => {
-    const types: FilterValue[] = [
-        "all",
-        "anniversary",
-        "wedding",
-        "ceremony",
-        "longevity",
-        "birthday",
-    ];
+    const types: FilterValue[] = ['all', 'anniversary', 'wedding', 'ceremony', 'longevity', 'birthday'];
     return (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
             {types.map((t) => {
                 const isActive = active === t;
-                const meta = t === "all" ? null : EVENT_META[t];
+                const meta = t === 'all' ? null : EVENT_META[t];
                 return (
                     <button
                         key={t}
                         onClick={() => onChange(t)}
                         style={{
-                            display: "inline-flex",
-                            alignItems: "center",
+                            display: 'inline-flex',
+                            alignItems: 'center',
                             gap: 6,
-                            padding: "7px 14px",
+                            padding: '7px 14px',
                             borderRadius: 999,
                             background: isActive
                                 ? meta
                                     ? `color-mix(in srgb, var(--${meta.color}) 14%, transparent)`
-                                    : "var(--gold-glow)"
-                                : "var(--card)",
-                            color: isActive
-                                ? meta
-                                    ? `var(--${meta.color})`
-                                    : "var(--brown)"
-                                : "var(--ink-soft)",
-                            border: `1px solid ${isActive
-                                ? meta
-                                    ? `color-mix(in srgb, var(--${meta.color}) 30%, transparent)`
-                                    : "var(--gold-soft)"
-                                : "var(--line)"
-                                }`,
+                                    : 'var(--gold-glow)'
+                                : 'var(--card)',
+                            color: isActive ? (meta ? `var(--${meta.color})` : 'var(--brown)') : 'var(--ink-soft)',
+                            border: `1px solid ${
+                                isActive ? (meta ? `color-mix(in srgb, var(--${meta.color}) 30%, transparent)` : 'var(--gold-soft)') : 'var(--line)'
+                            }`,
                             fontSize: 12.5,
                             fontWeight: 600,
-                            cursor: "pointer",
-                            fontFamily: "inherit",
-                            transition: "all 0.15s",
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            transition: 'all 0.15s',
                         }}
                     >
                         {meta && <Icon name={meta.icon} size={12} />}
@@ -851,9 +895,9 @@ const FilterBar: React.FC<FilterBarProps> = ({ active, onChange, counts }) => {
                         <span
                             style={{
                                 fontSize: 10.5,
-                                padding: "1px 6px",
+                                padding: '1px 6px',
                                 borderRadius: 999,
-                                background: isActive ? "rgba(255,255,255,0.4)" : "var(--card-soft)",
+                                background: isActive ? 'rgba(255,255,255,0.4)' : 'var(--card-soft)',
                                 fontWeight: 700,
                             }}
                         >
@@ -879,15 +923,13 @@ const YearHeatmap: React.FC<YearHeatmapProps> = ({ events, currentMonth, onMonth
     const max = Math.max(...counts, 1);
     return (
         <div className="card card-pad">
-            <div className="row" style={{ justifyContent: "space-between", marginBottom: 14 }}>
+            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
                 <div>
                     <div className="section-title">Tổng quan năm 2026</div>
-                    <div className="section-meta">
-                        {events.length} sự kiện · phân bố theo tháng
-                    </div>
+                    <div className="section-meta">{events.length} sự kiện · phân bố theo tháng</div>
                 </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 8 }}>
                 {counts.map((c, i) => {
                     const intensity = c / max;
                     const isCurrent = i + 1 === currentMonth;
@@ -896,16 +938,16 @@ const YearHeatmap: React.FC<YearHeatmapProps> = ({ events, currentMonth, onMonth
                             key={i}
                             onClick={() => onMonthClick(i + 1)}
                             style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "stretch",
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'stretch',
                                 gap: 6,
                                 padding: 8,
                                 borderRadius: 10,
-                                background: isCurrent ? "var(--gold-glow)" : "transparent",
-                                border: `1px solid ${isCurrent ? "var(--gold-soft)" : "transparent"}`,
-                                cursor: "pointer",
-                                fontFamily: "inherit",
+                                background: isCurrent ? 'var(--gold-glow)' : 'transparent',
+                                border: `1px solid ${isCurrent ? 'var(--gold-soft)' : 'transparent'}`,
+                                cursor: 'pointer',
+                                fontFamily: 'inherit',
                             }}
                         >
                             <div
@@ -914,24 +956,24 @@ const YearHeatmap: React.FC<YearHeatmapProps> = ({ events, currentMonth, onMonth
                                     borderRadius: 4,
                                     background:
                                         c === 0
-                                            ? "var(--card-soft)"
+                                            ? 'var(--card-soft)'
                                             : `color-mix(in srgb, var(--gold) ${Math.round(intensity * 80 + 20)}%, var(--card-soft))`,
-                                    border: c === 0 ? "1px dashed var(--line)" : "1px solid var(--gold-soft)",
-                                    display: "grid",
-                                    placeItems: "center",
-                                    color: c === 0 ? "var(--ink-faint)" : "var(--brown)",
+                                    border: c === 0 ? '1px dashed var(--line)' : '1px solid var(--gold-soft)',
+                                    display: 'grid',
+                                    placeItems: 'center',
+                                    color: c === 0 ? 'var(--ink-faint)' : 'var(--brown)',
                                     fontSize: 14,
                                     fontWeight: 700,
-                                    fontFamily: "Cormorant Garamond, serif",
+                                    fontFamily: 'Cormorant Garamond, serif',
                                 }}
                             >
-                                {c || "—"}
+                                {c || '—'}
                             </div>
                             <div
                                 style={{
                                     fontSize: 10,
-                                    color: isCurrent ? "var(--brown)" : "var(--ink-mute)",
-                                    textAlign: "center",
+                                    color: isCurrent ? 'var(--brown)' : 'var(--ink-mute)',
+                                    textAlign: 'center',
                                     fontWeight: isCurrent ? 700 : 500,
                                     letterSpacing: 0.5,
                                 }}
@@ -955,24 +997,19 @@ interface EventDetailProps {
 const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
     if (!event) {
         return (
-            <div
-                className="card card-pad"
-                style={{ textAlign: "center", color: "var(--ink-mute)", padding: 32 }}
-            >
+            <div className="card card-pad" style={{ textAlign: 'center', color: 'var(--ink-mute)', padding: 32 }}>
                 <Icon name="calendar" size={28} color="var(--ink-faint)" />
-                <div style={{ marginTop: 10, fontSize: 13 }}>
-                    Chọn một ngày để xem chi tiết
-                </div>
+                <div style={{ marginTop: 10, fontSize: 13 }}>Chọn một ngày để xem chi tiết</div>
             </div>
         );
     }
     const meta = EVENT_META[event.type];
     const { d, m, y } = parseISO(event.date);
-    const seed = honoree ? parseInt(honoree.id.replace("m", ""), 10) : 0;
+    const seed = honoree ? parseInt(honoree.id.replace('m', ''), 10) : 0;
 
     return (
         <div className="card" style={{ padding: 20 }}>
-            <div className="row gap-2" style={{ marginBottom: 14, flexWrap: "wrap" }}>
+            <div className="row gap-2" style={{ marginBottom: 14, flexWrap: 'wrap' }}>
                 <span
                     className="chip"
                     style={{
@@ -997,14 +1034,14 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
                 style={{
                     fontSize: 20,
                     fontWeight: 600,
-                    color: "var(--ink)",
+                    color: 'var(--ink)',
                     lineHeight: 1.2,
                     marginBottom: 6,
                 }}
             >
                 {event.title}
             </div>
-            <div style={{ fontSize: 12.5, color: "var(--ink-mute)", marginBottom: 16 }}>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', marginBottom: 16 }}>
                 {d} {VI_MONTHS[m - 1]} {y}
                 {event.lunarDate && <> · {event.lunarDate}</>}
             </div>
@@ -1012,25 +1049,25 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
             {honoree && (
                 <div
                     style={{
-                        display: "flex",
-                        alignItems: "center",
+                        display: 'flex',
+                        alignItems: 'center',
                         gap: 10,
-                        padding: "10px 12px",
-                        background: "var(--card-soft)",
+                        padding: '10px 12px',
+                        background: 'var(--card-soft)',
                         borderRadius: 10,
                         marginBottom: 14,
-                        border: "1px solid var(--line)",
+                        border: '1px solid var(--line)',
                     }}
                 >
                     <div
                         style={{
                             width: 38,
                             height: 38,
-                            borderRadius: "50%",
+                            borderRadius: '50%',
                             background: avatarGrad(seed),
-                            display: "grid",
-                            placeItems: "center",
-                            color: "white",
+                            display: 'grid',
+                            placeItems: 'center',
+                            color: 'white',
                             fontSize: 12,
                             fontWeight: 700,
                         }}
@@ -1042,19 +1079,17 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
                             style={{
                                 fontSize: 10,
                                 letterSpacing: 1.5,
-                                color: "var(--ink-mute)",
+                                color: 'var(--ink-mute)',
                                 fontWeight: 700,
-                                textTransform: "uppercase",
+                                textTransform: 'uppercase',
                             }}
                         >
                             Tưởng nhớ / Vinh danh
                         </div>
-                        <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--ink)" }}>
-                            {honoree.name}
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--ink-mute)" }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>{honoree.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-mute)' }}>
                             Đời {honoree.gen} · {honoree.birth}
-                            {honoree.death ? `–${honoree.death}` : ""}
+                            {honoree.death ? `–${honoree.death}` : ''}
                         </div>
                     </div>
                 </div>
@@ -1064,7 +1099,7 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
                 <p
                     style={{
                         fontSize: 13,
-                        color: "var(--ink-soft)",
+                        color: 'var(--ink-soft)',
                         lineHeight: 1.55,
                         marginBottom: 14,
                     }}
@@ -1075,8 +1110,8 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
 
             <div
                 style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
                     gap: 10,
                     marginBottom: 16,
                 }}
@@ -1085,18 +1120,12 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
                 <DetailItem label="Người dự" value={`${event.attendees} người`} />
             </div>
 
-            <div style={{ display: "flex", gap: 8 }}>
-                <button
-                    className="btn btn-primary"
-                    style={{ flex: 1, justifyContent: "center" }}
-                >
+            <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
                     <Icon name="plus" size={13} />
                     Tham dự
                 </button>
-                <button
-                    className="btn btn-ghost"
-                    style={{ flex: 1, justifyContent: "center" }}
-                >
+                <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>
                     <Icon name="edit" size={13} />
                     Chỉnh sửa
                 </button>
@@ -1106,42 +1135,35 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
 };
 
 const DetailItem: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-    <div style={{ padding: "8px 10px", background: "var(--card-soft)", borderRadius: 8 }}>
+    <div style={{ padding: '8px 10px', background: 'var(--card-soft)', borderRadius: 8 }}>
         <div
             style={{
                 fontSize: 10,
                 letterSpacing: 1,
-                color: "var(--ink-mute)",
+                color: 'var(--ink-mute)',
                 fontWeight: 700,
-                textTransform: "uppercase",
+                textTransform: 'uppercase',
                 marginBottom: 2,
             }}
         >
             {label}
         </div>
-        <div style={{ fontSize: 12.5, color: "var(--ink)", fontWeight: 500 }}>{value}</div>
+        <div style={{ fontSize: 12.5, color: 'var(--ink)', fontWeight: 500 }}>{value}</div>
     </div>
 );
 
 // ============================================================
 // Main page
 // ============================================================
-export const EventsPage: React.FC<EventsPageProps> = ({
-    onNav,
-    events = EVENTS_2026,
-    today = new Date().toISOString().slice(0, 10),
-}) => {
-    const [filter, setFilter] = useState<FilterValue>("all");
+export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events = EVENTS_2026, today = new Date().toISOString().slice(0, 10) }) => {
+    const [filter, setFilter] = useState<FilterValue>('all');
     const [viewMonth, setViewMonth] = useState<{ y: number; m: number }>({
         y: parseISO(today).y,
         m: parseISO(today).m,
     });
     const [selectedDate, setSelectedDate] = useState<string | null>(today);
 
-    const filtered = useMemo<FamilyEvent[]>(
-        () => events.filter((e) => filter === "all" || e.type === filter),
-        [events, filter]
-    );
+    const filtered = useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
 
     const counts = useMemo<Record<FilterValue, number>>(() => {
         const c: Record<FilterValue, number> = {
@@ -1169,7 +1191,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({
                 .filter((e) => daysBetween(today, e.date) >= 0)
                 .sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date))
                 .slice(0, 8),
-        [filtered, today]
+        [filtered, today],
     );
 
     const selectedEvent = useMemo<FamilyEvent | null>(() => {
@@ -1183,141 +1205,131 @@ export const EventsPage: React.FC<EventsPageProps> = ({
                 const { y, m } = parseISO(e.date);
                 return y === viewMonth.y && m === viewMonth.m;
             }),
-        [filtered, viewMonth]
+        [filtered, viewMonth],
     );
 
     function changeMonth(direction: -1 | 1): void {
         setViewMonth((prev) => {
             let m = prev.m + direction;
             let y = prev.y;
-            if (m < 1) { m = 12; y--; }
-            if (m > 12) { m = 1; y++; }
+            if (m < 1) {
+                m = 12;
+                y--;
+            }
+            if (m > 12) {
+                m = 1;
+                y++;
+            }
             return { y, m };
         });
     }
 
-    const navigate = onNav ?? ((page: string) => {
-        const href = page === "dashboard" ? "/gia-pha/dashboard" : page === "tree" ? "/gia-pha/cay-gia-pha" : "/";
-        router.visit(href);
-    });
+    const navigate =
+        onNav ??
+        ((page: string) => {
+            const href = page === 'dashboard' ? '/gia-pha/dashboard' : page === 'tree' ? '/gia-pha/cay-gia-pha' : '/';
+            router.visit(href);
+        });
 
     return (
         <AuthenticatedLayout>
             <Head title="Sự kiện & Lễ giỗ" />
-            <div className="fade-in" style={{ maxWidth: 1320, margin: "0 auto" }}>
-            <header
-                className="row"
-                style={{
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: 24,
-                }}
-            >
-                <div>
-                    <div className="row gap-2" style={{ marginBottom: 6 }}>
-                        <span
-                            style={{
-                                fontSize: 11,
-                                letterSpacing: 2,
-                                color: "var(--gold)",
-                                fontWeight: 700,
-                                textTransform: "uppercase",
-                            }}
-                        >
-                            Sự kiện & Lễ giỗ
-                        </span>
-                        <span style={{ color: "var(--ink-faint)" }}>·</span>
-                        <span style={{ fontSize: 12, color: "var(--ink-mute)" }}>
-                            Lịch âm tự động · {events.length} sự kiện năm 2026
-                        </span>
+            <div className="fade-in" style={{ maxWidth: 1320, margin: '0 auto' }}>
+                <header
+                    className="row"
+                    style={{
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        marginBottom: 24,
+                    }}
+                >
+                    <div>
+                        <div className="row gap-2" style={{ marginBottom: 6 }}>
+                            <span
+                                style={{
+                                    fontSize: 11,
+                                    letterSpacing: 2,
+                                    color: 'var(--gold)',
+                                    fontWeight: 700,
+                                    textTransform: 'uppercase',
+                                }}
+                            >
+                                Sự kiện & Lễ giỗ
+                            </span>
+                            <span style={{ color: 'var(--ink-faint)' }}>·</span>
+                            <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Lịch âm tự động · {events.length} sự kiện năm 2026</span>
+                        </div>
+                        <h1 className="page-title">Lịch dòng họ</h1>
+                        <div className="page-sub">
+                            Lễ giỗ, lễ cưới, lễ truyền thống và mọi cột mốc quan trọng của họ Nguyễn — được tính toán theo cả dương lịch và âm lịch.
+                        </div>
                     </div>
-                    <h1 className="page-title">Lịch dòng họ</h1>
-                    <div className="page-sub">
-                        Lễ giỗ, lễ cưới, lễ truyền thống và mọi cột mốc quan trọng của họ
-                        Nguyễn — được tính toán theo cả dương lịch và âm lịch.
+                    <div className="row gap-2">
+                        <button className="btn btn-ghost" onClick={() => navigate('dashboard')}>
+                            <Icon name="dashboard" size={14} />
+                            Bảng điều khiển
+                        </button>
+                        <button className="btn btn-primary">
+                            <Icon name="plus" size={14} />
+                            Tạo sự kiện mới
+                        </button>
                     </div>
-                </div>
-                <div className="row gap-2">
-                    <button className="btn btn-ghost" onClick={() => navigate("dashboard")}>
-                        <Icon name="dashboard" size={14} />
-                        Bảng điều khiển
-                    </button>
-                    <button className="btn btn-primary">
-                        <Icon name="plus" size={14} />
-                        Tạo sự kiện mới
-                    </button>
-                </div>
-            </header>
+                </header>
 
-            {nextEvent && (
-                <NextEventHero
-                    event={nextEvent}
-                    honoree={nextEvent.honoreeId ? BY_ID[nextEvent.honoreeId] ?? null : null}
-                    today={today}
-                />
-            )}
+                {nextEvent && (
+                    <NextEventHero event={nextEvent} honoree={nextEvent.honoreeId ? (BY_ID[nextEvent.honoreeId] ?? null) : null} today={today} />
+                )}
 
-            <FilterBar active={filter} onChange={setFilter} counts={counts} />
+                <FilterBar active={filter} onChange={setFilter} counts={counts} />
 
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.55fr 1fr",
-                    gap: 24,
-                    marginBottom: 24,
-                }}
-            >
-                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                    <CalendarView
-                        year={viewMonth.y}
-                        month={viewMonth.m}
-                        events={monthEvents}
-                        selected={selectedDate}
-                        today={today}
-                        onSelect={setSelectedDate}
-                        onMonthChange={changeMonth}
-                    />
-                    <YearHeatmap
-                        events={events}
-                        currentMonth={viewMonth.m}
-                        onMonthClick={(m) => setViewMonth((v) => ({ ...v, m }))}
-                    />
-                </div>
+                <div
+                    style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1.55fr 1fr',
+                        gap: 24,
+                        marginBottom: 24,
+                    }}
+                >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        <CalendarView
+                            year={viewMonth.y}
+                            month={viewMonth.m}
+                            events={monthEvents}
+                            selected={selectedDate}
+                            today={today}
+                            onSelect={setSelectedDate}
+                            onMonthChange={changeMonth}
+                        />
+                        <YearHeatmap events={events} currentMonth={viewMonth.m} onMonthClick={(m) => setViewMonth((v) => ({ ...v, m }))} />
+                    </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-                    <EventDetail
-                        event={selectedEvent}
-                        honoree={
-                            selectedEvent?.honoreeId ? BY_ID[selectedEvent.honoreeId] ?? null : null
-                        }
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        <EventDetail event={selectedEvent} honoree={selectedEvent?.honoreeId ? (BY_ID[selectedEvent.honoreeId] ?? null) : null} />
 
-                    <div className="card card-pad">
-                        <div className="row" style={{ justifyContent: "space-between", marginBottom: 14 }}>
-                            <div>
-                                <div className="section-title">Sắp diễn ra</div>
-                                <div className="section-meta">
-                                    {upcoming.length} sự kiện gần nhất
+                        <div className="card card-pad">
+                            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+                                <div>
+                                    <div className="section-title">Sắp diễn ra</div>
+                                    <div className="section-meta">{upcoming.length} sự kiện gần nhất</div>
                                 </div>
+                                <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 11 }}>
+                                    Tất cả →
+                                </button>
                             </div>
-                            <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 11 }}>
-                                Tất cả →
-                            </button>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column" }}>
-                            {upcoming.map((e, i) => (
-                                <UpcomingItem
-                                    key={e.id}
-                                    event={e}
-                                    honoree={e.honoreeId ? BY_ID[e.honoreeId] ?? null : null}
-                                    isLast={i === upcoming.length - 1}
-                                    today={today}
-                                />
-                            ))}
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                {upcoming.map((e, i) => (
+                                    <UpcomingItem
+                                        key={e.id}
+                                        event={e}
+                                        honoree={e.honoreeId ? (BY_ID[e.honoreeId] ?? null) : null}
+                                        isLast={i === upcoming.length - 1}
+                                        today={today}
+                                    />
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
             </div>
         </AuthenticatedLayout>
     );

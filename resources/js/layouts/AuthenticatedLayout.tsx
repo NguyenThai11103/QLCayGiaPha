@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import Icon from '../components/gia-pha/Icon';
 import { useAuth } from '../contexts/auth.context';
 
@@ -8,12 +8,69 @@ interface AuthenticatedLayoutProps {
     fullBleed?: boolean;
 }
 
-const navigation = [
-    { section: 'Gia phả', name: 'Bảng điều khiển', href: '/gia-pha/dashboard', icon: 'dashboard' as const },
-    { section: 'Gia phả', name: 'Cây Gia Phả', href: '/gia-pha/cay-gia-pha', icon: 'tree' as const },
-    { section: 'Quản lý', name: 'Thành viên', href: '/gia-pha/thanh-vien', icon: 'users' as const },
-    { section: 'Quản lý', name: 'Tra cứu danh xưng', href: '/gia-pha/tra-cuu-danh-xung', icon: 'link' as const },
-    { section: 'Quản lý', name: 'Sự kiện', href: '/gia-pha/events', icon: 'calendar' as const },
+interface NavigationItem {
+    name: string;
+    href: string;
+    icon: ReactNode;
+}
+
+const navigation: NavigationItem[] = [
+    {
+        name: 'Tổng quan',
+        href: '/gia-pha/dashboard',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 11l9-8 9 8" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10" />
+            </svg>
+        ),
+    },
+    {
+        name: 'Cây Gia Phả',
+        href: '/gia-pha/cay-gia-pha',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <circle cx="12" cy="4" r="2" strokeWidth={2} />
+                <circle cx="6" cy="12" r="2" strokeWidth={2} />
+                <circle cx="18" cy="12" r="2" strokeWidth={2} />
+                <circle cx="4" cy="20" r="1.5" strokeWidth={2} />
+                <circle cx="9" cy="20" r="1.5" strokeWidth={2} />
+                <circle cx="15" cy="20" r="1.5" strokeWidth={2} />
+                <circle cx="20" cy="20" r="1.5" strokeWidth={2} />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v3M6 14v3M18 14v3M12 9H6m6 0h6M4 18.5V17h16v1.5" />
+            </svg>
+        ),
+    },
+    {
+        name: 'Thành viên',
+        href: '/gia-pha/thanh-vien',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11a4 4 0 10-8 0 4 4 0 008 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 21a8 8 0 0116 0" />
+            </svg>
+        ),
+    },
+    {
+        name: 'Tra cứu danh xưng',
+        href: '/gia-pha/tra-cuu-danh-xung',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14a4 4 0 010-6l3-3a4 4 0 116 6l-1.5 1.5" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10a4 4 0 010 6l-3 3a4 4 0 11-6-6l1.5-1.5" />
+            </svg>
+        ),
+    },
+    {
+        name: 'Sự kiện',
+        href: '/gia-pha/events',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="5" width="18" height="16" rx="2" strokeWidth={2} />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M8 3v4M16 3v4" />
+            </svg>
+        ),
+    },
 ];
 
 export default function AuthenticatedLayout({ children, fullBleed = false }: AuthenticatedLayoutProps) {
@@ -23,13 +80,6 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
 
     useEffect(() => {
         setPathname(window.location.pathname);
-    }, []);
-
-    const groupedNavigation = useMemo(() => {
-        return navigation.reduce<Record<string, typeof navigation>>((groups, item) => {
-            groups[item.section] = [...(groups[item.section] || []), item];
-            return groups;
-        }, {});
     }, []);
 
     const activeItem = navigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
@@ -68,33 +118,31 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                     </span>
                 </button>
 
-                <nav className="mt-3 flex flex-1 flex-col gap-1 overflow-y-auto">
-                    {Object.entries(groupedNavigation).map(([section, items]) => (
-                        <div key={section}>
-                            <div className="px-3 pb-2 pt-4 text-[10px] font-bold uppercase tracking-[1.6px] text-[var(--ink-mute)]">
-                                {section}
-                            </div>
-                            {items.map((item) => {
-                                const active = activeItem?.href === item.href;
-                                return (
-                                    <button
-                                        key={item.href}
-                                        type="button"
-                                        onClick={() => visit(item.href)}
-                                        className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13.5px] font-medium transition ${
-                                            active
-                                                ? 'bg-[linear-gradient(90deg,var(--gold-glow),transparent)] text-[var(--ink)]'
-                                                : 'text-[var(--ink-soft)] hover:bg-[var(--card-soft)] hover:text-[var(--ink)]'
-                                        }`}
-                                    >
-                                        {active && <span className="absolute -left-4 top-1.5 bottom-1.5 w-[3px] rounded-r bg-[var(--gold)]" />}
-                                        <Icon name={item.icon} size={18} className={active ? 'text-[var(--gold)]' : 'text-[var(--ink-mute)]'} />
-                                        <span>{item.name}</span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    ))}
+                <nav className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto">
+                    <div className="px-3 pb-2 pt-2 text-[10px] font-bold uppercase tracking-[1.6px] text-[var(--ink-mute)]">
+                        Điều hướng
+                    </div>
+
+                    {navigation.map((item) => {
+                        const active = activeItem?.href === item.href;
+
+                        return (
+                            <button
+                                key={item.href}
+                                type="button"
+                                onClick={() => visit(item.href)}
+                                className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13.5px] font-medium transition ${
+                                    active
+                                        ? 'bg-[linear-gradient(90deg,var(--gold-glow),transparent)] text-[var(--ink)]'
+                                        : 'text-[var(--ink-soft)] hover:bg-[var(--card-soft)] hover:text-[var(--ink)]'
+                                }`}
+                            >
+                                {active && <span className="absolute -left-4 top-1.5 bottom-1.5 w-[3px] rounded-r bg-[var(--gold)]" />}
+                                <span className={active ? 'text-[var(--gold)]' : 'text-[var(--ink-mute)]'}>{item.icon}</span>
+                                <span>{item.name}</span>
+                            </button>
+                        );
+                    })}
                 </nav>
 
                 <div className="border-t border-[var(--line-soft)] pt-4">

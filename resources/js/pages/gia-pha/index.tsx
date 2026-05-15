@@ -78,8 +78,8 @@ const buildFamilyTree = (people: Nguoi[]) => {
             fatherFamilyKey && fatherFamilyKey === motherFamilyKey
                 ? familyByKey.get(fatherFamilyKey)!
                 : parentMembers.length === 1
-                  ? getFamilyForPerson(parentMembers[0])
-                  : ensureFamily(
+                    ? getFamilyForPerson(parentMembers[0])
+                    : ensureFamily(
                         `parents-${parentMembers
                             .map((item) => item.id)
                             .sort((a, b) => a - b)

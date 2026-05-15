@@ -4,7 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('gia-pha/index');
+    return Inertia::render('landing/index');
 });
 
 Route::get('/gia-pha/dashboard', function () {
@@ -25,4 +25,8 @@ Route::get('/gia-pha/thanh-vien/{id}', function ($id) {
 
 Route::get('/gia-pha/tra-cuu-danh-xung', function () {
     return Inertia::render('tra-cuu-danh-xung/index');
+});
+
+Route::get('/gia-pha/events', function () {
+    return Inertia::render('events/index');
 });

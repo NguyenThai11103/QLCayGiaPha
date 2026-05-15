@@ -1,469 +1,978 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
+import Icon from '../../components/gia-pha/Icon';
 import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
 import { Nguoi, nguoiApi } from '../../services/gia-pha.api';
 
-// ─── Kinship engine ──────────────────────────────────────────────────────────
+type RelationshipKind =
+    | 'self'
+    | 'spouse'
+    | 'ancestor'
+    | 'descendant'
+    | 'sibling'
+    | 'pibling'
+    | 'nibling'
+    | 'cousin'
+    | 'cousin-removed'
+    | 'in-law'
+    | 'unrelated';
 
-function getPathToRoot(id: number, map: Map<number, Nguoi>): number[] {
-    const path: number[] = [];
-    let cur: number | null = id;
-    const visited = new Set<number>();
-    while (cur != null && map.has(cur) && !visited.has(cur)) {
-        visited.add(cur);
-        path.push(cur);
-        cur = map.get(cur)!.id_cha ?? null;
-    }
-    return path;
+interface RelationshipResult {
+    kind: RelationshipKind;
+    aToB: string;
+    bToA: string;
+    desc?: string;
+    path?: number[];
+    common?: number | null;
+    generations?: number;
+    level?: number;
+    side?: 'paternal' | 'maternal';
+    via?: 'blood' | 'marriage';
 }
 
-function getAncestorDistances(id: number, map: Map<number, Nguoi>): Map<number, number> {
-    const distances = new Map<number, number>();
-    const queue: Array<{ id: number; distance: number }> = [{ id, distance: 0 }];
+type AncestorData = { dist: number; path: number[] };
 
-    while (queue.length > 0) {
+const DIRECT_UP: Record<number, Record<'nam' | 'nu', string>> = {
+    1: { nam: 'Cha', nu: 'Mẹ' },
+    2: { nam: 'Ông', nu: 'Bà' },
+    3: { nam: 'Cụ', nu: 'Cụ bà' },
+    4: { nam: 'Kỵ', nu: 'Kỵ bà' },
+    5: { nam: 'Cao tổ', nu: 'Cao tổ bà' },
+    6: { nam: 'Cao tằng tổ', nu: 'Cao tằng tổ bà' },
+};
+
+const DIRECT_DOWN: Record<number, Record<'nam' | 'nu', string>> = {
+    1: { nam: 'Con trai', nu: 'Con gái' },
+    2: { nam: 'Cháu trai', nu: 'Cháu gái' },
+    3: { nam: 'Chắt trai', nu: 'Chắt gái' },
+    4: { nam: 'Chút trai', nu: 'Chút gái' },
+    5: { nam: 'Chít trai', nu: 'Chít gái' },
+    6: { nam: 'Hậu duệ đời 7', nu: 'Hậu duệ đời 7' },
+};
+
+const GLOSSARY = [
+    {
+        side: 'Bên nội',
+        terms: [
+            ['Bác', 'Anh trai của cha'],
+            ['Chú', 'Em trai của cha'],
+            ['Cô', 'Chị hoặc em gái của cha'],
+        ],
+    },
+    {
+        side: 'Bên ngoại',
+        terms: [
+            ['Cậu', 'Anh hoặc em trai của mẹ'],
+            ['Dì', 'Chị hoặc em gái của mẹ'],
+        ],
+    },
+    {
+        side: 'Thế hệ trên',
+        terms: [
+            ['Ông / Bà', 'Trên hai bậc'],
+            ['Cụ', 'Trên ba bậc'],
+            ['Kỵ', 'Trên bốn bậc'],
+            ['Cao tổ', 'Trên năm bậc'],
+        ],
+    },
+    {
+        side: 'Thế hệ dưới',
+        terms: [
+            ['Con', 'Dưới một bậc'],
+            ['Cháu', 'Dưới hai bậc'],
+            ['Chắt', 'Dưới ba bậc'],
+            ['Chút', 'Dưới bốn bậc'],
+            ['Chít', 'Dưới năm bậc'],
+        ],
+    },
+];
+
+const KIND_META: Record<RelationshipKind, { label: string; color: string; icon: Parameters<typeof Icon>[0]['name'] }> = {
+    self: { label: 'Chính mình', color: 'ink-mute', icon: 'users' },
+    spouse: { label: 'Hôn phối', color: 'terracotta', icon: 'heart' },
+    ancestor: { label: 'Tổ tiên - hậu duệ', color: 'gold', icon: 'tree' },
+    descendant: { label: 'Hậu duệ - tổ tiên', color: 'gold', icon: 'tree' },
+    sibling: { label: 'Anh chị em ruột', color: 'jade', icon: 'users' },
+    pibling: { label: 'Trên một thế hệ', color: 'brown', icon: 'branch' },
+    nibling: { label: 'Dưới một thế hệ', color: 'brown', icon: 'branch' },
+    cousin: { label: 'Anh chị em họ', color: 'jade', icon: 'branch' },
+    'cousin-removed': { label: 'Họ xa', color: 'ink-mute', icon: 'branch' },
+    'in-law': { label: 'Quan hệ thông gia', color: 'terracotta', icon: 'heart' },
+    unrelated: { label: 'Không có quan hệ', color: 'ink-mute', icon: 'link' },
+};
+
+export default function TraCuuDanhXung() {
+    const [members, setMembers] = useState<Nguoi[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [aId, setAId] = useState<number | null>(null);
+    const [bId, setBId] = useState<number | null>(null);
+    const [picker, setPicker] = useState<'a' | 'b' | null>(null);
+    const [recents, setRecents] = useState<Array<{ a: number; b: number; time: string }>>([]);
+
+    useEffect(() => {
+        nguoiApi
+            .list()
+            .then((res) => {
+                const data = res.data || [];
+                setMembers(data);
+                setAId((current) => current ?? data[0]?.id ?? null);
+                setBId((current) => current ?? data.find((member) => member.id !== data[0]?.id)?.id ?? null);
+                setRecents(makeInitialRecents(data));
+            })
+            .finally(() => setLoading(false));
+    }, []);
+
+    const byId = useMemo(() => new Map(members.map((member) => [member.id, member])), [members]);
+    const generations = useMemo(() => buildGenerationMap(members), [members]);
+    const a = aId ? byId.get(aId) || null : null;
+    const b = bId ? byId.get(bId) || null : null;
+    const result = useMemo(() => (a && b ? computeRelationship(a, b, byId) : null), [a, b, byId]);
+    const presets = useMemo(() => makePresets(members, byId), [members, byId]);
+
+    const swap = () => {
+        setAId(bId);
+        setBId(aId);
+    };
+
+    const pickPair = (nextA: number, nextB: number) => {
+        setAId(nextA);
+        setBId(nextB);
+        setRecents((prev) => [{ a: nextA, b: nextB, time: 'Vừa xong' }, ...prev.filter((item) => item.a !== nextA || item.b !== nextB)].slice(0, 5));
+    };
+
+    return (
+        <AuthenticatedLayout>
+            <Head title="Tra cứu danh xưng" />
+            <div className="gp-fade-up mx-auto max-w-[1320px]">
+                <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                            <span className="gp-eyebrow">Tra cứu quan hệ</span>
+                            <span className="text-[var(--ink-faint)]">·</span>
+                            <span className="text-[12px] text-[var(--ink-mute)]">Máy tính xưng hô · Quy tắc họ Việt</span>
+                        </div>
+                        <h1 className="gp-page-title">Xưng hô trong dòng họ</h1>
+                        <p className="mt-2 max-w-3xl text-[14px] leading-6 text-[var(--ink-mute)]">
+                            Chọn hai thành viên để tính khoảng cách thế hệ, hướng huyết thống và cách gọi phù hợp theo phong tục Việt.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        <button type="button" className="gp-btn gp-btn-ghost" onClick={() => router.visit('/gia-pha/cay-gia-pha')}>
+                            <Icon name="tree" size={14} />
+                            Xem trên cây
+                        </button>
+                        <button type="button" className="gp-btn gp-btn-primary">
+                            <Icon name="sparkle" size={14} />
+                            Hỏi AI
+                        </button>
+                    </div>
+                </div>
+
+                <div className="mb-6 flex flex-col items-stretch gap-3 lg:flex-row">
+                    <SelectorCard label="Người A" member={a} generation={a ? generations.get(a.id) : undefined} onPick={() => setPicker('a')} accent="gold" />
+                    <div className="grid place-items-center">
+                        <button
+                            type="button"
+                            onClick={swap}
+                            title="Tráo hai người"
+                            className="grid h-11 w-11 place-items-center rounded-full border border-[var(--gold-soft)] bg-[var(--card)] text-[var(--gold)] shadow-[var(--shadow-md)] transition hover:rotate-180 hover:bg-[var(--gold)] hover:text-white"
+                            disabled={!aId || !bId}
+                        >
+                            <SwapIcon />
+                        </button>
+                    </div>
+                    <SelectorCard label="Người B" member={b} generation={b ? generations.get(b.id) : undefined} onPick={() => setPicker('b')} accent="terracotta" />
+                </div>
+
+                {loading ? (
+                    <div className="gp-card grid min-h-72 place-items-center">
+                        <div className="text-center">
+                            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[var(--gold-pale)] border-t-[var(--gold)]" />
+                            <div className="mt-3 text-sm font-semibold text-[var(--ink-mute)]">Đang tải thành viên...</div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+                        <div className="space-y-4">
+                            <ResultCard a={a} b={b} result={result} />
+                            {result?.path && result.path.length >= 2 && <PathView result={result} byId={byId} />}
+                            {result && result.kind !== 'self' && result.kind !== 'unrelated' && (
+                                <AnalysisCard result={result} byId={byId} />
+                            )}
+                        </div>
+
+                        <div className="space-y-4">
+                            <Presets presets={presets} byId={byId} onPick={pickPair} />
+                            <RecentLookups recents={recents} byId={byId} onPick={pickPair} />
+                            <Glossary />
+                        </div>
+                    </div>
+                )}
+
+                <PickerModal
+                    open={picker !== null}
+                    members={members}
+                    generations={generations}
+                    excludeId={picker === 'a' ? bId : aId}
+                    onClose={() => setPicker(null)}
+                    onPick={(id) => {
+                        if (picker === 'a') setAId(id);
+                        if (picker === 'b') setBId(id);
+                        setPicker(null);
+                    }}
+                />
+            </div>
+        </AuthenticatedLayout>
+    );
+}
+
+function SelectorCard({ label, member, generation, onPick, accent }: { label: string; member: Nguoi | null; generation?: number; onPick: () => void; accent: string }) {
+    if (!member) {
+        return (
+            <button type="button" onClick={onPick} className="flex flex-1 flex-col items-center gap-3 rounded-2xl border-2 border-dashed border-[var(--card-border-strong)] bg-[var(--card)] p-7 text-center">
+                <span className="grid h-[72px] w-[72px] place-items-center rounded-full border-2 border-dashed border-[var(--card-border-strong)] bg-[var(--card-soft)] text-[var(--ink-mute)]">
+                    <Icon name="plus" size={28} />
+                </span>
+                <span className="gp-eyebrow">{label}</span>
+                <span className="text-[13px] text-[var(--ink-mute)]">Chạm để chọn thành viên</span>
+            </button>
+        );
+    }
+
+    return (
+        <article className="gp-card relative flex-1 overflow-hidden p-[22px]">
+            <div className="absolute inset-0 opacity-[0.06]" style={{ background: avatarGradient(member.id) }} />
+            <div className="relative mb-4 flex items-center justify-between">
+                <span
+                    className="gp-chip"
+                    style={{
+                        background: `color-mix(in srgb, var(--${accent}) 14%, transparent)`,
+                        borderColor: `color-mix(in srgb, var(--${accent}) 22%, transparent)`,
+                        color: `var(--${accent})`,
+                    }}
+                >
+                    <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                    {label}
+                </span>
+                <button type="button" onClick={onPick} title="Đổi" className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-mute)] hover:bg-[var(--card-soft)] hover:text-[var(--gold)]">
+                    <Icon name="edit" size={14} />
+                </button>
+            </div>
+
+            <div className="relative flex items-center gap-3">
+                <Avatar member={member} size="lg" />
+                <div className="min-w-0 flex-1">
+                    <div className="mb-1 text-[10.5px] font-bold uppercase tracking-[1.5px] text-[var(--ink-mute)]">
+                        Đời {generation || '?'} · {member.gioi_tinh === 'nam' ? 'Nam' : 'Nữ'}
+                    </div>
+                    <h2 className="truncate font-serif text-[26px] font-semibold leading-tight">{member.ten_day_du}</h2>
+                    <div className="mt-1 text-[12px] text-[var(--ink-mute)]">
+                        {formatYear(member.ngay_sinh) || '?'} {member.da_mat ? `- ${formatYear(member.ngay_mat) || '?'}` : '- nay'}
+                    </div>
+                </div>
+            </div>
+        </article>
+    );
+}
+
+function ResultCard({ a, b, result }: { a: Nguoi | null; b: Nguoi | null; result: RelationshipResult | null }) {
+    if (!a || !b || !result) {
+        return (
+            <div className="gp-card p-12 text-center">
+                <Icon name="link" size={38} className="mx-auto text-[var(--ink-faint)]" />
+                <div className="mt-4 text-[14px] text-[var(--ink-mute)]">Chọn hai thành viên để xem xưng hô</div>
+            </div>
+        );
+    }
+
+    const meta = KIND_META[result.kind];
+    const lastA = shortName(a.ten_day_du);
+    const lastB = shortName(b.ten_day_du);
+
+    return (
+        <section className="gp-card relative overflow-hidden border-[var(--gold-soft)] bg-[linear-gradient(135deg,var(--card)_0%,color-mix(in_srgb,var(--gold)_5%,var(--card))_100%)] p-8">
+            <Icon name="sparkle" size={48} className="absolute right-4 top-4 text-[var(--gold)] opacity-20" />
+            <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-[radial-gradient(circle,var(--gold-glow),transparent_70%)] opacity-70" />
+
+            <div className="relative mb-4 flex flex-wrap gap-2">
+                <span
+                    className="gp-chip"
+                    style={{
+                        background: `color-mix(in srgb, var(--${meta.color}) 14%, transparent)`,
+                        borderColor: `color-mix(in srgb, var(--${meta.color}) 25%, transparent)`,
+                        color: `var(--${meta.color})`,
+                    }}
+                >
+                    <Icon name={meta.icon} size={11} />
+                    {meta.label}
+                </span>
+                {result.via && <span className="gp-chip">{result.via === 'marriage' ? 'Qua hôn nhân' : 'Huyết thống'}</span>}
+                {typeof result.generations === 'number' && result.generations > 0 && <span className="gp-chip">Cách {result.generations} đời</span>}
+                {result.side && <span className="gp-chip">{result.side === 'paternal' ? 'Bên nội' : 'Bên ngoại'}</span>}
+            </div>
+
+            <div className="relative">
+                <div className="mb-1 text-[13px] text-[var(--ink-soft)]">
+                    <span className="font-semibold text-[var(--ink)]">{lastB}</span> gọi <span className="font-semibold text-[var(--ink)]">{lastA}</span> là
+                </div>
+                <div className="font-serif text-[clamp(42px,7vw,68px)] font-semibold leading-none tracking-[-0.5px] text-[var(--gold)]">
+                    {result.bToA}
+                </div>
+
+                <div className="mt-6 flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--card-soft)] px-4 py-3">
+                    <Icon name="arrow-right" size={15} className="shrink-0 text-[var(--ink-mute)]" />
+                    <div className="min-w-0">
+                        <span className="text-[13px] text-[var(--ink-soft)]">
+                            <span className="font-semibold text-[var(--ink)]">{lastA}</span> gọi <span className="font-semibold text-[var(--ink)]">{lastB}</span> là{' '}
+                        </span>
+                        <span className="font-serif text-[24px] font-semibold text-[var(--brown)]">{result.aToB}</span>
+                    </div>
+                </div>
+
+                {result.desc && <p className="mt-4 text-[13.5px] leading-6 text-[var(--ink-soft)]">{result.desc}</p>}
+            </div>
+        </section>
+    );
+}
+
+function PathView({ result, byId }: { result: RelationshipResult; byId: Map<number, Nguoi> }) {
+    const path = result.path || [];
+
+    return (
+        <section className="gp-card p-[22px]">
+            <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                    <h2 className="text-[16px] font-semibold">Con đường quan hệ</h2>
+                    <p className="mt-1 text-[12.5px] text-[var(--ink-mute)]">Theo nhánh cha mẹ và tổ tiên chung gần nhất</p>
+                </div>
+                <Icon name="branch" size={18} className="text-[var(--gold)]" />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+                {path.map((id, index) => {
+                    const member = byId.get(id);
+                    if (!member) return null;
+                    return (
+                        <div key={`${id}-${index}`} className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--card-soft)] py-1 pl-1 pr-3">
+                                <Avatar member={member} size="sm" />
+                                <span className="max-w-[180px] truncate text-[12.5px] font-semibold">{shortName(member.ten_day_du)}</span>
+                            </div>
+                            {index < path.length - 1 && <Icon name="chevron-right" size={14} className="text-[var(--ink-faint)]" />}
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+function AnalysisCard({ result, byId }: { result: RelationshipResult; byId: Map<number, Nguoi> }) {
+    return (
+        <section className="gp-card p-[22px]">
+            <h2 className="mb-4 text-[16px] font-semibold">Phân tích chi tiết</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+                <DetailField label="Loại quan hệ" value={KIND_META[result.kind].label} />
+                <DetailField label="Đường lối" value={result.via === 'marriage' ? 'Qua hôn nhân' : 'Huyết thống trực tiếp'} />
+                <DetailField label="Khoảng cách thế hệ" value={`${result.generations || 0} đời`} />
+                {result.level && <DetailField label="Bậc họ" value={`Đời ${result.level - 1}`} />}
+                {result.side && <DetailField label="Nhánh" value={result.side === 'paternal' ? 'Bên nội (cha)' : 'Bên ngoại (mẹ)'} />}
+                {result.common && <DetailField label="Tổ chung" value={byId.get(result.common)?.ten_day_du || 'Chưa rõ'} fullSpan />}
+            </div>
+        </section>
+    );
+}
+
+function Presets({ presets, byId, onPick }: { presets: Array<{ a: number; b: number; note: string }>; byId: Map<number, Nguoi>; onPick: (a: number, b: number) => void }) {
+    return (
+        <section className="gp-card p-[22px]">
+            <h2 className="text-[16px] font-semibold">Tra cứu mẫu</h2>
+            <p className="mb-4 mt-1 text-[12.5px] text-[var(--ink-mute)]">Bấm để xem nhanh</p>
+            <div className="space-y-1.5">
+                {presets.length === 0 && <div className="text-sm text-[var(--ink-mute)]">Chưa đủ dữ liệu để tạo mẫu.</div>}
+                {presets.map((preset, index) => {
+                    const a = byId.get(preset.a);
+                    const b = byId.get(preset.b);
+                    if (!a || !b) return null;
+                    return (
+                        <button key={`${preset.a}-${preset.b}-${index}`} type="button" onClick={() => onPick(preset.a, preset.b)} className="flex w-full items-center gap-3 rounded-[10px] border border-transparent px-2.5 py-2 text-left transition hover:border-[var(--gold-soft)] hover:bg-[var(--card-soft)]">
+                            <StackedAvatars a={a} b={b} />
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[12.5px] font-semibold">{shortName(a.ten_day_du)} & {shortName(b.ten_day_du)}</span>
+                                <span className="block text-[11px] text-[var(--ink-mute)]">{preset.note}</span>
+                            </span>
+                            <Icon name="chevron-right" size={13} className="text-[var(--ink-faint)]" />
+                        </button>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+function RecentLookups({ recents, byId, onPick }: { recents: Array<{ a: number; b: number; time: string }>; byId: Map<number, Nguoi>; onPick: (a: number, b: number) => void }) {
+    return (
+        <section className="gp-card p-[22px]">
+            <h2 className="text-[16px] font-semibold">Đã tra gần đây</h2>
+            <p className="mb-3 mt-1 text-[12.5px] text-[var(--ink-mute)]">Lịch sử cá nhân trong phiên này</p>
+            <div className="space-y-1">
+                {recents.length === 0 && <div className="text-sm text-[var(--ink-mute)]">Chưa có lượt tra cứu.</div>}
+                {recents.map((recent, index) => {
+                    const a = byId.get(recent.a);
+                    const b = byId.get(recent.b);
+                    if (!a || !b) return null;
+                    return (
+                        <button key={`${recent.a}-${recent.b}-${index}`} type="button" onClick={() => onPick(recent.a, recent.b)} className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left transition hover:bg-[var(--card-soft)]">
+                            <StackedAvatars a={a} b={b} small />
+                            <span className="min-w-0 flex-1 truncate text-[12px] font-medium">{lastWord(a.ten_day_du)} ↔ {lastWord(b.ten_day_du)}</span>
+                            <span className="text-[10.5px] text-[var(--ink-mute)]">{recent.time}</span>
+                        </button>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
+function Glossary() {
+    return (
+        <section className="gp-card p-[22px]">
+            <div className="mb-4 flex items-center justify-between">
+                <div>
+                    <h2 className="text-[16px] font-semibold">Từ điển xưng hô</h2>
+                    <p className="mt-1 text-[12.5px] text-[var(--ink-mute)]">Tra cứu nhanh</p>
+                </div>
+                <Icon name="book" size={17} className="text-[var(--gold)]" />
+            </div>
+            <div className="space-y-4">
+                {GLOSSARY.map((group) => (
+                    <div key={group.side}>
+                        <div className="mb-2 text-[10.5px] font-bold uppercase tracking-[1.5px] text-[var(--gold)]">{group.side}</div>
+                        <div className="space-y-1">
+                            {group.terms.map(([term, desc]) => (
+                                <div key={term} className="flex items-center justify-between gap-3 rounded-md bg-[var(--card-soft)] px-2 py-1.5">
+                                    <span className="font-serif text-[15px] font-semibold">{term}</span>
+                                    <span className="text-right text-[11.5px] text-[var(--ink-mute)]">{desc}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+    );
+}
+
+function PickerModal({
+    open,
+    members,
+    generations,
+    excludeId,
+    onClose,
+    onPick,
+}: {
+    open: boolean;
+    members: Nguoi[];
+    generations: Map<number, number>;
+    excludeId: number | null;
+    onClose: () => void;
+    onPick: (id: number) => void;
+}) {
+    const [query, setQuery] = useState('');
+    const [filterGen, setFilterGen] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (open) {
+            setQuery('');
+            setFilterGen(null);
+        }
+    }, [open]);
+
+    if (!open) return null;
+
+    const generationList = [...new Set([...generations.values()])].sort((a, b) => a - b);
+    const filtered = members.filter((member) => {
+        if (member.id === excludeId) return false;
+        if (filterGen && generations.get(member.id) !== filterGen) return false;
+        if (query && !member.ten_day_du.toLowerCase().includes(query.toLowerCase())) return false;
+        return true;
+    });
+
+    return (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4 backdrop-blur-sm" onClick={onClose}>
+            <div className="gp-card flex max-h-[82vh] w-full max-w-xl flex-col overflow-hidden shadow-[var(--shadow-lg)]" onClick={(e) => e.stopPropagation()}>
+                <div className="border-b border-[var(--line)] p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                        <h2 className="font-serif text-[24px] font-semibold">Chọn thành viên</h2>
+                        <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-mute)] hover:bg-[var(--card-soft)]">
+                            <Icon name="x" size={17} />
+                        </button>
+                    </div>
+                    <label className="relative block">
+                        <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-mute)]" />
+                        <input autoFocus value={query} onChange={(e) => setQuery(e.target.value)} className="gp-input w-full py-2 pl-9 text-[13px]" placeholder="Tìm theo tên..." />
+                    </label>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <button type="button" onClick={() => setFilterGen(null)} className={`gp-chip ${filterGen === null ? 'gp-chip-gold' : ''}`}>Tất cả · {members.length}</button>
+                        {generationList.map((generation) => (
+                            <button key={generation} type="button" onClick={() => setFilterGen(generation)} className={`gp-chip ${filterGen === generation ? 'gp-chip-gold' : ''}`}>
+                                Đời {generation} · {members.filter((member) => generations.get(member.id) === generation).length}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                    {filtered.length === 0 && <div className="p-10 text-center text-sm text-[var(--ink-mute)]">Không tìm thấy thành viên nào</div>}
+                    {filtered.map((member) => (
+                        <button key={member.id} type="button" onClick={() => onPick(member.id)} className="flex w-full items-center gap-3 rounded-[10px] border border-transparent px-3 py-2.5 text-left transition hover:border-[var(--gold-soft)] hover:bg-[var(--card-soft)]">
+                            <Avatar member={member} />
+                            <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[13.5px] font-semibold">{member.ten_day_du}</span>
+                                <span className="block text-[11.5px] text-[var(--ink-mute)]">Đời {generations.get(member.id) || '?'} · {formatYear(member.ngay_sinh) || '?'}</span>
+                            </span>
+                            <Icon name="chevron-right" size={14} className="text-[var(--ink-faint)]" />
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function DetailField({ label, value, fullSpan = false }: { label: string; value: string; fullSpan?: boolean }) {
+    return (
+        <div className={fullSpan ? 'md:col-span-2' : ''}>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-[1.2px] text-[var(--ink-mute)]">{label}</div>
+            <div className="font-serif text-[17px] font-semibold">{value}</div>
+        </div>
+    );
+}
+
+function Avatar({ member, size = 'md' }: { member: Nguoi; size?: 'sm' | 'md' | 'lg' }) {
+    const dimensions = size === 'lg' ? 'h-[60px] w-[60px] text-[18px]' : size === 'sm' ? 'h-6 w-6 text-[9px]' : 'h-10 w-10 text-[13px]';
+    return (
+        <span className={`grid shrink-0 place-items-center overflow-hidden rounded-full font-bold text-white shadow ${dimensions}`} style={{ background: avatarGradient(member.id) }}>
+            {member.anh_dai_dien ? <img src={member.anh_dai_dien} alt={member.ten_day_du} className="h-full w-full object-cover" /> : initials(member.ten_day_du)}
+        </span>
+    );
+}
+
+function StackedAvatars({ a, b, small = false }: { a: Nguoi; b: Nguoi; small?: boolean }) {
+    const size = small ? 'sm' : 'md';
+    return (
+        <span className="flex shrink-0">
+            <Avatar member={a} size={size} />
+            <span className={small ? '-ml-1.5' : '-ml-2'}>
+                <Avatar member={b} size={size} />
+            </span>
+        </span>
+    );
+}
+
+function computeRelationship(a: Nguoi, b: Nguoi, byId: Map<number, Nguoi>): RelationshipResult {
+    if (a.id === b.id) {
+        return { kind: 'self', aToB: 'Chính mình', bToA: 'Chính mình', path: [a.id], common: a.id };
+    }
+
+    if ((a.vo_chong_ids || []).includes(b.id)) {
+        return {
+            kind: 'spouse',
+            aToB: a.gioi_tinh === 'nam' ? 'Vợ' : 'Chồng',
+            bToA: b.gioi_tinh === 'nam' ? 'Vợ' : 'Chồng',
+            desc: 'Vợ chồng - hôn phối trực tiếp',
+            path: [a.id, b.id],
+            common: null,
+            via: 'marriage',
+        };
+    }
+
+    const blood = computeBloodRelationship(a, b, byId);
+    if (blood) return blood;
+
+    const inLaw = computeInLawRelationship(a, b, byId);
+    if (inLaw) return inLaw;
+
+    return {
+        kind: 'unrelated',
+        aToB: 'Không quan hệ',
+        bToA: 'Không quan hệ',
+        desc: 'Không tìm thấy quan hệ huyết thống hoặc hôn nhân trong dữ liệu hiện có.',
+    };
+}
+
+function computeBloodRelationship(a: Nguoi, b: Nguoi, byId: Map<number, Nguoi>): RelationshipResult | null {
+    const aAnc = ancestorMap(a.id, byId);
+    const bAnc = ancestorMap(b.id, byId);
+    let best: { id: number; total: number; upA: number; upB: number; pathA: number[]; pathB: number[] } | null = null;
+
+    for (const [id, data] of aAnc) {
+        const bData = bAnc.get(id);
+        if (!bData) continue;
+        const total = data.dist + bData.dist;
+        if (!best || total < best.total) {
+            best = { id, total, upA: data.dist, upB: bData.dist, pathA: data.path, pathB: bData.path };
+        }
+    }
+
+    if (!best) return null;
+    return makeBloodResult(a, b, best, byId);
+}
+
+function ancestorMap(id: number, byId: Map<number, Nguoi>): Map<number, AncestorData> {
+    const result = new Map<number, AncestorData>();
+    result.set(id, { dist: 0, path: [id] });
+    const queue = [id];
+
+    while (queue.length) {
         const current = queue.shift()!;
-        if (distances.has(current.id) || !map.has(current.id)) continue;
+        const currentData = result.get(current)!;
+        const person = byId.get(current);
+        if (!person) continue;
 
-        distances.set(current.id, current.distance);
-        const person = map.get(current.id)!;
-        const parents = [person.id_cha, person.id_me].filter((parentId): parentId is number => parentId != null);
-
-        for (const parentId of parents) {
-            queue.push({ id: parentId, distance: current.distance + 1 });
+        for (const parentId of [person.id_cha, person.id_me]) {
+            if (!parentId || result.has(parentId)) continue;
+            result.set(parentId, { dist: currentData.dist + 1, path: [...currentData.path, parentId] });
+            queue.push(parentId);
         }
     }
 
-    return distances;
+    return result;
 }
 
-function getBloodDistance(aId: number, bId: number, map: Map<number, Nguoi>) {
-    const ancestorsA = getAncestorDistances(aId, map);
-    const ancestorsB = getAncestorDistances(bId, map);
-    let best: { lcaId: number; dA: number; dB: number } | null = null;
+function makeBloodResult(
+    a: Nguoi,
+    b: Nguoi,
+    best: { id: number; upA: number; upB: number; pathA: number[]; pathB: number[] },
+    byId: Map<number, Nguoi>,
+): RelationshipResult {
+    const { upA, upB, pathA, pathB, id: commonId } = best;
+    const fullPath = [...pathA, ...pathB.slice(0, -1).reverse()];
 
-    for (const [ancestorId, dA] of ancestorsA) {
-        const dB = ancestorsB.get(ancestorId);
-        if (dB == null) continue;
-
-        if (!best || dA + dB < best.dA + best.dB) {
-            best = { lcaId: ancestorId, dA, dB };
-        }
+    if (upA === 0) {
+        const term = DIRECT_UP[upB]?.[a.gioi_tinh] || `Tổ tiên đời ${upB}`;
+        const reverse = DIRECT_DOWN[upB]?.[b.gioi_tinh] || `Hậu duệ đời ${upB}`;
+        return {
+            kind: 'ancestor',
+            aToB: reverse,
+            bToA: term,
+            desc: `Trực hệ - ${term} của ${lastWord(b.ten_day_du)}, cách ${upB} đời.`,
+            path: fullPath,
+            common: commonId,
+            generations: upB,
+            via: 'blood',
+        };
     }
 
-    return best;
-}
-
-interface KinshipResult {
-    loai: string;           // e.g. "Huyết thống", "Hôn nhân", ...
-    aTuongQuanB: string;    // A gọi B là ...
-    bTuongQuanA: string;    // B gọi A là ...
-    buoc: string[];         // path explanation
-}
-
-function parentLabel(person: Nguoi): string {
-    return person.gioi_tinh === 'nam' ? 'Cha' : 'Mẹ';
-}
-
-function spouseLabel(person: Nguoi): string {
-    return person.gioi_tinh === 'nam' ? 'chồng' : 'vợ';
-}
-
-function parentInLawLabel(parent: Nguoi, spouse: Nguoi): string {
-    const side = spouse.gioi_tinh === 'nam' ? 'chồng' : 'vợ';
-    return `${parentLabel(parent).toLowerCase()} ${side}`;
-}
-
-function childInLawLabel(spouse: Nguoi): string {
-    return spouse.gioi_tinh === 'nam' ? 'con dâu' : 'con rể';
-}
-
-function directAncestorLabel(person: Nguoi, distance: number): string {
-    if (distance === 1) return parentLabel(person);
-    if (distance === 2) return person.gioi_tinh === 'nam' ? 'Ông' : 'Bà';
-    if (distance === 3) return 'Cụ';
-    if (distance === 4) return 'Kỵ';
-    return `Tổ tiên đời ${distance}`;
-}
-
-function directDescendantLabel(distance: number): string {
-    if (distance === 1) return 'Con';
-    if (distance === 2) return 'Cháu';
-    if (distance === 3) return 'Chắt';
-    if (distance === 4) return 'Chút';
-    if (distance === 5) return 'Chít';
-    return `Hậu duệ đời ${distance}`;
-}
-
-function computeDirectInLaw(a: Nguoi, b: Nguoi, map: Map<number, Nguoi>): KinshipResult | null {
-    for (const spouseId of b.vo_chong_ids || []) {
-        const spouse = map.get(spouseId);
-        if (!spouse) continue;
-
-        const distance = getBloodDistance(a.id, spouse.id, map);
-        if (distance?.dA === 0 && distance.dB === 1) {
-            return {
-                loai: 'Hôn nhân - Huyết thống',
-                aTuongQuanB: `${childInLawLabel(spouse)} của ${a.ten_day_du}`,
-                bTuongQuanA: `${parentInLawLabel(a, spouse)} của ${b.ten_day_du}`,
-                buoc: [`${a.ten_day_du} là ${parentLabel(a).toLowerCase()} của ${spouse.ten_day_du} (${spouseLabel(spouse)} của ${b.ten_day_du}).`],
-            };
-        }
-
-        if (distance?.dB === 0 && distance.dA >= 1) {
-            return {
-                loai: 'Hôn nhân - Huyết thống',
-                aTuongQuanB: directAncestorLabel(b, distance.dA),
-                bTuongQuanA: directDescendantLabel(distance.dA),
-                buoc: [`${b.ten_day_du} là ${spouseLabel(b)} của ${spouse.ten_day_du}, tổ tiên đời ${distance.dA} của ${a.ten_day_du}.`],
-            };
-        }
+    if (upB === 0) {
+        const term = DIRECT_UP[upA]?.[b.gioi_tinh] || `Tổ tiên đời ${upA}`;
+        const reverse = DIRECT_DOWN[upA]?.[a.gioi_tinh] || `Hậu duệ đời ${upA}`;
+        return {
+            kind: 'descendant',
+            aToB: term,
+            bToA: reverse,
+            desc: `Trực hệ - ${term} của ${lastWord(a.ten_day_du)}, cách ${upA} đời.`,
+            path: fullPath,
+            common: commonId,
+            generations: upA,
+            via: 'blood',
+        };
     }
 
+    if (upA === 1 && upB === 1) {
+        const olderA = isOlder(a, b);
+        return {
+            kind: 'sibling',
+            aToB: siblingTerm(b, olderA ? 'younger' : 'older'),
+            bToA: siblingTerm(a, olderA ? 'older' : 'younger'),
+            desc: 'Anh chị em ruột - cùng cha hoặc mẹ trong dữ liệu gia phả.',
+            path: [a.id, commonId, b.id],
+            common: commonId,
+            generations: 0,
+            via: 'blood',
+        };
+    }
+
+    if (upA === 1 && upB >= 2) {
+        const bParent = byId.get(pathB[upB - 1]);
+        const isPaternal = bParent?.gioi_tinh === 'nam';
+        const base = pibName(a, isPaternal, bParent ? isOlder(a, bParent) : false);
+        const prefix = genPrefix(upB, a.gioi_tinh);
+        const bToA = `${prefix}${base}`.trim();
+        return {
+            kind: 'pibling',
+            aToB: upB === 2 ? DIRECT_DOWN[2][b.gioi_tinh] : DIRECT_DOWN[upB - 1]?.[b.gioi_tinh] || 'Hậu duệ',
+            bToA,
+            desc: `${bToA} - ${isPaternal ? 'bên nội' : 'bên ngoại'}${bParent ? `, cùng nhánh với ${shortName(bParent.ten_day_du)}` : ''}.`,
+            path: fullPath,
+            common: commonId,
+            generations: upB - upA,
+            side: isPaternal ? 'paternal' : 'maternal',
+            via: 'blood',
+        };
+    }
+
+    if (upB === 1 && upA >= 2) {
+        const aParent = byId.get(pathA[upA - 1]);
+        const isPaternal = aParent?.gioi_tinh === 'nam';
+        const base = pibName(b, isPaternal, aParent ? isOlder(b, aParent) : false);
+        const prefix = genPrefix(upA, b.gioi_tinh);
+        const aToB = `${prefix}${base}`.trim();
+        return {
+            kind: 'nibling',
+            aToB,
+            bToA: upA === 2 ? DIRECT_DOWN[2][a.gioi_tinh] : DIRECT_DOWN[upA - 1]?.[a.gioi_tinh] || 'Hậu duệ',
+            desc: `${aToB} - ${isPaternal ? 'bên nội' : 'bên ngoại'}.`,
+            path: fullPath,
+            common: commonId,
+            generations: upA - upB,
+            side: isPaternal ? 'paternal' : 'maternal',
+            via: 'blood',
+        };
+    }
+
+    if (upA === upB) {
+        const olderA = isOlder(a, b);
+        const level = upA;
+        return {
+            kind: 'cousin',
+            aToB: cousinTerm(b, olderA ? 'younger' : 'older'),
+            bToA: cousinTerm(a, olderA ? 'older' : 'younger'),
+            desc: `${level === 2 ? 'Anh em họ đời 1' : `Anh em họ đời ${level - 1}`} - cùng tổ tiên chung gần nhất.`,
+            path: fullPath,
+            common: commonId,
+            generations: 0,
+            level,
+            via: 'blood',
+        };
+    }
+
+    const removed = Math.abs(upA - upB);
+    const closer = Math.min(upA, upB);
+    return {
+        kind: 'cousin-removed',
+        aToB: upA < upB ? `Cô/Chú họ - cách ${removed} đời` : `Cháu họ - cách ${removed} đời`,
+        bToA: upB < upA ? `Cô/Chú họ - cách ${removed} đời` : `Cháu họ - cách ${removed} đời`,
+        desc: `Anh em họ ${closer === 2 ? 'đời 1' : `đời ${closer - 1}`} cách ${removed} đời.`,
+        path: fullPath,
+        common: commonId,
+        generations: removed,
+        via: 'blood',
+    };
+}
+
+function computeInLawRelationship(a: Nguoi, b: Nguoi, byId: Map<number, Nguoi>): RelationshipResult | null {
     for (const spouseId of a.vo_chong_ids || []) {
-        const spouse = map.get(spouseId);
+        const spouse = byId.get(spouseId);
         if (!spouse) continue;
+        const sub = computeBloodRelationship(spouse, b, byId);
+        if (sub && sub.kind !== 'self') return makeInLawResult(a, b, sub, 'a');
+    }
 
-        const distance = getBloodDistance(b.id, spouse.id, map);
-        if (distance?.dA === 0 && distance.dB === 1) {
-            return {
-                loai: 'Hôn nhân - Huyết thống',
-                aTuongQuanB: `${parentInLawLabel(b, spouse)} của ${a.ten_day_du}`,
-                bTuongQuanA: `${childInLawLabel(spouse)} của ${b.ten_day_du}`,
-                buoc: [`${b.ten_day_du} là ${parentLabel(b).toLowerCase()} của ${spouse.ten_day_du} (${spouseLabel(spouse)} của ${a.ten_day_du}).`],
-            };
-        }
-
-        if (distance?.dB === 0 && distance.dA >= 1) {
-            return {
-                loai: 'Hôn nhân - Huyết thống',
-                aTuongQuanB: directDescendantLabel(distance.dA),
-                bTuongQuanA: directAncestorLabel(a, distance.dA),
-                buoc: [`${a.ten_day_du} là ${spouseLabel(a)} của ${spouse.ten_day_du}, tổ tiên đời ${distance.dA} của ${b.ten_day_du}.`],
-            };
-        }
+    for (const spouseId of b.vo_chong_ids || []) {
+        const spouse = byId.get(spouseId);
+        if (!spouse) continue;
+        const sub = computeBloodRelationship(a, spouse, byId);
+        if (sub && sub.kind !== 'self') return makeInLawResult(a, b, sub, 'b');
     }
 
     return null;
 }
 
-function tinhDanhXung(a: Nguoi, b: Nguoi, allPeople: Nguoi[]): KinshipResult {
-    const map = new Map(allPeople.map((p) => [p.id, p]));
-
-    // ── Hôn nhân ──
-    if ((a.vo_chong_ids || []).includes(b.id)) {
+function makeInLawResult(a: Nguoi, b: Nguoi, sub: RelationshipResult, bridge: 'a' | 'b'): RelationshipResult {
+    if (bridge === 'a') {
         return {
-            loai: 'Hôn nhân',
-            aTuongQuanB: a.gioi_tinh === 'nam' ? 'Vợ' : 'Chồng',
-            bTuongQuanA: b.gioi_tinh === 'nam' ? 'Vợ' : 'Chồng',
-            buoc: [`${a.ten_day_du} và ${b.ten_day_du} là vợ chồng.`],
+            kind: 'in-law',
+            aToB: inLawLabel(sub.aToB, 'spouse-side'),
+            bToA: inLawLabel(sub.bToA, 'in-law-side'),
+            desc: `Quan hệ qua hôn nhân của ${shortName(a.ten_day_du)} - ${sub.desc || ''}`,
+            path: sub.path,
+            common: sub.common,
+            generations: sub.generations,
+            via: 'marriage',
         };
     }
 
-    const bloodDistance = getBloodDistance(a.id, b.id, map);
-
-    if (bloodDistance == null) {
-        const inLawResult = computeDirectInLaw(a, b, map);
-        if (inLawResult) return inLawResult;
-
-        return {
-            loai: 'Không xác định',
-            aTuongQuanB: '—',
-            bTuongQuanA: '—',
-            buoc: ['Không tìm được quan hệ giữa hai người này trong cùng một dòng họ.'],
-        };
-    }
-
-    const { lcaId, dA, dB } = bloodDistance;
-    const result = computeBlood(a, b, dA, dB);
-    const lcaName = map.get(lcaId)?.ten_day_du || '';
-    const buoc: string[] = [];
-    if (dA === 0 && dB === 0) buoc.push('Hai người là một.');
-    else if (dA === 0) buoc.push(`${b.ten_day_du} là hậu duệ đời ${dB} của ${a.ten_day_du}.`);
-    else if (dB === 0) buoc.push(`${a.ten_day_du} là hậu duệ đời ${dA} của ${b.ten_day_du}.`);
-    else buoc.push(`Tổ tiên chung gần nhất: ${lcaName} (cách A ${dA} đời, cách B ${dB} đời).`);
-
-    return { ...result, buoc };
+    return {
+        kind: 'in-law',
+        aToB: inLawLabel(sub.aToB, 'in-law-side'),
+        bToA: inLawLabel(sub.bToA, 'spouse-side'),
+        desc: `Quan hệ qua hôn nhân của ${shortName(b.ten_day_du)} - ${sub.desc || ''}`,
+        path: sub.path,
+        common: sub.common,
+        generations: sub.generations,
+        via: 'marriage',
+    };
 }
 
-function computeBlood(a: Nguoi, b: Nguoi, dA: number, dB: number): Pick<KinshipResult, 'loai' | 'aTuongQuanB' | 'bTuongQuanA'> {
-    const gB = b.gioi_tinh;
-    const gA = a.gioi_tinh;
-
-    if (dA === 0 && dB === 0) return { loai: 'Bản thân', aTuongQuanB: 'Chính mình', bTuongQuanA: 'Chính mình' };
-
-    // A là tổ tiên của B
-    if (dA === 0) {
-        if (dB === 1) return { loai: 'Trực hệ', aTuongQuanB: 'Con', bTuongQuanA: gA === 'nam' ? 'Cha' : 'Mẹ' };
-        if (dB === 2) return { loai: 'Trực hệ', aTuongQuanB: 'Cháu', bTuongQuanA: gA === 'nam' ? 'Ông' : 'Bà' };
-        if (dB === 3) return { loai: 'Trực hệ', aTuongQuanB: 'Chắt', bTuongQuanA: 'Cụ' };
-        if (dB === 4) return { loai: 'Trực hệ', aTuongQuanB: 'Chút', bTuongQuanA: 'Kỵ' };
-        return { loai: 'Trực hệ', aTuongQuanB: `Hậu duệ đời ${dB}`, bTuongQuanA: `Tổ tiên đời ${dB}` };
-    }
-
-    // B là tổ tiên của A
-    if (dB === 0) {
-        if (dA === 1) return { loai: 'Trực hệ', aTuongQuanB: gB === 'nam' ? 'Cha' : 'Mẹ', bTuongQuanA: 'Con' };
-        if (dA === 2) return { loai: 'Trực hệ', aTuongQuanB: gB === 'nam' ? 'Ông' : 'Bà', bTuongQuanA: 'Cháu' };
-        if (dA === 3) return { loai: 'Trực hệ', aTuongQuanB: 'Cụ', bTuongQuanA: 'Chắt' };
-        if (dA === 4) return { loai: 'Trực hệ', aTuongQuanB: 'Kỵ', bTuongQuanA: 'Chút' };
-        return { loai: 'Trực hệ', aTuongQuanB: `Tổ tiên đời ${dA}`, bTuongQuanA: `Hậu duệ đời ${dA}` };
-    }
-
-    // Anh chị em ruột
-    if (dA === 1 && dB === 1) {
-        const abLabel = gA === 'nam' ? 'Anh/Em trai' : 'Chị/Em gái';
-        const baLabel = gB === 'nam' ? 'Anh/Em trai' : 'Chị/Em gái';
-        return { loai: 'Anh chị em', aTuongQuanB: abLabel, bTuongQuanA: baLabel };
-    }
-
-    // Chú/Bác/Cô/Dì - Cháu
-    if (dA === 1 && dB === 2) return { loai: 'Chú bác cô dì', aTuongQuanB: gA === 'nam' ? 'Chú/Bác' : 'Cô', bTuongQuanA: 'Cháu' };
-    if (dA === 2 && dB === 1) return { loai: 'Chú bác cô dì', aTuongQuanB: 'Cháu', bTuongQuanA: gB === 'nam' ? 'Chú/Bác' : 'Cô' };
-
-    // Anh em họ
-    if (dA === dB) return { loai: 'Họ hàng', aTuongQuanB: 'Anh/Chị/Em họ', bTuongQuanA: 'Anh/Chị/Em họ' };
-
-    const diff = Math.abs(dA - dB);
-    if (dA > dB) return { loai: 'Họ hàng', aTuongQuanB: diff === 1 ? 'Cháu họ' : `Hậu duệ họ đời ${dA - dB}`, bTuongQuanA: diff === 1 ? 'Chú/Bác/Cô họ' : 'Ông/Bà họ' };
-    return { loai: 'Họ hàng', aTuongQuanB: diff === 1 ? 'Chú/Bác/Cô họ' : 'Ông/Bà họ', bTuongQuanA: diff === 1 ? 'Cháu họ' : `Hậu duệ họ đời ${dB - dA}` };
+function inLawLabel(baseTerm: string, mode: 'spouse-side' | 'in-law-side') {
+    if (baseTerm.includes('Cha')) return 'Bố vợ/Bố chồng';
+    if (baseTerm.includes('Mẹ')) return 'Mẹ vợ/Mẹ chồng';
+    if (baseTerm.includes('Con trai')) return 'Con rể';
+    if (baseTerm.includes('Con gái')) return 'Con dâu';
+    if (baseTerm.includes('Anh')) return mode === 'spouse-side' ? 'Anh chồng/Anh vợ' : 'Em rể/Em dâu';
+    if (baseTerm.includes('Chị')) return 'Chị chồng/Chị vợ';
+    if (baseTerm.includes('Em')) return 'Em chồng/Em vợ';
+    return `${baseTerm} (qua hôn)`;
 }
 
-// ─── UI ──────────────────────────────────────────────────────────────────────
+function genPrefix(gap: number, gender: 'nam' | 'nu') {
+    if (gap === 2) return '';
+    if (gap === 3) return gender === 'nam' ? 'Ông ' : 'Bà ';
+    if (gap === 4) return 'Cụ ';
+    if (gap === 5) return 'Kỵ ';
+    return '';
+}
 
-const LOAI_COLOR: Record<string, string> = {
-    'Hôn nhân'                   : '#10b981',
-    'Trực hệ'                    : '#059669',
-    'Anh chị em'                 : '#8b5cf6',
-    'Chú bác cô dì'              : '#0ea5e9',
-    'Họ hàng'                    : '#10b981',
-    'Hôn nhân - Huyết thống'     : '#10b981',
-    'Không xác định'             : '#9ca3af',
-    'Bản thân'                   : '#9ca3af',
-};
+function pibName(person: Nguoi, isPaternal: boolean, older: boolean) {
+    if (isPaternal) {
+        if (person.gioi_tinh === 'nam') return older ? 'Bác' : 'Chú';
+        return 'Cô';
+    }
+    if (person.gioi_tinh === 'nam') return 'Cậu';
+    return 'Dì';
+}
 
-const MemberSelector = ({
-    label, members, selectedId, onChange,
-}: {
-    label: string; members: Nguoi[]; selectedId: string; onChange: (id: string) => void;
-}) => {
-    const selected = members.find((m) => String(m.id) === selectedId);
+function siblingTerm(person: Nguoi, rank: 'older' | 'younger') {
+    if (person.gioi_tinh === 'nam') return rank === 'older' ? 'Anh trai' : 'Em trai';
+    return rank === 'older' ? 'Chị gái' : 'Em gái';
+}
+
+function cousinTerm(person: Nguoi, rank: 'older' | 'younger') {
+    if (person.gioi_tinh === 'nam') return rank === 'older' ? 'Anh trai họ' : 'Em trai họ';
+    return rank === 'older' ? 'Chị gái họ' : 'Em gái họ';
+}
+
+function buildGenerationMap(members: Nguoi[]) {
+    const byId = new Map(members.map((member) => [member.id, member]));
+    const result = new Map<number, number>();
+
+    const resolve = (member: Nguoi): number => {
+        const cached = result.get(member.id);
+        if (cached) return cached;
+        const parents = [member.id_cha, member.id_me].map((id) => (id ? byId.get(id) : undefined)).filter(Boolean) as Nguoi[];
+        const generation = parents.length ? Math.max(...parents.map(resolve)) + 1 : 1;
+        result.set(member.id, generation);
+        return generation;
+    };
+
+    members.forEach(resolve);
+    return result;
+}
+
+function makePresets(members: Nguoi[], byId: Map<number, Nguoi>) {
+    const presets: Array<{ a: number; b: number; note: string }> = [];
+    const add = (a?: number | null, b?: number | null, note?: string) => {
+        if (!a || !b || a === b || !note) return;
+        if (presets.some((item) => item.a === a && item.b === b)) return;
+        presets.push({ a, b, note });
+    };
+
+    const childWithFather = members.find((member) => member.id_cha && byId.has(member.id_cha));
+    add(childWithFather?.id, childWithFather?.id_cha, 'Con cháu → cha');
+
+    const childWithGrandparent = members.find((member) => {
+        const parent = member.id_cha ? byId.get(member.id_cha) : undefined;
+        return Boolean(parent?.id_cha);
+    });
+    const parent = childWithGrandparent?.id_cha ? byId.get(childWithGrandparent.id_cha) : undefined;
+    add(childWithGrandparent?.id, parent?.id_cha, 'Hậu duệ → ông tổ');
+
+    const siblingPair = findSiblingPair(members);
+    add(siblingPair?.[0], siblingPair?.[1], 'Anh em ruột');
+
+    const spouse = members.find((member) => (member.vo_chong_ids || []).some((id) => byId.has(id)));
+    add(spouse?.id, spouse?.vo_chong_ids?.find((id) => byId.has(id)), 'Vợ chồng');
+
+    const cousinPair = findCousinPair(members, byId);
+    add(cousinPair?.[0], cousinPair?.[1], 'Anh em họ');
+
+    return presets.slice(0, 6);
+}
+
+function makeInitialRecents(members: Nguoi[]) {
+    if (members.length < 2) return [];
+    const recents: Array<{ a: number; b: number; time: string }> = [];
+    for (let index = 0; index < members.length - 1 && recents.length < 3; index += 1) {
+        recents.push({ a: members[index].id, b: members[index + 1].id, time: index === 0 ? 'Vừa xong' : index === 1 ? '5 phút' : 'Hôm qua' });
+    }
+    return recents;
+}
+
+function findSiblingPair(members: Nguoi[]) {
+    for (const a of members) {
+        const b = members.find((member) => member.id !== a.id && ((a.id_cha && member.id_cha === a.id_cha) || (a.id_me && member.id_me === a.id_me)));
+        if (b) return [a.id, b.id] as const;
+    }
+    return null;
+}
+
+function findCousinPair(members: Nguoi[], byId: Map<number, Nguoi>) {
+    for (const a of members) {
+        const parentA = a.id_cha ? byId.get(a.id_cha) : a.id_me ? byId.get(a.id_me) : undefined;
+        if (!parentA) continue;
+        for (const b of members) {
+            if (a.id === b.id) continue;
+            const parentB = b.id_cha ? byId.get(b.id_cha) : b.id_me ? byId.get(b.id_me) : undefined;
+            if (!parentB || parentA.id === parentB.id) continue;
+            const shareGrandparent = Boolean(
+                (parentA.id_cha && parentA.id_cha === parentB.id_cha) ||
+                    (parentA.id_me && parentA.id_me === parentB.id_me) ||
+                    (parentA.id_cha && parentA.id_cha === parentB.id_me) ||
+                    (parentA.id_me && parentA.id_me === parentB.id_cha),
+            );
+            if (shareGrandparent) return [a.id, b.id] as const;
+        }
+    }
+    return null;
+}
+
+function isOlder(a: Nguoi, b: Nguoi) {
+    const aYear = Number(formatYear(a.ngay_sinh));
+    const bYear = Number(formatYear(b.ngay_sinh));
+    if (Number.isFinite(aYear) && Number.isFinite(bYear) && aYear !== bYear) return aYear < bYear;
+    return a.id < b.id;
+}
+
+function formatYear(date: string | null) {
+    return date ? date.substring(0, 4) : null;
+}
+
+function shortName(name: string) {
+    return name.trim().split(/\s+/).slice(-2).join(' ');
+}
+
+function lastWord(name: string) {
+    return name.trim().split(/\s+/).slice(-1)[0] || name;
+}
+
+function initials(name: string) {
+    return name
+        .trim()
+        .split(/\s+/)
+        .slice(-2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join('');
+}
+
+function avatarGradient(seed: number) {
+    const palettes = [
+        ['#B8902C', '#5C3A1E'],
+        ['#2F5D3A', '#4A7A52'],
+        ['#B4502E', '#8A3A1E'],
+        ['#8A6F3F', '#5C4A2E'],
+        ['#9B6B2E', '#D4AF55'],
+        ['#4A7A52', '#2F5D3A'],
+    ];
+    const palette = palettes[Math.abs(seed) % palettes.length];
+    return `linear-gradient(135deg, ${palette[0]}, ${palette[1]})`;
+}
+
+function SwapIcon() {
     return (
-        <div className="flex-1 min-w-0">
-            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">{label}</div>
-            <div className="relative rounded-xl border-2 border-emerald-200 bg-emerald-50/60 p-1">
-                {selected && (
-                    <div className="mb-1 flex items-center gap-2 px-2 pt-1">
-                        <div
-                            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow"
-                            style={{ background: selected.gioi_tinh === 'nam' ? 'linear-gradient(135deg,#0ea5e9,#3b82f6)' : 'linear-gradient(135deg,#f43f5e,#ec4899)' }}
-                        >
-                            {selected.anh_dai_dien
-                                ? <img src={selected.anh_dai_dien} className="h-full w-full rounded-full object-cover" alt="" />
-                                : selected.ten_day_du.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                            <div className="font-bold text-gray-800">{selected.ten_day_du}</div>
-                            <div className="text-[11px] text-gray-400">{selected.ngay_sinh?.substring(0, 4) || '?'}</div>
-                        </div>
-                    </div>
-                )}
-                <select
-                    value={selectedId}
-                    onChange={(e) => onChange(e.target.value)}
-                    className="w-full rounded-lg border-0 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
-                >
-                    <option value="">— Chọn thành viên —</option>
-                    {members.map((m) => (
-                        <option key={m.id} value={m.id}>
-                            {m.ten_day_du}{m.ngay_sinh ? ` (${m.ngay_sinh.substring(0, 4)})` : ''}
-                        </option>
-                    ))}
-                </select>
-            </div>
-        </div>
-    );
-};
-
-const BANG_DANH_XUNG = [
-    { quan_he: 'Cha / Mẹ', a_goi_b: 'Cha / Mẹ', b_goi_a: 'Con' },
-    { quan_he: 'Ông / Bà', a_goi_b: 'Ông / Bà', b_goi_a: 'Cháu' },
-    { quan_he: 'Cụ (Cố)', a_goi_b: 'Cụ', b_goi_a: 'Chắt' },
-    { quan_he: 'Kỵ (Sơ)', a_goi_b: 'Kỵ', b_goi_a: 'Chút' },
-    { quan_he: 'Vợ chồng', a_goi_b: 'Chồng / Vợ', b_goi_a: 'Vợ / Chồng' },
-    { quan_he: 'Anh chị em ruột', a_goi_b: 'Anh / Chị / Em', b_goi_a: 'Anh / Chị / Em' },
-    { quan_he: 'Chú / Bác / Cô', a_goi_b: 'Chú / Bác / Cô', b_goi_a: 'Cháu' },
-    { quan_he: 'Anh em họ', a_goi_b: 'Anh / Chị / Em họ', b_goi_a: 'Anh / Chị / Em họ' },
-    { quan_he: 'Cháu họ', a_goi_b: 'Cháu họ', b_goi_a: 'Chú / Bác / Cô họ' },
-];
-
-export default function TraCuuDanhXung() {
-    const [members, setMembers] = useState<Nguoi[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [idA, setIdA] = useState('');
-    const [idB, setIdB] = useState('');
-    const [showGuide, setShowGuide] = useState(false);
-
-    useEffect(() => {
-        nguoiApi.list().then((res) => {
-            setMembers(res.data || []);
-        }).finally(() => setLoading(false));
-    }, []);
-
-    const personA = useMemo(() => members.find((m) => String(m.id) === idA), [members, idA]);
-    const personB = useMemo(() => members.find((m) => String(m.id) === idB), [members, idB]);
-
-    const result = useMemo<KinshipResult | null>(() => {
-        if (!personA || !personB || personA.id === personB.id) return null;
-        return tinhDanhXung(personA, personB, members);
-    }, [personA, personB, members]);
-
-    const accentColor = result ? (LOAI_COLOR[result.loai] || '#9ca3af') : '#d1d5db';
-
-    const swap = () => { setIdA(idB); setIdB(idA); };
-
-    return (
-        <AuthenticatedLayout>
-            <Head title="Tra cứu danh xưng" />
-            <div className="mx-auto max-w-3xl">
-                {/* Header */}
-                <div className="mb-6">
-                    <h2 className="text-2xl font-bold text-gray-900">Tra cứu danh xưng</h2>
-                    <p className="mt-1 text-sm text-gray-500">Chọn hai thành viên để tự động tính cách gọi theo quan hệ gia phả</p>
-                </div>
-
-                {/* Selector card */}
-                <div className="mb-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-                    {loading ? (
-                        <div className="flex items-center justify-center py-8">
-                            <div className="h-7 w-7 animate-spin rounded-full border-4 border-emerald-200" style={{ borderTopColor: '#059669' }} />
-                        </div>
-                    ) : (
-                        <div className="flex items-end gap-3">
-                            <MemberSelector label="Thành viên A" members={members} selectedId={idA} onChange={setIdA} />
-
-                            <button
-                                type="button"
-                                onClick={swap}
-                                title="Hoán đổi"
-                                className="mb-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-50 text-gray-500 shadow-sm transition hover:bg-emerald-50 hover:text-emerald-500"
-                            >
-                                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                </svg>
-                            </button>
-
-                            <MemberSelector label="Thành viên B" members={members} selectedId={idB} onChange={setIdB} />
-                        </div>
-                    )}
-                </div>
-
-                {/* Result */}
-                {result && personA && personB && (
-                    <>
-                        {/* Relationship type badge */}
-                        <div
-                            className="mb-4 flex items-center gap-2 rounded-xl px-5 py-3 font-semibold text-white shadow-sm"
-                            style={{ background: `linear-gradient(135deg, ${accentColor}dd, ${accentColor}99)` }}
-                        >
-                            <svg className="h-5 w-5 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            Quan hệ {result.loai}
-                        </div>
-
-                        {/* A↔B danh xưng */}
-                        <div className="mb-4 grid grid-cols-2 gap-4">
-                            <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-                                <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                                    {personA.ten_day_du} gọi {personB.ten_day_du} là
-                                </div>
-                                <div className="text-3xl font-extrabold" style={{ color: accentColor }}>
-                                    {result.aTuongQuanB}
-                                </div>
-                            </div>
-                            <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-                                <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                                    {personB.ten_day_du} gọi {personA.ten_day_du} là
-                                </div>
-                                <div className="text-3xl font-extrabold" style={{ color: accentColor }}>
-                                    {result.bTuongQuanA}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Path analysis */}
-                        <div className="mb-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-                            <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                                </svg>
-                                Phân tích con đường quan hệ
-                            </div>
-                            <ol className="space-y-1.5">
-                                {result.buoc.map((step, i) => (
-                                    <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                                        <span
-                                            className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white"
-                                            style={{ background: accentColor }}
-                                        >
-                                            {i + 1}
-                                        </span>
-                                        {step}
-                                    </li>
-                                ))}
-                            </ol>
-                        </div>
-                    </>
-                )}
-
-                {/* Empty prompt */}
-                {!result && !loading && (
-                    <div className="mb-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 py-10 text-center text-sm text-gray-400">
-                        {idA && idB && idA === idB
-                            ? 'Vui lòng chọn hai người khác nhau.'
-                            : 'Chọn hai thành viên để xem danh xưng.'}
-                    </div>
-                )}
-
-                {/* Guide toggle */}
-                <button
-                    type="button"
-                    onClick={() => setShowGuide((v) => !v)}
-                    className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-emerald-600"
-                >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                    Hướng dẫn sử dụng &amp; Bảng danh xưng
-                </button>
-
-                {showGuide && (
-                    <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-                        <div className="border-b border-gray-100 px-5 py-3 text-sm font-bold text-gray-700">Bảng danh xưng tham khảo</div>
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-100 text-sm">
-                                <thead className="bg-gray-50 text-xs font-bold uppercase tracking-wider text-gray-500">
-                                    <tr>
-                                        <th className="px-5 py-3 text-left">Quan hệ</th>
-                                        <th className="px-5 py-3 text-left">A gọi B</th>
-                                        <th className="px-5 py-3 text-left">B gọi A</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {BANG_DANH_XUNG.map((row) => (
-                                        <tr key={row.quan_he} className="hover:bg-emerald-50/40">
-                                            <td className="px-5 py-2.5 font-semibold text-gray-700">{row.quan_he}</td>
-                                            <td className="px-5 py-2.5 text-gray-600">{row.a_goi_b}</td>
-                                            <td className="px-5 py-2.5 text-gray-600">{row.b_goi_a}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                )}
-            </div>
-        </AuthenticatedLayout>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 3L4 7l4 4" />
+            <path d="M4 7h12" />
+            <path d="M16 21l4-4-4-4" />
+            <path d="M20 17H8" />
+        </svg>
     );
 }

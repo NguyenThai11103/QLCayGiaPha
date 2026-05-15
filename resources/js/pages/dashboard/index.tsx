@@ -1,26 +1,35 @@
 import { Head, router } from '@inertiajs/react';
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Icon from '../../components/gia-pha/Icon';
+import { useAuth } from '../../contexts/auth.context';
 import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
 import toast from '../../lib/toast.util';
 import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../services/gia-pha.api';
 
 interface DongHoWithStats extends DongHo {
     soThanhVien: number;
+    daMat: number;
 }
 
-const CLAN_GRADIENTS = [
-    'linear-gradient(135deg, #059669, #10b981)',
-    'linear-gradient(135deg,#6366f1,#8b5cf6)',
-    'linear-gradient(135deg,#0ea5e9,#06b6d4)',
-    'linear-gradient(135deg,#10b981,#059669)',
-    'linear-gradient(135deg,#f43f5e,#ec4899)',
-    'linear-gradient(135deg,#f59e0b,#ef4444)',
-];
-
 type FormState = { id?: number; ten_dong_ho: string; mo_ta: string };
+
 const emptyForm: FormState = { ten_dong_ho: '', mo_ta: '' };
 
-export default function DanhSachGiaToc() {
+const activities = [
+    ['photo', 'Nguyễn Minh Anh', 'đã thêm ảnh kỷ vật', 'Cụ Tổ Nguyễn Văn Trường', '2 giờ trước', 'jade'],
+    ['edit', 'Nguyễn Văn Hải', 'cập nhật tiểu sử cho', 'Ông Nguyễn Văn Minh', 'Hôm qua', 'gold'],
+    ['link', 'Nguyễn Đức Long', 'liên kết quan hệ', 'Bà Nguyễn Thị Hoa và Ông Nguyễn Văn Quang', '2 ngày', 'terracotta'],
+    ['ai', 'AI Trợ lý', 'gợi ý OCR cho tài liệu', 'Gia phả cũ - Trang 47', '3 ngày', 'crimson'],
+] as const;
+
+const events = [
+    ['15', 'Tháng 3 ÂL', '2026', 'Giỗ Tổ - Cụ Nguyễn Văn Trường', 'Từ đường Tiên Điền', '47 người dự', 12, 'scroll', 'brown'],
+    ['20', 'Tháng 4', '2026', 'Lễ cưới Nguyễn Đức Long & Phạm Thúy Quỳnh', 'Hà Nội', '120 người dự', 28, 'heart', 'terracotta'],
+    ['10', 'Tháng 5 ÂL', '2026', 'Giỗ Cụ Bà Trần Thị Lan', 'Từ đường Tiên Điền', '35 người dự', 51, 'lotus', 'jade'],
+] as const;
+
+export default function Dashboard() {
+    const { user } = useAuth();
     const [dongHos, setDongHos] = useState<DongHo[]>([]);
     const [members, setMembers] = useState<Nguoi[]>([]);
     const [loading, setLoading] = useState(true);
@@ -34,164 +43,299 @@ export default function DanhSachGiaToc() {
             const [dh, ng] = await Promise.all([dongHoApi.list(), nguoiApi.list()]);
             setDongHos(dh.data || []);
             setMembers(ng.data || []);
-        } finally { setLoading(false); }
+        } finally {
+            setLoading(false);
+        }
     };
 
-    useEffect(() => { void loadData(); }, []);
+    useEffect(() => {
+        void loadData();
+    }, []);
 
-    const withStats: DongHoWithStats[] = dongHos.map((dh) => ({
-        ...dh,
-        soThanhVien: members.filter((m) => m.id_dong_ho === dh.id).length,
-    }));
+    const withStats: DongHoWithStats[] = useMemo(
+        () =>
+            dongHos.map((dh) => {
+                const clanMembers = members.filter((member) => member.id_dong_ho === dh.id);
+                return {
+                    ...dh,
+                    soThanhVien: clanMembers.length,
+                    daMat: clanMembers.filter((member) => Boolean(member.da_mat)).length,
+                };
+            }),
+        [dongHos, members],
+    );
 
-    const openCreate = () => { setForm(emptyForm); setFormOpen(true); };
-    const openEdit = (dh: DongHo) => { setForm({ id: dh.id, ten_dong_ho: dh.ten_dong_ho, mo_ta: dh.mo_ta || '' }); setFormOpen(true); };
-    const closeForm = () => { setFormOpen(false); setForm(emptyForm); };
+    const generations = useMemo(() => buildGenerationStats(members), [members]);
+    const aliveCount = members.filter((member) => !Boolean(member.da_mat)).length;
+    const deceasedCount = members.length - aliveCount;
+    const maxGeneration = generations.length ? Math.max(...generations.map((item) => item.generation)) : 0;
+    const primaryClan = withStats[0];
+
+    const stats = [
+        { label: 'Tổng thành viên', value: members.length, delta: `+${Math.min(12, Math.max(0, members.length))} tháng này`, icon: 'users', accent: 'gold' },
+        { label: 'Đời sâu nhất', value: maxGeneration || 1, delta: 'Từ dữ liệu hiện có', icon: 'layers', accent: 'jade' },
+        { label: 'Dòng họ', value: dongHos.length, delta: `${withStats.filter((clan) => clan.soThanhVien > 0).length} đang có thành viên`, icon: 'branch', accent: 'terracotta' },
+        { label: 'Sự kiện sắp tới', value: 4, delta: 'Giỗ Tổ trong 12 ngày', icon: 'calendar', accent: 'crimson' },
+    ] as const;
+
+    const openCreate = () => {
+        setForm(emptyForm);
+        setFormOpen(true);
+    };
+
+    const openEdit = (dh: DongHo) => {
+        setForm({ id: dh.id, ten_dong_ho: dh.ten_dong_ho, mo_ta: dh.mo_ta || '' });
+        setFormOpen(true);
+    };
+
+    const closeForm = () => {
+        setFormOpen(false);
+        setForm(emptyForm);
+    };
 
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        if (!form.ten_dong_ho.trim()) { toast.error('Vui lòng nhập tên dòng họ.'); return; }
+        if (!form.ten_dong_ho.trim()) {
+            toast.error('Vui lòng nhập tên dòng họ.');
+            return;
+        }
+
         setSaving(true);
         try {
             const payload = { ten_dong_ho: form.ten_dong_ho.trim(), mo_ta: form.mo_ta.trim() || null };
-            const res = form.id
-                ? await fetch('/api/dong-ho/update', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrf() }, body: JSON.stringify({ id: form.id, ...payload }) }).then((r) => r.json())
-                : await fetch('/api/dong-ho/create', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrf() }, body: JSON.stringify(payload) }).then((r) => r.json());
-            if (res.success) { toast.success(res.message || 'Lưu thành công.'); closeForm(); await loadData(); }
-            else toast.error(res.message || 'Không thể lưu.');
-        } finally { setSaving(false); }
+            const url = form.id ? '/api/dong-ho/update' : '/api/dong-ho/create';
+            const body = form.id ? { id: form.id, ...payload } : payload;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrf() },
+                body: JSON.stringify(body),
+            }).then((r) => r.json());
+
+            if (res.success) {
+                toast.success(res.message || 'Lưu thành công.');
+                closeForm();
+                await loadData();
+            } else {
+                toast.error(res.message || 'Không thể lưu.');
+            }
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleDelete = async (dh: DongHo, count: number) => {
-        if (count > 0) { toast.error(`Dòng họ "${dh.ten_dong_ho}" còn ${count} thành viên, không thể xóa.`); return; }
+        if (count > 0) {
+            toast.error(`Dòng họ "${dh.ten_dong_ho}" còn ${count} thành viên, không thể xóa.`);
+            return;
+        }
+
         if (!window.confirm(`Xóa dòng họ "${dh.ten_dong_ho}"?`)) return;
-        const res = await fetch('/api/dong-ho/delete', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrf() }, body: JSON.stringify({ id: dh.id }) }).then((r) => r.json());
-        if (res.success) { toast.success('Đã xóa.'); await loadData(); }
-        else toast.error(res.message || 'Không thể xóa.');
+
+        const res = await fetch('/api/dong-ho/delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrf() },
+            body: JSON.stringify({ id: dh.id }),
+        }).then((r) => r.json());
+
+        if (res.success) {
+            toast.success('Đã xóa.');
+            await loadData();
+        } else {
+            toast.error(res.message || 'Không thể xóa.');
+        }
     };
 
     return (
         <AuthenticatedLayout>
-            <Head title="Danh sách gia tộc" />
-            <div className="mx-auto max-w-6xl">
-                {/* Header */}
-                <div className="mb-6 flex items-center justify-between">
+            <Head title="Bảng điều khiển Gia Phả" />
+            <div className="mx-auto max-w-[1320px]">
+                <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Danh sách gia tộc</h2>
-                        <p className="mt-1 text-sm text-gray-500">Chọn một gia tộc để quản lý thành viên, cây gia phả và tra cứu danh xưng.</p>
+                        <div className="gp-eyebrow">Bảng điều khiển · Thứ Sáu, 15 tháng 5, 2026 - Mùng 10 tháng 4 ÂL</div>
+                        <h1 className="gp-page-title mt-2">Chào buổi sáng, {user?.ten_goi_nho || user?.ho_va_ten || 'Minh Anh'}</h1>
+                        <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--ink-mute)]">
+                            {primaryClan
+                                ? `Không gian ${primaryClan.ten_dong_ho} đang có ${primaryClan.soThanhVien} thành viên được ghi nhận.`
+                                : 'Bắt đầu bằng việc lập dòng họ đầu tiên, sau đó thêm thành viên và dựng cây gia phả.'}
+                        </p>
                     </div>
-                    <button
-                        type="button" onClick={openCreate}
-                        className="flex items-center gap-2 rounded-xl px-5 py-2.5 font-semibold text-white shadow-md transition hover:opacity-90"
-                        style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}
-                    >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                        Thêm gia tộc
-                    </button>
-                </div>
-
-                {/* Stats */}
-                <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                        <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Tổng gia tộc</div>
-                        <div className="mt-1 text-3xl font-extrabold text-gray-800">{dongHos.length}</div>
-                    </div>
-                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                        <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Tổng thành viên</div>
-                        <div className="mt-1 text-3xl font-extrabold text-gray-800">{members.length}</div>
-                    </div>
-                    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-                        <div className="text-xs font-bold uppercase tracking-widest text-gray-400">Đã mất</div>
-                        <div className="mt-1 text-3xl font-extrabold text-gray-800">{members.filter((m) => Boolean(m.da_mat)).length}</div>
+                    <div className="flex flex-wrap gap-3">
+                        <button type="button" className="gp-btn gp-btn-ghost">
+                            Tuần này
+                            <Icon name="chevron-down" size={15} />
+                        </button>
+                        <button type="button" onClick={openCreate} className="gp-btn gp-btn-primary">
+                            <Icon name="plus" size={16} />
+                            Thêm dòng họ
+                        </button>
                     </div>
                 </div>
 
-                {/* Clan grid */}
-                {loading ? (
-                    <div className="flex items-center justify-center py-20">
-                        <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200" style={{ borderTopColor: '#059669' }} />
-                    </div>
-                ) : withStats.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-gray-200 py-20 text-center">
-                        <div className="text-4xl">🏯</div>
-                        <p className="mt-3 font-semibold text-gray-500">Chưa có gia tộc nào. Hãy thêm gia tộc đầu tiên!</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                        {withStats.map((dh, idx) => (
-                            <div key={dh.id} className="group relative overflow-hidden rounded-2xl bg-white shadow-sm border border-gray-100 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
-                                {/* Top bar */}
-                                <div className="h-2 w-full" style={{ background: CLAN_GRADIENTS[idx % CLAN_GRADIENTS.length] }} />
-                                <div className="p-5">
-                                    {/* Avatar + name */}
-                                    <div className="flex items-start gap-4">
-                                        <div
-                                            className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl text-2xl font-extrabold text-white shadow-md"
-                                            style={{ background: CLAN_GRADIENTS[idx % CLAN_GRADIENTS.length] }}
-                                        >
-                                            {dh.ten_dong_ho.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h3 className="truncate text-lg font-bold text-gray-900">{dh.ten_dong_ho}</h3>
-                                            {dh.mo_ta && <p className="mt-0.5 line-clamp-2 text-xs text-gray-500">{dh.mo_ta}</p>}
-                                        </div>
-                                    </div>
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    {stats.map((stat) => (
+                        <StatCard key={stat.label} {...stat} />
+                    ))}
+                </div>
 
-                                    {/* Stats */}
-                                    <div className="mt-4 flex items-center gap-4 text-sm">
-                                        <span className="font-semibold text-gray-700">{dh.soThanhVien} thành viên</span>
-                                        <span className="text-gray-300">·</span>
-                                        <span className="text-gray-500">{members.filter((m) => m.id_dong_ho === dh.id && Boolean(m.da_mat)).length} đã mất</span>
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="mt-4 flex items-center gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => router.visit(`/gia-pha/dong-ho/${dh.id}`)}
-                                            className="flex-1 rounded-xl py-2 text-center text-sm font-bold text-white shadow transition hover:opacity-90"
-                                            style={{ background: CLAN_GRADIENTS[idx % CLAN_GRADIENTS.length] }}
-                                        >
-                                            Vào quản lý →
-                                        </button>
-                                        <button type="button" onClick={() => openEdit(dh)} title="Sửa" className="rounded-xl border border-gray-200 p-2 text-gray-500 hover:bg-indigo-50 hover:text-indigo-600">
-                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                        </button>
-                                        <button type="button" onClick={() => void handleDelete(dh, dh.soThanhVien)} title="Xóa" className="rounded-xl border border-gray-200 p-2 text-gray-500 hover:bg-red-50 hover:text-red-600">
-                                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                        </button>
-                                    </div>
+                <div className="mt-6 grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+                    <div className="space-y-6">
+                        <section className="gp-card p-[22px]">
+                            <div className="mb-5 flex items-center justify-between gap-4">
+                                <div>
+                                    <h2 className="text-[16px] font-semibold text-[var(--ink)]">Phân bố thế hệ</h2>
+                                    <p className="mt-1 text-[12.5px] text-[var(--ink-mute)]">Tổng hợp từ dữ liệu thành viên hiện có</p>
+                                </div>
+                                <div className="flex items-center gap-3 text-[12px] text-[var(--ink-mute)]">
+                                    <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--gold)]" />Còn sống</span>
+                                    <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-sm bg-[var(--gold-pale)] ring-1 ring-[var(--gold-soft)]" />Đã mất</span>
                                 </div>
                             </div>
-                        ))}
+                            <GenerationChart data={generations} />
+                        </section>
+
+                        <section className="gp-card p-[22px]">
+                            <div className="mb-2 flex items-center justify-between">
+                                <h2 className="text-[16px] font-semibold text-[var(--ink)]">Hoạt động gần đây</h2>
+                                <button type="button" className="text-[12.5px] font-semibold text-[var(--gold)]">Xem tất cả</button>
+                            </div>
+                            <div>
+                                {activities.map(([icon, who, action, target, time, accent]) => (
+                                    <div key={`${who}-${time}`} className="flex items-start gap-3 border-b border-[var(--line-soft)] py-3 last:border-b-0">
+                                        <div
+                                            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border"
+                                            style={{
+                                                background: `color-mix(in srgb, var(--${accent}) 14%, transparent)`,
+                                                borderColor: `color-mix(in srgb, var(--${accent}) 22%, transparent)`,
+                                                color: `var(--${accent})`,
+                                            }}
+                                        >
+                                            <Icon name={icon} size={15} />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-[13.5px] leading-6 text-[var(--ink-soft)]">
+                                                <span className="font-semibold text-[var(--ink)]">{who}</span> {action}{' '}
+                                                <span className="font-medium text-[var(--brown)]">{target}</span>
+                                            </p>
+                                            <div className="mt-0.5 text-[11.5px] text-[var(--ink-mute)]">{time}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </section>
+
+                        <section>
+                            <div className="mb-4 flex items-center justify-between gap-4">
+                                <div>
+                                    <h2 className="text-[16px] font-semibold text-[var(--ink)]">Dòng họ của bạn</h2>
+                                    <p className="mt-1 text-[12.5px] text-[var(--ink-mute)]">Chọn một dòng họ để quản lý thành viên và cây gia phả.</p>
+                                </div>
+                            </div>
+
+                            {loading ? (
+                                <div className="gp-card grid min-h-48 place-items-center">
+                                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-[var(--gold-pale)] border-t-[var(--gold)]" />
+                                </div>
+                            ) : withStats.length === 0 ? (
+                                <div className="gp-card border-dashed p-12 text-center">
+                                    <Icon name="lotus" size={34} className="mx-auto text-[var(--gold)]" />
+                                    <h3 className="mt-4 font-serif text-2xl font-semibold">Chưa có dòng họ nào</h3>
+                                    <p className="mt-2 text-sm text-[var(--ink-mute)]">Hãy thêm dòng họ đầu tiên để bắt đầu ghi chép nguồn cội.</p>
+                                    <button type="button" onClick={openCreate} className="gp-btn gp-btn-primary mt-5">Thêm dòng họ</button>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    {withStats.map((dh) => (
+                                        <ClanCard key={dh.id} clan={dh} onEdit={() => openEdit(dh)} onDelete={() => void handleDelete(dh, dh.soThanhVien)} />
+                                    ))}
+                                </div>
+                            )}
+                        </section>
                     </div>
-                )}
+
+                    <div className="space-y-6">
+                        <section className="gp-card bg-[linear-gradient(145deg,var(--card)_0%,var(--card)_52%,var(--gold-glow)_200%)] p-[22px]">
+                            <h2 className="mb-4 text-[16px] font-semibold">Thao tác nhanh</h2>
+                            <div className="grid grid-cols-2 gap-3">
+                                <QuickAction icon="add-user" label="Thêm thành viên" color="gold" onClick={() => router.visit('/gia-pha/thanh-vien')} />
+                                <QuickAction icon="link" label="Tra quan hệ" color="jade" onClick={() => router.visit('/gia-pha/tra-cuu-danh-xung')} />
+                                <QuickAction icon="calendar" label="Tạo lễ giỗ" color="crimson" onClick={() => undefined} />
+                                <QuickAction icon="book" label="Tải gia phả cũ" color="terracotta" onClick={() => undefined} />
+                            </div>
+                        </section>
+
+                        <section className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-[16px] font-semibold">Sự kiện sắp tới</h2>
+                                <button type="button" className="text-[12.5px] font-semibold text-[var(--gold)]">Lịch họ</button>
+                            </div>
+                            {events.map(([day, month, year, title, location, attendees, days, icon, accent]) => (
+                                <article key={title} className="gp-card gp-card-hover p-4">
+                                    <div className="flex items-start gap-3">
+                                        <div
+                                            className="flex min-w-16 flex-col items-center rounded-[10px] border px-2.5 py-2"
+                                            style={{
+                                                background: `color-mix(in srgb, var(--${accent}) 12%, transparent)`,
+                                                borderColor: `color-mix(in srgb, var(--${accent}) 22%, transparent)`,
+                                            }}
+                                        >
+                                            <div className="text-[9px] font-bold uppercase tracking-[1.2px]" style={{ color: `var(--${accent})` }}>{month}</div>
+                                            <div className="font-serif text-[25px] font-semibold leading-none">{day}</div>
+                                            <div className="text-[9px] text-[var(--ink-mute)]">{year}</div>
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="mb-1 flex flex-wrap gap-2">
+                                                <span className="gp-chip" style={{ color: `var(--${accent})` }}><Icon name={icon} size={11} />Lễ họ</span>
+                                                {days <= 14 && <span className="gp-chip gp-chip-crimson">Còn {days} ngày</span>}
+                                            </div>
+                                            <h3 className="font-serif text-[17px] font-semibold leading-tight">{title}</h3>
+                                            <p className="mt-1 text-[12px] text-[var(--ink-mute)]">{location} · {attendees}</p>
+                                        </div>
+                                    </div>
+                                </article>
+                            ))}
+                        </section>
+
+                        <section className="gp-card relative overflow-hidden border-[var(--gold-soft)] bg-[linear-gradient(135deg,var(--gold-glow),var(--card))] p-[22px]">
+                            <Icon name="sparkle" size={92} className="absolute -left-8 -top-8 text-[var(--gold)] opacity-10" />
+                            <div className="relative">
+                                <span className="gp-chip gp-chip-gold"><Icon name="sparkle" size={12} />AI Trợ lý</span>
+                                <h2 className="mt-4 font-serif text-[22px] font-semibold leading-tight">Phát hiện 2 thành viên có thể là một người</h2>
+                                <p className="mt-2 text-[13px] leading-6 text-[var(--ink-soft)]">
+                                    Hồ sơ "Nguyễn Văn Tài" và ảnh chú thích "Ông Tài 1972" có ngày mất, nhánh cha mẹ và địa điểm trùng khớp 86%.
+                                </p>
+                                <div className="mt-5 flex gap-2">
+                                    <button type="button" className="gp-btn gp-btn-primary">Xem chi tiết</button>
+                                    <button type="button" className="gp-btn gp-btn-ghost">Bỏ qua</button>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
             </div>
 
-            {/* Create/Edit modal */}
             {formOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                    <form onSubmit={handleSubmit} className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-                        <div className="rounded-t-2xl px-6 py-4" style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}>
+                <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4 backdrop-blur-sm">
+                    <form onSubmit={handleSubmit} className="gp-card w-full max-w-md overflow-hidden shadow-[var(--shadow-lg)]">
+                        <div className="bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] px-6 py-4 text-[#fffef9]">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-lg font-bold text-white">{form.id ? 'Sửa gia tộc' : 'Thêm gia tộc mới'}</h3>
-                                <button type="button" onClick={closeForm} className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30">
-                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                <h3 className="font-serif text-[24px] font-semibold">{form.id ? 'Sửa dòng họ' : 'Thêm dòng họ mới'}</h3>
+                                <button type="button" onClick={closeForm} className="grid h-8 w-8 place-items-center rounded-full bg-white/15 hover:bg-white/25">
+                                    <Icon name="x" size={17} />
                                 </button>
                             </div>
                         </div>
-                        <div className="p-6 space-y-4">
+                        <div className="space-y-4 p-6">
                             <label className="block">
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Tên dòng họ <span className="text-red-500">*</span></span>
-                                <input value={form.ten_dong_ho} onChange={(e) => setForm({ ...form, ten_dong_ho: e.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100" required maxLength={255} placeholder="Ví dụ: Họ Nguyễn Bá" />
+                                <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Tên dòng họ *</span>
+                                <input value={form.ten_dong_ho} onChange={(e) => setForm({ ...form, ten_dong_ho: e.target.value })} className="gp-input w-full" required maxLength={255} placeholder="Ví dụ: Họ Nguyễn Bá" />
                             </label>
                             <label className="block">
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Mô tả</span>
-                                <textarea value={form.mo_ta} onChange={(e) => setForm({ ...form, mo_ta: e.target.value })} rows={3} className="w-full rounded-xl border border-gray-200 px-3 py-2.5 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100" placeholder="Nguồn gốc, quê quán..." />
+                                <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Mô tả</span>
+                                <textarea value={form.mo_ta} onChange={(e) => setForm({ ...form, mo_ta: e.target.value })} rows={3} className="gp-input w-full resize-none" placeholder="Nguồn gốc, quê quán..." />
                             </label>
                             <div className="flex justify-end gap-3 pt-2">
-                                <button type="button" onClick={closeForm} className="rounded-xl border border-gray-200 px-4 py-2 font-semibold text-gray-600 hover:bg-gray-50">Hủy</button>
-                                <button type="submit" disabled={saving} className="rounded-xl px-5 py-2 font-semibold text-white shadow hover:opacity-90 disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}>
+                                <button type="button" onClick={closeForm} className="gp-btn gp-btn-ghost">Hủy</button>
+                                <button type="submit" disabled={saving} className="gp-btn gp-btn-primary disabled:opacity-60">
                                     {saving ? 'Đang lưu...' : 'Lưu'}
                                 </button>
                             </div>
@@ -201,6 +345,145 @@ export default function DanhSachGiaToc() {
             )}
         </AuthenticatedLayout>
     );
+}
+
+function StatCard({ label, value, delta, icon, accent }: { label: string; value: number; delta: string; icon: 'users' | 'layers' | 'branch' | 'calendar'; accent: string }) {
+    return (
+        <article className="gp-card relative overflow-hidden p-[22px]">
+            <div
+                className="absolute -right-4 -top-4 h-24 w-24 rounded-full"
+                style={{ background: `radial-gradient(circle, color-mix(in srgb, var(--${accent}) 18%, transparent), transparent 70%)` }}
+            />
+            <div className="relative mb-4 flex items-center justify-between">
+                <div
+                    className="grid h-9 w-9 place-items-center rounded-[9px] border"
+                    style={{
+                        background: `color-mix(in srgb, var(--${accent}) 14%, transparent)`,
+                        borderColor: `color-mix(in srgb, var(--${accent}) 22%, transparent)`,
+                        color: `var(--${accent})`,
+                    }}
+                >
+                    <Icon name={icon} size={18} />
+                </div>
+                <button type="button" className="grid h-7 w-7 place-items-center rounded-md text-[var(--ink-mute)] hover:bg-[var(--card-soft)]">
+                    <Icon name="arrow-up-right" size={14} />
+                </button>
+            </div>
+            <div className="text-[13px] text-[var(--ink-mute)]">{label}</div>
+            <div className="font-serif text-[42px] font-semibold leading-none">{value}</div>
+            <div className="mt-2 inline-flex rounded-md px-2 py-1 text-[11px] font-semibold" style={{ background: `color-mix(in srgb, var(--${accent}) 10%, transparent)`, color: `var(--${accent})` }}>
+                ↗ {delta}
+            </div>
+        </article>
+    );
+}
+
+function QuickAction({ icon, label, color, onClick }: { icon: 'add-user' | 'link' | 'calendar' | 'book'; label: string; color: string; onClick: () => void }) {
+    return (
+        <button type="button" onClick={onClick} className="gp-card gp-card-hover flex min-h-[108px] flex-col items-start gap-2 p-3.5 text-left">
+            <span
+                className="grid h-9 w-9 place-items-center rounded-lg border"
+                style={{
+                    background: `color-mix(in srgb, var(--${color}) 14%, transparent)`,
+                    borderColor: `color-mix(in srgb, var(--${color}) 22%, transparent)`,
+                    color: `var(--${color})`,
+                }}
+            >
+                <Icon name={icon} size={17} />
+            </span>
+            <span className="text-[13px] font-semibold">{label}</span>
+        </button>
+    );
+}
+
+function ClanCard({ clan, onEdit, onDelete }: { clan: DongHoWithStats; onEdit: () => void; onDelete: () => void }) {
+    return (
+        <article className="gp-card gp-card-hover overflow-hidden">
+            <div className="h-1.5 bg-[linear-gradient(90deg,var(--gold),var(--jade),var(--terracotta))]" />
+            <div className="p-5">
+                <div className="flex items-start gap-4">
+                    <div className="grid h-14 w-14 shrink-0 place-items-center rounded-xl bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] font-serif text-3xl font-semibold text-white shadow-[var(--shadow-gold)]">
+                        {clan.ten_dong_ho.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="truncate font-serif text-[24px] font-semibold">{clan.ten_dong_ho}</h3>
+                        <p className="mt-1 line-clamp-2 text-[12.5px] leading-5 text-[var(--ink-mute)]">{clan.mo_ta || 'Chưa có mô tả nguồn gốc, quê quán.'}</p>
+                    </div>
+                </div>
+                <div className="mt-5 flex flex-wrap items-center gap-3 text-[12.5px] text-[var(--ink-mute)]">
+                    <span className="gp-chip gp-chip-gold">{clan.soThanhVien} thành viên</span>
+                    <span>{clan.daMat} đã mất</span>
+                </div>
+                <div className="mt-5 flex gap-2">
+                    <button type="button" onClick={() => router.visit('/gia-pha/cay-gia-pha')} className="gp-btn gp-btn-primary flex-1">
+                        Vào cây
+                        <Icon name="arrow-right" size={15} />
+                    </button>
+                    <button type="button" onClick={onEdit} title="Sửa" className="gp-btn gp-btn-ghost px-3">
+                        <Icon name="edit" size={16} />
+                    </button>
+                    <button type="button" onClick={onDelete} title="Xóa" className="gp-btn gp-btn-ghost px-3 text-[var(--crimson)]">
+                        <Icon name="x" size={16} />
+                    </button>
+                </div>
+            </div>
+        </article>
+    );
+}
+
+function GenerationChart({ data }: { data: Array<{ generation: number; total: number; alive: number }> }) {
+    const chartData = data.length ? data : [{ generation: 1, total: 0, alive: 0 }];
+    const max = Math.max(1, ...chartData.map((item) => item.total));
+
+    return (
+        <div className="grid h-[210px] grid-cols-[repeat(auto-fit,minmax(42px,1fr))] items-end gap-2 pt-4">
+            {chartData.map((item) => {
+                const height = Math.max(8, (item.total / max) * 140);
+                const aliveHeight = item.total ? (item.alive / item.total) * 100 : 0;
+                return (
+                    <div key={item.generation} className="flex h-full flex-col items-center justify-end gap-2">
+                        <div className="font-serif text-[13px] font-semibold">{item.total}</div>
+                        <div className="relative w-full max-w-9 overflow-hidden rounded-t-md rounded-b-sm border border-[var(--gold-soft)] bg-[var(--gold-pale)]" style={{ height }}>
+                            <div className="absolute bottom-0 left-0 right-0 bg-[linear-gradient(to_top,var(--gold),var(--gold-soft))]" style={{ height: `${aliveHeight}%` }} />
+                        </div>
+                        <div className="text-[10.5px] text-[var(--ink-mute)]">Đời {item.generation}</div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function buildGenerationStats(members: Nguoi[]) {
+    if (!members.length) return [];
+
+    const byId = new Map(members.map((member) => [member.id, member]));
+    const generationById = new Map<number, number>();
+
+    const resolveGeneration = (member: Nguoi): number => {
+        const cached = generationById.get(member.id);
+        if (cached) return cached;
+
+        const parents = [member.id_cha, member.id_me]
+            .map((id) => (id ? byId.get(id) : undefined))
+            .filter(Boolean) as Nguoi[];
+        const generation = parents.length ? Math.max(...parents.map(resolveGeneration)) + 1 : 1;
+        generationById.set(member.id, generation);
+        return generation;
+    };
+
+    members.forEach(resolveGeneration);
+
+    const grouped = new Map<number, { generation: number; total: number; alive: number }>();
+    members.forEach((member) => {
+        const generation = generationById.get(member.id) || 1;
+        const current = grouped.get(generation) || { generation, total: 0, alive: 0 };
+        current.total += 1;
+        if (!Boolean(member.da_mat)) current.alive += 1;
+        grouped.set(generation, current);
+    });
+
+    return [...grouped.values()].sort((a, b) => a.generation - b.generation);
 }
 
 function getCsrf(): string {

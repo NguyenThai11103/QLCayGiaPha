@@ -25,11 +25,13 @@ export interface Nguoi {
     id_me: number | null;
     tieu_su: string | null;
     anh_dai_dien: string | null;
+    thu_tu_sinh: number | null;
     vo_chong_ids?: number[];
 }
 
 export type NguoiPayload = Omit<Nguoi, 'id' | 'vo_chong_ids'> & {
-    id_vo_chong?: number | null;
+    id_vo_chong_list?: number[];
+    id_vo_chong?: number | null; // Tương thích API cũ nếu có
 };
 export type NguoiUpdatePayload = Partial<NguoiPayload> & { id: number };
 

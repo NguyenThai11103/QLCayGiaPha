@@ -1,102 +1,242 @@
 import { Head, router } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/gia-pha/Icon';
 import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
-import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../services/gia-pha.api';
+import toast from '../../lib/toast.util';
+import { DongHo, dongHoApi, Nguoi, nguoiApi, NguoiPayload } from '../../services/gia-pha.api';
+
+type FormState = {
+    id?: number;
+    id_dong_ho: string;
+    ten_day_du: string;
+    gioi_tinh: 'nam' | 'nu';
+    ngay_sinh: string;
+    ngay_mat: string;
+    da_mat: boolean;
+    id_cha: string;
+    id_me: string;
+    id_vo_chong_list: string[];
+    tieu_su: string;
+    anh_dai_dien: string;
+    thu_tu_sinh: string;
+};
+
+const emptyForm: FormState = {
+    id_dong_ho: '',
+    ten_day_du: '',
+    gioi_tinh: 'nam',
+    ngay_sinh: '',
+    ngay_mat: '',
+    da_mat: false,
+    id_cha: '',
+    id_me: '',
+    id_vo_chong_list: [],
+    tieu_su: '',
+    anh_dai_dien: '',
+    thu_tu_sinh: '',
+};
+
+const toNullableNumber = (value: string) => (value ? Number(value) : null);
+const toNullableString = (value: string) => (value.trim() ? value.trim() : null);
+
+const getMemberById = (members: Nguoi[], id: string | number | null) => {
+    if (!id) {
+        return undefined;
+    }
+    return members.find((member) => member.id === Number(id));
+};
+
+const isAncestorOf = (members: Nguoi[], possibleAncestorId: string | number | null, memberId: string | number | null) => {
+    if (!possibleAncestorId || !memberId) {
+        return false;
+    }
+
+    const ancestorId = Number(possibleAncestorId);
+    const visited = new Set<number>();
+    const queue = [Number(memberId)];
+
+    while (queue.length > 0) {
+        const currentId = queue.shift();
+        const current = getMemberById(members, currentId || null);
+
+        if (!current) {
+            continue;
+        }
+
+        if (visited.has(current.id)) {
+            continue;
+        }
+
+        visited.add(current.id);
+
+        if (current.id_cha === ancestorId || current.id_me === ancestorId) {
+            return true;
+        }
+
+        if (current.id_cha) {
+            queue.push(current.id_cha);
+        }
+
+        if (current.id_me) {
+            queue.push(current.id_me);
+        }
+    }
+
+    return false;
+};
+
+const canBeParentPair = (members: Nguoi[], fatherId: string, motherId: string) => {
+    if (!fatherId || !motherId) {
+        return true;
+    }
+    return !isAncestorOf(members, fatherId, motherId) && !isAncestorOf(members, motherId, fatherId);
+};
+
+const canSelectAsParent = (members: Nguoi[], candidate: Nguoi, form: FormState, otherParentId: string) => {
+    if (candidate.id === form.id) {
+        return false;
+    }
+
+    if (form.id_dong_ho && String(candidate.id_dong_ho) !== form.id_dong_ho) {
+        return false;
+    }
+
+    if (form.id && isAncestorOf(members, form.id, candidate.id)) {
+        return false;
+    }
+
+    return canBeParentPair(members, String(candidate.id), otherParentId);
+};
+
+const canSelectAsSpouse = (members: Nguoi[], candidate: Nguoi, form: FormState) => {
+    if (candidate.id === form.id) {
+        return false;
+    }
+
+    if (candidate.gioi_tinh === form.gioi_tinh) {
+        return false;
+    }
+    if (form.id && (isAncestorOf(members, form.id, candidate.id) || isAncestorOf(members, candidate.id, form.id))) {
+        return false;
+    }
+
+    return true;
+};
+
+const findSpouseIdFromChildren = (members: Nguoi[], parentId: string, spouseKey: 'id_cha' | 'id_me') => {
+    if (!parentId) {
+        return '';
+    }
+
+    const parentIdNumber = Number(parentId);
+    const child = members.find((member) => {
+        const hasSelectedParent = member.id_cha === parentIdNumber || member.id_me === parentIdNumber;
+        const spouseId = member[spouseKey];
+        return hasSelectedParent && spouseId && spouseId !== parentIdNumber && canBeParentPair(members, parentId, String(spouseId));
+    });
+
+    return child?.[spouseKey] ? String(child[spouseKey]) : '';
+};
+
+const buildPayload = (form: FormState): NguoiPayload => ({
+    id_dong_ho: Number(form.id_dong_ho),
+    ten_day_du: form.ten_day_du.trim(),
+    gioi_tinh: form.gioi_tinh,
+    ngay_sinh: toNullableString(form.ngay_sinh),
+    da_mat: form.da_mat,
+    ngay_mat: form.da_mat ? toNullableString(form.ngay_mat) : null,
+    id_cha: toNullableNumber(form.id_cha),
+    id_me: toNullableNumber(form.id_me),
+    id_vo_chong_list: form.id_vo_chong_list.map(id => Number(id)).filter(id => !isNaN(id)),
+    tieu_su: toNullableString(form.tieu_su),
+    anh_dai_dien: toNullableString(form.anh_dai_dien),
+    thu_tu_sinh: toNullableNumber(form.thu_tu_sinh),
+});
 
 interface FamilyNode {
     id: string;
-    members: Nguoi[];
+    member: Nguoi;
+    spouses: Nguoi[];
     children: FamilyNode[];
-    childIds: Set<number>;
 }
 
-const getSpouseId = (person: Nguoi, peopleById: Map<number, Nguoi>) => {
-    return (person.vo_chong_ids || []).find((id) => peopleById.has(id)) || null;
-};
-
-const sortMembers = (members: Nguoi[]) => {
-    return [...members].sort((a, b) => {
-        if (a.gioi_tinh !== b.gioi_tinh) return a.gioi_tinh === 'nam' ? -1 : 1;
-        return a.id - b.id;
-    });
-};
-
-const buildFamilyTree = (people: Nguoi[]) => {
+const buildFamilyTree = (people: Nguoi[], selectedDongHo: string) => {
     const peopleById = new Map(people.map((person) => [person.id, person]));
-    const familyByKey = new Map<string, FamilyNode>();
-    const personFamilyKey = new Map<number, string>();
+    
+    // Lọc tất cả thành viên thuộc dòng họ được chọn (nếu có)
+    const bloodlinePeople = people.filter(p => !selectedDongHo || String(p.id_dong_ho) === selectedDongHo);
+    const bloodlineIds = new Set(bloodlinePeople.map(p => p.id));
+    
+    const getSpouses = (person: Nguoi): Nguoi[] => {
+        const spouseIds = person.vo_chong_ids || [];
+        return spouseIds
+            .map(id => peopleById.get(id))
+            .filter((p): p is Nguoi => !!p);
+    };
 
-    const ensureFamily = (key: string, members: Nguoi[]) => {
-        const existing = familyByKey.get(key);
-        if (existing) return existing;
+    const buildNode = (member: Nguoi, visited = new Set<number>()): FamilyNode => {
+        visited.add(member.id);
+        
+        // Tìm các con trực hệ
+        const childrenMembers = bloodlinePeople.filter(p => 
+            (p.id_cha === member.id || p.id_me === member.id) && !visited.has(p.id)
+        );
+        
+        // Sắp xếp con theo thứ tự sinh
+        childrenMembers.sort((a, b) => {
+            const orderA = a.thu_tu_sinh ? Number(a.thu_tu_sinh) : 999;
+            const orderB = b.thu_tu_sinh ? Number(b.thu_tu_sinh) : 999;
+            return orderA - orderB;
+        });
 
-        const family: FamilyNode = {
-            id: key,
-            members: sortMembers(members),
-            children: [],
-            childIds: new Set<number>(),
+        return {
+            id: `node-${member.id}`,
+            member,
+            spouses: getSpouses(member),
+            children: childrenMembers.map(child => buildNode(child, new Set(visited))),
         };
-
-        familyByKey.set(key, family);
-        family.members.forEach((member) => personFamilyKey.set(member.id, key));
-        return family;
     };
 
-    people.forEach((person) => {
-        if (personFamilyKey.has(person.id)) return;
-        const spouseId = getSpouseId(person, peopleById);
-        const spouse = spouseId ? peopleById.get(spouseId) : null;
-
-        if (spouse && !personFamilyKey.has(spouse.id)) {
-            const ids = [person.id, spouse.id].sort((a, b) => a - b);
-            ensureFamily(`couple-${ids[0]}-${ids[1]}`, [person, spouse]);
-            return;
+    // Tìm các cụ tổ (Root): Thành viên gốc không có cha/mẹ trong danh sách bloodline
+    const rootMembers = bloodlinePeople.filter(p => {
+        const hasFatherInBloodline = p.id_cha && bloodlineIds.has(p.id_cha);
+        const hasMotherInBloodline = p.id_me && bloodlineIds.has(p.id_me);
+        
+        if (hasFatherInBloodline || hasMotherInBloodline) {
+            return false;
         }
-
-        ensureFamily(`single-${person.id}`, [person]);
+        
+        // Không coi là Root nếu họ là phối ngẫu của một thành viên khác trong bloodline
+        // Và người kia là chồng (nam) hoặc có ID nhỏ hơn (để tránh cả hai đều bị loại trừ khỏi root)
+        const isSpouseOfOtherBloodline = people.some(other => {
+            if (!bloodlineIds.has(other.id) || other.id === p.id) {
+                return false;
+            }
+            const isSpouse = (other.vo_chong_ids || []).includes(p.id);
+            if (!isSpouse) return false;
+            
+            // Nếu người kia là Nam (Chồng), người này là Nữ (Vợ) -> người này không làm root
+            if (other.gioi_tinh === 'nam' && p.gioi_tinh === 'nu') {
+                return true;
+            }
+            // Nếu cùng giới tính hoặc không xác định, người có ID nhỏ hơn làm root
+            if (other.gioi_tinh === p.gioi_tinh && other.id < p.id) {
+                return true;
+            }
+            
+            return false;
+        });
+        
+        if (isSpouseOfOtherBloodline) {
+            return false;
+        }
+        
+        return true;
     });
 
-    const getFamilyForPerson = (person: Nguoi) => {
-        const key = personFamilyKey.get(person.id);
-        if (key) return familyByKey.get(key)!;
-        return ensureFamily(`single-${person.id}`, [person]);
-    };
+    rootMembers.sort((a, b) => a.id - b.id);
 
-    const childFamilyKeys = new Set<string>();
-
-    people.forEach((person) => {
-        const father = person.id_cha ? peopleById.get(person.id_cha) : null;
-        const mother = person.id_me ? peopleById.get(person.id_me) : null;
-        if (!father && !mother) return;
-
-        const childFamily = getFamilyForPerson(person);
-        const fatherFamilyKey = father ? personFamilyKey.get(father.id) : null;
-        const motherFamilyKey = mother ? personFamilyKey.get(mother.id) : null;
-        const parentMembers = [father, mother].filter(Boolean) as Nguoi[];
-        const parentFamily =
-            fatherFamilyKey && fatherFamilyKey === motherFamilyKey
-                ? familyByKey.get(fatherFamilyKey)!
-                : parentMembers.length === 1
-                    ? getFamilyForPerson(parentMembers[0])
-                    : ensureFamily(
-                        `parents-${parentMembers
-                            .map((item) => item.id)
-                            .sort((a, b) => a - b)
-                            .join('-')}`,
-                        parentMembers,
-                    );
-
-        if (parentFamily.id !== childFamily.id && !parentFamily.childIds.has(childFamily.members[0].id)) {
-            parentFamily.children.push(childFamily);
-            parentFamily.childIds.add(childFamily.members[0].id);
-            childFamilyKeys.add(childFamily.id);
-        }
-    });
-
-    return [...familyByKey.values()]
-        .filter((family) => !childFamilyKeys.has(family.id))
-        .sort((a, b) => a.members[0].id - b.members[0].id);
+    return rootMembers.map(root => buildNode(root));
 };
 
 const formatYear = (date: string | null) => (date ? date.substring(0, 4) : null);
@@ -120,19 +260,142 @@ export default function CayGiaPha() {
         dongHoApi.list().then((res) => setDongHos(res.data || []));
     }, []);
 
-    useEffect(() => {
+    const [formOpen, setFormOpen] = useState(false);
+    const [form, setForm] = useState<FormState>(emptyForm);
+    const [isDauRe, setIsDauRe] = useState(false);
+    const [quickAddMode, setQuickAddMode] = useState<'none' | 'child' | 'spouse'>('none');
+    const [selectedParentId, setSelectedParentId] = useState<string>('');
+    const [saving, setSaving] = useState(false);
+
+    const loadData = () => {
         setLoading(true);
         nguoiApi
             .list(selectedDongHo || undefined)
             .then((res) => {
                 const nextPeople = res.data || [];
                 setPeople(nextPeople);
-                setSelectedPerson((current) => (current && nextPeople.some((item) => item.id === current.id) ? current : null));
+                setSelectedPerson((current) => {
+                    if (current && nextPeople.some((item) => item.id === current.id)) {
+                        return nextPeople.find(item => item.id === current.id) || null;
+                    }
+                    return null;
+                });
             })
             .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        loadData();
     }, [selectedDongHo]);
 
-    const treeData = useMemo(() => buildFamilyTree(people), [people]);
+    const handleAddChildQuick = (parent: Nguoi) => {
+        setIsDauRe(false);
+        setQuickAddMode('child');
+        setSelectedParentId(String(parent.id));
+
+        const isMaleParent = parent.gioi_tinh === 'nam';
+        const firstSpouseId = parent.vo_chong_ids && parent.vo_chong_ids.length > 0
+            ? String(parent.vo_chong_ids[0])
+            : '';
+
+        setForm({
+            ...emptyForm,
+            id_dong_ho: String(parent.id_dong_ho),
+            id_cha: isMaleParent ? String(parent.id) : firstSpouseId,
+            id_me: isMaleParent ? firstSpouseId : String(parent.id),
+        });
+        setFormOpen(true);
+    };
+
+    const handleAddSpouseQuick = (spouse: Nguoi) => {
+        setIsDauRe(true);
+        setQuickAddMode('spouse');
+        setSelectedParentId('');
+        setForm({
+            ...emptyForm,
+            id_dong_ho: String(spouse.id_dong_ho),
+            gioi_tinh: spouse.gioi_tinh === 'nam' ? 'nu' : 'nam',
+            id_vo_chong_list: [String(spouse.id)],
+        });
+        setFormOpen(true);
+    };
+
+    const closeForm = () => {
+        setFormOpen(false);
+        setForm(emptyForm);
+        setIsDauRe(false);
+        setQuickAddMode('none');
+        setSelectedParentId('');
+    };
+
+    const handleParentChange = (field: 'id_cha' | 'id_me', value: string) => {
+        setForm((currentForm) => {
+            if (field === 'id_cha') {
+                const autoMotherId = findSpouseIdFromChildren(people, value, 'id_me');
+                const currentMotherId = canBeParentPair(people, value, currentForm.id_me) ? currentForm.id_me : '';
+
+                return {
+                    ...currentForm,
+                    id_cha: value,
+                    id_me: autoMotherId || currentMotherId,
+                };
+            }
+
+            const autoFatherId = findSpouseIdFromChildren(people, value, 'id_cha');
+            const currentFatherId = canBeParentPair(people, currentForm.id_cha, value) ? currentForm.id_cha : '';
+
+            return {
+                ...currentForm,
+                id_me: value,
+                id_cha: autoFatherId || currentFatherId,
+            };
+        });
+    };
+
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!form.id_dong_ho) {
+            toast.error('Vui lòng chọn dòng họ.');
+            return;
+        }
+
+        if (!canBeParentPair(people, form.id_cha, form.id_me)) {
+            toast.error('Cha và mẹ không được là tổ tiên hoặc con cháu của nhau.');
+            return;
+        }
+
+        if (form.id_vo_chong_list.length > 0) {
+            const invalidSpouse = form.id_vo_chong_list.some(spouseId => {
+                const spouse = getMemberById(people, spouseId);
+                return spouse && !canSelectAsSpouse(people, spouse, form);
+            });
+            if (invalidSpouse) {
+                toast.error('Có vợ/chồng không hợp lệ.');
+                return;
+            }
+        }
+
+        setSaving(true);
+        try {
+            const payload = buildPayload(form);
+            const result = form.id
+                ? await nguoiApi.update({ id: form.id, ...payload })
+                : await nguoiApi.create(payload);
+
+            if (result.success) {
+                toast.success(result.message || 'Lưu thành công.');
+                closeForm();
+                loadData();
+            } else {
+                toast.error(result.message || 'Không thể lưu dữ liệu.');
+            }
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const treeData = useMemo(() => buildFamilyTree(people, selectedDongHo), [people, selectedDongHo]);
     const selectedDongHoName = dongHos.find((d) => String(d.id) === selectedDongHo)?.ten_dong_ho;
     const depth = getDepth(treeData);
     const deceased = people.filter((person) => Boolean(person.da_mat)).length;
@@ -256,7 +519,13 @@ export default function CayGiaPha() {
                         </div>
 
                         {selectedPerson ? (
-                            <PersonPanel person={selectedPerson} people={people} onClose={() => setSelectedPerson(null)} />
+                            <PersonPanel
+                                person={selectedPerson}
+                                people={people}
+                                onClose={() => setSelectedPerson(null)}
+                                onAddChild={handleAddChildQuick}
+                                onAddSpouse={handleAddSpouseQuick}
+                            />
                         ) : (
                             <div className="gp-card bg-[linear-gradient(145deg,var(--card),var(--gold-glow)_180%)] p-5">
                                 <span className="gp-chip gp-chip-gold"><Icon name="tree" size={12} />Chi tiết</span>
@@ -269,6 +538,271 @@ export default function CayGiaPha() {
                     </aside>
                 </div>
             </div>
+
+            {formOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <form onSubmit={handleSubmit} className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-[var(--bg-elev)] border border-[var(--line)] shadow-2xl text-[var(--ink)]">
+                        <div className="sticky top-0 z-10 rounded-t-2xl px-6 py-4" style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}>
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">{form.id ? 'Chỉnh sửa thành viên' : 'Thêm thành viên mới'}</h3>
+                                    <p className="mt-0.5 text-xs text-white/70">Nhập thông tin cơ bản của thành viên trong gia phả.</p>
+                                </div>
+                                <button type="button" onClick={closeForm} className="flex h-8 w-8 items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/30">
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                            
+                                {quickAddMode !== 'none' ? (
+                                    <div className="md:col-span-2 flex items-center gap-6 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
+                                        <span className="text-sm font-semibold text-emerald-800">Chế độ thêm nhanh:</span>
+                                        <span className="text-sm font-bold text-emerald-700">
+                                            {quickAddMode === 'child' ? 'Thành viên gốc (Thêm con đẻ)' : 'Dâu / Rể (Thêm phối ngẫu)'}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="md:col-span-2 flex items-center gap-6 rounded-lg border border-[var(--line)] bg-[var(--card-soft)] px-4 py-3">
+                                        <span className="text-sm font-semibold text-[var(--ink-soft)]">Vai trò dòng họ:</span>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                checked={!isDauRe}
+                                                onChange={() => {
+                                                    setIsDauRe(false);
+                                                    if (!form.id) setForm(f => ({ ...f, id_vo_chong_list: [] }));
+                                                }}
+                                                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <span className="text-sm text-[var(--ink-soft)]">Thành viên gốc (Có cha/mẹ)</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                checked={isDauRe}
+                                                onChange={() => {
+                                                    setIsDauRe(true);
+                                                    setForm(f => ({ ...f, id_cha: '', id_me: '' }));
+                                                }}
+                                                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <span className="text-sm text-[var(--ink-soft)]">Dâu / Rể (Từ họ khác)</span>
+                                        </label>
+                                    </div>
+                                )}
+
+                                <label className="md:col-span-2">
+                                    <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Họ và tên <span className="text-red-500">*</span></span>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={form.ten_day_du}
+                                        onChange={(event) => setForm({ ...form, ten_day_du: event.target.value })}
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        placeholder="Ví dụ: Nguyễn Văn A"
+                                    />
+                                </label>
+
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Dòng họ <span className="text-red-500">*</span></span>
+                                    <select
+                                        value={form.id_dong_ho}
+                                        onChange={(event) => setForm({ ...form, id_dong_ho: event.target.value })}
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        required
+                                    >
+                                        <option value="">-- Chọn Dòng họ --</option>
+                                        {dongHos.map((dongHo) => (
+                                            <option key={dongHo.id} value={dongHo.id}>
+                                                {dongHo.ten_dong_ho}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Giới tính <span className="text-red-500">*</span></span>
+                                    <select
+                                        value={form.gioi_tinh}
+                                        onChange={(event) => setForm({ ...form, gioi_tinh: event.target.value as 'nam' | 'nu' })}
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        required
+                                    >
+                                        <option value="nam">Nam</option>
+                                        <option value="nu">Nữ</option>
+                                    </select>
+                                </label>
+
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Ngày sinh (Dương lịch)</span>
+                                    <input
+                                        type="date"
+                                        value={form.ngay_sinh}
+                                        onChange={(event) => setForm({ ...form, ngay_sinh: event.target.value })}
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                    />
+                                </label>
+
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Thứ tự sinh</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={form.thu_tu_sinh}
+                                        onChange={(event) => setForm({ ...form, thu_tu_sinh: event.target.value })}
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        placeholder="Ví dụ: 1 (con trưởng)"
+                                    />
+                                </label>
+
+                                {quickAddMode !== 'child' && (
+                                    <label className="md:col-span-2">
+                                        <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">
+                                            Vợ/chồng {form.id ? '(Có thể chọn nhiều)' : ''}
+                                        </span>
+                                        {form.id ? (
+                                            <>
+                                                <select
+                                                    multiple
+                                                    size={3}
+                                                    value={form.id_vo_chong_list}
+                                                    onChange={(event) => {
+                                                        const selectedOptions = Array.from(event.target.selectedOptions, option => option.value);
+                                                        setForm({ ...form, id_vo_chong_list: selectedOptions });
+                                                    }}
+                                                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                                                    disabled={quickAddMode === 'spouse'}
+                                                >
+                                                    {people
+                                                        .filter((member) => canSelectAsSpouse(people, member, form))
+                                                        .map((member) => (
+                                                            <option key={member.id} value={member.id}>
+                                                                {member.ten_day_du}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                                <p className="mt-1 text-xs text-[var(--ink-mute)]">Nhấn giữ Ctrl (Windows) hoặc Cmd (Mac) để chọn nhiều người.</p>
+                                            </>
+                                        ) : (
+                                            <select
+                                                value={form.id_vo_chong_list[0] || ''}
+                                                onChange={(event) => {
+                                                    const val = event.target.value;
+                                                    setForm({ ...form, id_vo_chong_list: val ? [val] : [] });
+                                                }}
+                                                className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                                                disabled={quickAddMode === 'spouse'}
+                                            >
+                                                <option value="">-- Chọn Vợ/chồng (tùy chọn) --</option>
+                                                {people
+                                                    .filter((member) => canSelectAsSpouse(people, member, form))
+                                                    .map((member) => (
+                                                        <option key={member.id} value={member.id}>
+                                                            {member.ten_day_du}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        )}
+                                    </label>
+                                )}
+
+                                {!isDauRe && (
+                                    <>
+                                        <label>
+                                            <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Cha</span>
+                                            <select
+                                                value={form.id_cha}
+                                                onChange={(event) => handleParentChange('id_cha', event.target.value)}
+                                                className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                                                disabled={quickAddMode === 'child' && String(form.id_cha) === selectedParentId}
+                                            >
+                                                <option value="">Không chọn</option>
+                                                {people
+                                                    .filter((member) => member.gioi_tinh === 'nam' && canSelectAsParent(people, member, form, form.id_me))
+                                                    .map((member) => (
+                                                        <option key={member.id} value={member.id}>
+                                                            {member.ten_day_du}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
+
+                                        <label>
+                                            <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Mẹ</span>
+                                            <select
+                                                value={form.id_me}
+                                                onChange={(event) => handleParentChange('id_me', event.target.value)}
+                                                className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-50"
+                                                disabled={quickAddMode === 'child' && String(form.id_me) === selectedParentId}
+                                            >
+                                                <option value="">Không chọn</option>
+                                                {people
+                                                    .filter((member) => member.gioi_tinh === 'nu' && canSelectAsParent(people, member, form, form.id_cha))
+                                                    .map((member) => (
+                                                        <option key={member.id} value={member.id}>
+                                                            {member.ten_day_du}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
+                                    </>
+                                )}
+
+                                <label className="flex items-center gap-3 rounded-lg border border-[var(--line)] bg-[var(--card-soft)] px-3 py-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={form.da_mat}
+                                        onChange={(event) => setForm({ ...form, da_mat: event.target.checked, ngay_mat: event.target.checked ? form.ngay_mat : '' })}
+                                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    <span className="text-sm font-semibold text-[var(--ink-soft)]">Đã mất</span>
+                                </label>
+
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Ngày mất</span>
+                                    <input
+                                        type="date"
+                                        value={form.ngay_mat}
+                                        onChange={(event) => setForm({ ...form, ngay_mat: event.target.value })}
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-40"
+                                        disabled={!form.da_mat}
+                                    />
+                                </label>
+
+                                <label className="md:col-span-2">
+                                    <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Ảnh đại diện URL</span>
+                                    <input
+                                        value={form.anh_dai_dien}
+                                        onChange={(event) => setForm({ ...form, anh_dai_dien: event.target.value })}
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        placeholder="https://..."
+                                    />
+                                </label>
+
+                                <label className="md:col-span-2">
+                                    <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Tiểu sử</span>
+                                    <textarea
+                                        value={form.tieu_su}
+                                        onChange={(event) => setForm({ ...form, tieu_su: event.target.value })}
+                                        className="min-h-24 w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="mt-6 flex justify-end gap-3 border-t border-[var(--line)] pt-4">
+                                <button type="button" onClick={closeForm} className="rounded-lg border border-[var(--line)] bg-[var(--card)] px-4 py-2 font-semibold text-[var(--ink-soft)] hover:bg-[var(--card-soft)] transition">
+                                    Hủy
+                                </button>
+                                <button type="submit" disabled={saving} className="rounded-lg px-5 py-2 font-semibold text-white shadow hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 transition" style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}>
+                                    {saving ? 'Đang lưu...' : 'Lưu thông tin'}
+                                </button>
+                            </div>
+                        </div>{/* end p-6 */}
+                    </form>
+                </div>
+            )}
         </AuthenticatedLayout>
     );
 }
@@ -301,32 +835,28 @@ function FamilyCard({
     onSelect: (person: Nguoi) => void;
 }) {
     const hasChildren = family.children.length > 0;
-    const isCouple = family.members.length > 1;
 
     return (
         <div className="flex flex-col items-center">
             <div
-                className="relative z-10 rounded-[14px] border border-[var(--card-border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] px-3 py-3 shadow-[var(--shadow-md)] backdrop-blur"
-                style={{ minWidth: isCouple ? 236 : 132 }}
+                className="relative z-10 flex items-center justify-center gap-4 rounded-[20px] border border-[var(--card-border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-4 shadow-[var(--shadow-md)] backdrop-blur"
             >
-                <div className="absolute -top-3 left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full border-2 border-[var(--card)] bg-[var(--gold)] text-xs font-bold text-white shadow">
+                <div className="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full border-2 border-[var(--card)] bg-[var(--gold)] text-xs font-bold text-white shadow">
                     {level}
                 </div>
 
-                <div className="flex items-start justify-center gap-1">
-                    {family.members.map((member, index) => (
-                        <div key={member.id} className="flex items-center">
-                            <PersonMiniCard person={member} searchTerm={searchTerm} selected={selectedPerson?.id === member.id} onSelect={onSelect} />
-                            {index < family.members.length - 1 && (
-                                <div className="mx-1 flex h-20 flex-col items-center justify-center">
-                                    <div className="grid h-7 w-7 place-items-center rounded-full border border-[color-mix(in_srgb,var(--terracotta)_20%,transparent)] bg-[color-mix(in_srgb,var(--terracotta)_10%,transparent)] text-[var(--terracotta)]">
-                                        <Icon name="heart" size={14} />
-                                    </div>
-                                </div>
-                            )}
+                <PersonMiniCard person={family.member} searchTerm={searchTerm} selected={selectedPerson?.id === family.member.id} onSelect={onSelect} />
+
+                {family.spouses.map((spouse) => (
+                    <div key={spouse.id} className="flex items-center gap-4">
+                        <div className="relative h-[2px] w-8 bg-gradient-to-r from-[var(--gold)] to-[var(--gold)] opacity-70">
+                            <div className="absolute left-1/2 top-1/2 grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-pink-200 bg-pink-50 text-pink-500 shadow-sm">
+                                <Icon name="heart" size={11} />
+                            </div>
                         </div>
-                    ))}
-                </div>
+                        <PersonMiniCard person={spouse} searchTerm={searchTerm} selected={selectedPerson?.id === spouse.id} onSelect={onSelect} />
+                    </div>
+                ))}
             </div>
 
             <div className={`h-8 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
@@ -379,6 +909,11 @@ function PersonMiniCard({ person, searchTerm, selected, onSelect }: { person: Ng
             >
                 {person.anh_dai_dien ? <img src={person.anh_dai_dien} alt={person.ten_day_du} className="h-full w-full object-cover" /> : person.ten_day_du.charAt(0).toUpperCase()}
                 {isDead && <span className="absolute -right-0.5 -top-0.5 grid h-4 w-4 place-items-center rounded-full bg-[var(--deceased)] text-[9px] ring-2 ring-[var(--card)]">†</span>}
+                {person.thu_tu_sinh && (
+                    <span className="absolute -left-0.5 -top-0.5 grid h-4.5 w-4.5 place-items-center rounded-full bg-[var(--gold)] text-[9px] font-bold text-white ring-2 ring-[var(--card)] shadow-sm">
+                        {person.thu_tu_sinh}
+                    </span>
+                )}
             </span>
             <span className="line-clamp-2 min-h-8 w-full text-xs font-bold leading-tight text-[var(--ink)] group-hover:text-[var(--gold)]">{person.ten_day_du}</span>
             {(birthYear || deathYear) && (
@@ -399,7 +934,19 @@ function Metric({ label, value }: { label: string; value: number }) {
     );
 }
 
-function PersonPanel({ person, people, onClose }: { person: Nguoi; people: Nguoi[]; onClose: () => void }) {
+function PersonPanel({
+    person,
+    people,
+    onClose,
+    onAddChild,
+    onAddSpouse,
+}: {
+    person: Nguoi;
+    people: Nguoi[];
+    onClose: () => void;
+    onAddChild: (parent: Nguoi) => void;
+    onAddSpouse: (spouse: Nguoi) => void;
+}) {
     const father = person.id_cha ? people.find((item) => item.id === person.id_cha) : undefined;
     const mother = person.id_me ? people.find((item) => item.id === person.id_me) : undefined;
     const spouses = (person.vo_chong_ids || []).map((id) => people.find((item) => item.id === id)).filter(Boolean) as Nguoi[];
@@ -438,6 +985,25 @@ function PersonPanel({ person, people, onClose }: { person: Nguoi; people: Nguoi
                         <p className="text-[13px] leading-6 text-[var(--ink-soft)]">{person.tieu_su}</p>
                     </div>
                 )}
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                    <button
+                        type="button"
+                        onClick={() => onAddChild(person)}
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--gold)] bg-[var(--gold-glow)] py-2 text-center text-xs font-bold text-[var(--gold)] hover:bg-[color-mix(in_srgb,var(--gold)_12%,transparent)] transition"
+                    >
+                        <Icon name="plus" size={13} />
+                        Thêm con nhanh
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => onAddSpouse(person)}
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--terracotta)] bg-[color-mix(in_srgb,var(--terracotta)_10%,transparent)] py-2 text-center text-xs font-bold text-[var(--terracotta)] hover:bg-[color-mix(in_srgb,var(--terracotta)_15%,transparent)] transition"
+                    >
+                        <Icon name="heart" size={13} />
+                        Thêm vợ/chồng
+                    </button>
+                </div>
+
                 <button type="button" onClick={() => router.visit(`/gia-pha/thanh-vien/${person.id}`)} className="gp-btn gp-btn-primary w-full">
                     Xem hồ sơ chi tiết
                     <Icon name="arrow-right" size={15} />

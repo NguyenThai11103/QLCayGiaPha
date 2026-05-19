@@ -26,8 +26,11 @@ class UpdateNguoiRequest extends FormRequest
             'id_cha' => 'nullable|integer|exists:thanh_viens,id',
             'id_me' => 'nullable|integer|exists:thanh_viens,id',
             'id_vo_chong' => 'nullable|integer|exists:thanh_viens,id',
+            'id_vo_chong_list' => 'nullable|array',
+            'id_vo_chong_list.*' => 'integer|exists:thanh_viens,id',
             'tieu_su' => 'nullable|string',
             'anh_dai_dien' => 'nullable|string',
+            'thu_tu_sinh' => 'nullable|integer|min:1',
         ];
     }
 
@@ -42,7 +45,7 @@ class UpdateNguoiRequest extends FormRequest
 
             $idNguoi = (int) $this->input('id');
             $idDongHo = $this->has('id_dong_ho') ? (int) $this->input('id_dong_ho') : (int) $nguoi->dong_ho_id;
-            
+
             $chaCon = DB::table('quan_hes')
                 ->where('node_2_id', $idNguoi)
                 ->where('loai_quan_he', 'cha_con')
@@ -51,7 +54,7 @@ class UpdateNguoiRequest extends FormRequest
                 ->where('node_2_id', $idNguoi)
                 ->where('loai_quan_he', 'me_con')
                 ->first();
-                
+
             $idChaHienTai = $chaCon ? $chaCon->node_1_id : null;
             $idMeHienTai = $meCon ? $meCon->node_1_id : null;
 
@@ -115,12 +118,12 @@ class UpdateNguoiRequest extends FormRequest
             }
 
             $daXem[$idHienTai] = true;
-            
+
             $chaCon = DB::table('quan_hes')
                 ->where('node_2_id', $idHienTai)
                 ->where('loai_quan_he', 'cha_con')
                 ->first();
-                
+
             $meCon = DB::table('quan_hes')
                 ->where('node_2_id', $idHienTai)
                 ->where('loai_quan_he', 'me_con')
@@ -162,18 +165,4 @@ class UpdateNguoiRequest extends FormRequest
         return (int) ($quanHe->node_1_id === $idNguoi ? $quanHe->node_2_id : $quanHe->node_1_id);
     }
 
-    private function nguoiDaCoVoChongKhac(int|string $idNguoi, int $idHienTai): bool
-    {
-        return DB::table('quan_hes')
-            ->where('loai_quan_he', 'vo_chong')
-            ->where(function ($query) use ($idNguoi) {
-                $query->where('node_1_id', $idNguoi)
-                    ->orWhere('node_2_id', $idNguoi);
-            })
-            ->where(function ($query) use ($idHienTai) {
-                $query->where('node_1_id', '!=', $idHienTai)
-                    ->where('node_2_id', '!=', $idHienTai);
-            })
-            ->exists();
-    }
 }

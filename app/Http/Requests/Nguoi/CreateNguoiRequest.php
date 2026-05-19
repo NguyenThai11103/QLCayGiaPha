@@ -25,8 +25,11 @@ class CreateNguoiRequest extends FormRequest
             'id_cha' => 'nullable|integer|exists:thanh_viens,id',
             'id_me' => 'nullable|integer|exists:thanh_viens,id',
             'id_vo_chong' => 'nullable|integer|exists:thanh_viens,id',
+            'id_vo_chong_list' => 'nullable|array',
+            'id_vo_chong_list.*' => 'integer|exists:thanh_viens,id',
             'tieu_su' => 'nullable|string',
             'anh_dai_dien' => 'nullable|string',
+            'thu_tu_sinh' => 'nullable|integer|min:1',
         ];
     }
 
@@ -52,9 +55,6 @@ class CreateNguoiRequest extends FormRequest
                     $validator->errors()->add('id_vo_chong', 'Vo chong phai thuoc cung dong ho de hien thi trong cay.');
                 }
 
-                if ($this->nguoiDaCoVoChong($idVoChong)) {
-                    $validator->errors()->add('id_vo_chong', 'Thanh vien duoc chon da co vo hoac chong.');
-                }
             }
         });
     }
@@ -73,12 +73,12 @@ class CreateNguoiRequest extends FormRequest
             }
 
             $daXem[$idHienTai] = true;
-            
+
             $chaCon = DB::table('quan_hes')
                 ->where('node_2_id', $idHienTai)
                 ->where('loai_quan_he', 'cha_con')
                 ->first();
-                
+
             $meCon = DB::table('quan_hes')
                 ->where('node_2_id', $idHienTai)
                 ->where('loai_quan_he', 'me_con')
@@ -103,14 +103,4 @@ class CreateNguoiRequest extends FormRequest
         return false;
     }
 
-    private function nguoiDaCoVoChong(int|string $idNguoi): bool
-    {
-        return DB::table('quan_hes')
-            ->where('loai_quan_he', 'vo_chong')
-            ->where(function ($query) use ($idNguoi) {
-                $query->where('node_1_id', $idNguoi)
-                    ->orWhere('node_2_id', $idNguoi);
-            })
-            ->exists();
-    }
 }

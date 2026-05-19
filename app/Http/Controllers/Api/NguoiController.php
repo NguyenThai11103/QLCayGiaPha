@@ -78,7 +78,13 @@ class NguoiController extends Controller
     public function store(CreateNguoiRequest $request)
     {
         $data = $request->validated();
-        $idVoChong = $data['id_vo_chong'] ?? null;
+
+        $voChongList = $data['id_vo_chong_list'] ?? [];
+        if (isset($data['id_vo_chong']) && $data['id_vo_chong'] !== null) {
+            $voChongList[] = $data['id_vo_chong'];
+        }
+        $voChongList = array_unique($voChongList);
+
         $idCha = $data['id_cha'] ?? null;
         $idMe = $data['id_me'] ?? null;
 
@@ -91,14 +97,15 @@ class NguoiController extends Controller
             'ngay_mat_am' => $data['ngay_mat'] ?? null,
             'tieu_su' => $data['tieu_su'] ?? null,
             'anh_dai_dien' => $data['anh_dai_dien'] ?? null,
+            'thu_tu_sinh' => $data['thu_tu_sinh'] ?? null,
             'created_at' => now(),
             'updated_at' => now(),
         ];
 
-        $id = DB::transaction(function () use ($insertData, $idVoChong, $idCha, $idMe) {
+        $id = DB::transaction(function () use ($insertData, $voChongList, $idCha, $idMe) {
             $id = DB::table('thanh_viens')->insertGetId($insertData);
-            
-            $this->dongBoQuanHeVoChong($id, $idVoChong);
+
+            $this->dongBoQuanHeVoChong($id, $voChongList);
             $this->dongBoQuanHeChaMe($id, $idCha, $idMe);
 
             return $id;
@@ -127,22 +134,27 @@ class NguoiController extends Controller
         if (array_key_exists('ngay_mat', $data)) $updateData['ngay_mat_am'] = $data['ngay_mat'];
         if (array_key_exists('tieu_su', $data)) $updateData['tieu_su'] = $data['tieu_su'];
         if (array_key_exists('anh_dai_dien', $data)) $updateData['anh_dai_dien'] = $data['anh_dai_dien'];
+        if (array_key_exists('thu_tu_sinh', $data)) $updateData['thu_tu_sinh'] = $data['thu_tu_sinh'];
 
         DB::transaction(function () use ($id, $updateData, $data) {
             if (!empty($updateData)) {
                 DB::table('thanh_viens')->where('id', $id)->update($updateData);
             }
-            
-            if (array_key_exists('id_vo_chong', $data)) {
-                $this->dongBoQuanHeVoChong($id, $data['id_vo_chong']);
+
+            if (array_key_exists('id_vo_chong_list', $data) || array_key_exists('id_vo_chong', $data)) {
+                $voChongList = $data['id_vo_chong_list'] ?? [];
+                if (isset($data['id_vo_chong']) && $data['id_vo_chong'] !== null) {
+                    $voChongList[] = $data['id_vo_chong'];
+                }
+                $this->dongBoQuanHeVoChong($id, array_unique($voChongList));
             }
-            
+
             if (array_key_exists('id_cha', $data) || array_key_exists('id_me', $data)) {
                 $chaCon = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'cha_con')->first();
                 $meCon = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'me_con')->first();
                 $idChaHienTai = $chaCon ? $chaCon->node_1_id : null;
                 $idMeHienTai = $meCon ? $meCon->node_1_id : null;
-                
+
                 $idChaMoi = array_key_exists('id_cha', $data) ? $data['id_cha'] : $idChaHienTai;
                 $idMeMoi = array_key_exists('id_me', $data) ? $data['id_me'] : $idMeHienTai;
                 $this->dongBoQuanHeChaMe($id, $idChaMoi, $idMeMoi);
@@ -409,7 +421,7 @@ class NguoiController extends Controller
         }
 
         $ids = $thanhViens->pluck('id');
-        
+
         $quanHes = DB::table('quan_hes')
             ->whereIn('node_1_id', $ids)
             ->orWhereIn('node_2_id', $ids)
@@ -448,32 +460,53 @@ class NguoiController extends Controller
         });
     }
 
-    private function dongBoQuanHeVoChong(int $idNguoi, $idVoChong): void
+    private function dongBoQuanHeVoChong(int $idNguoi, array $idVoChongList): void
     {
-        DB::table('quan_hes')
+        // Tìm các quan hệ cũ để check xem cái nào cần xóa, cái nào cần thêm
+        $quanHeCus = DB::table('quan_hes')
             ->where('loai_quan_he', 'vo_chong')
             ->where(function ($query) use ($idNguoi) {
                 $query->where('node_1_id', $idNguoi)
                     ->orWhere('node_2_id', $idNguoi);
             })
-            ->delete();
+            ->get();
 
-        if (!$idVoChong) {
-            return;
+        // ID các người vợ/chồng cũ
+        $idVuChongCus = $quanHeCus->map(function ($qh) use ($idNguoi) {
+            return $qh->node_1_id == $idNguoi ? $qh->node_2_id : $qh->node_1_id;
+        })->toArray();
+
+        // Các thành viên mới được thêm
+        $idsAdd = array_diff($idVoChongList, $idVuChongCus);
+        // Các thành viên bị xoá bỏ khỏi danh sách
+        $idsRemove = array_diff($idVuChongCus, $idVoChongList);
+
+        // 1. Thực hiện xoá
+        if (!empty($idsRemove)) {
+            DB::table('quan_hes')
+                ->where('loai_quan_he', 'vo_chong')
+                ->where(function ($q) use ($idNguoi, $idsRemove) {
+                    $q->where('node_1_id', $idNguoi)->whereIn('node_2_id', $idsRemove);
+                })->orWhere(function ($q) use ($idNguoi, $idsRemove) {
+                    $q->where('node_2_id', $idNguoi)->whereIn('node_1_id', $idsRemove);
+                })->delete();
         }
 
-        // Always put smaller ID as node_1_id for vo_chong to avoid uniqueness issues,
-        // though uniqueness is ['node_1_id', 'node_2_id', 'loai_quan_he']
-        $node1 = min($idNguoi, $idVoChong);
-        $node2 = max($idNguoi, $idVoChong);
+        // 2. Thực hiện thêm
+        $insertBatches = [];
+        foreach ($idsAdd as $idVoChongMoi) {
+            $insertBatches[] = [
+                'node_1_id' => min($idNguoi, $idVoChongMoi),
+                'node_2_id' => max($idNguoi, $idVoChongMoi),
+                'loai_quan_he' => 'vo_chong',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
 
-        DB::table('quan_hes')->insert([
-            'node_1_id' => $node1,
-            'node_2_id' => $node2,
-            'loai_quan_he' => 'vo_chong',
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        if (!empty($insertBatches)) {
+            DB::table('quan_hes')->insert($insertBatches);
+        }
     }
 
     private function dongBoQuanHeChaMe(int $idCon, $idCha, $idMe): void

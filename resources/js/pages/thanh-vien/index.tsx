@@ -14,9 +14,10 @@ type FormState = {
     da_mat: boolean;
     id_cha: string;
     id_me: string;
-    id_vo_chong: string;
+    id_vo_chong_list: string[];
     tieu_su: string;
     anh_dai_dien: string;
+    thu_tu_sinh: string;
 };
 
 const emptyForm: FormState = {
@@ -28,9 +29,10 @@ const emptyForm: FormState = {
     da_mat: false,
     id_cha: '',
     id_me: '',
-    id_vo_chong: '',
+    id_vo_chong_list: [],
     tieu_su: '',
     anh_dai_dien: '',
+    thu_tu_sinh: '',
 };
 
 const toNullableNumber = (value: string) => (value ? Number(value) : null);
@@ -107,10 +109,6 @@ const canSelectAsParent = (members: Nguoi[], candidate: Nguoi, form: FormState, 
     return canBeParentPair(members, String(candidate.id), otherParentId);
 };
 
-const hasSpouseOtherThan = (member: Nguoi, currentMemberId?: number) => {
-    return (member.vo_chong_ids || []).some((spouseId) => spouseId !== currentMemberId);
-};
-
 const canSelectAsSpouse = (members: Nguoi[], candidate: Nguoi, form: FormState) => {
     if (candidate.id === form.id) {
         return false;
@@ -123,11 +121,6 @@ const canSelectAsSpouse = (members: Nguoi[], candidate: Nguoi, form: FormState) 
     if (candidate.gioi_tinh === form.gioi_tinh) {
         return false;
     }
-
-    if (hasSpouseOtherThan(candidate, form.id)) {
-        return false;
-    }
-
     if (form.id && (isAncestorOf(members, form.id, candidate.id) || isAncestorOf(members, candidate.id, form.id))) {
         return false;
     }
@@ -160,9 +153,10 @@ const buildPayload = (form: FormState): NguoiPayload => ({
     ngay_mat: form.da_mat ? toNullableString(form.ngay_mat) : null,
     id_cha: toNullableNumber(form.id_cha),
     id_me: toNullableNumber(form.id_me),
-    id_vo_chong: toNullableNumber(form.id_vo_chong),
+    id_vo_chong_list: form.id_vo_chong_list.map(id => Number(id)).filter(id => !isNaN(id)),
     tieu_su: toNullableString(form.tieu_su),
     anh_dai_dien: toNullableString(form.anh_dai_dien),
+    thu_tu_sinh: toNullableNumber(form.thu_tu_sinh),
 });
 
 export default function DanhSachThanhVien() {
@@ -210,7 +204,7 @@ export default function DanhSachThanhVien() {
             ...emptyForm,
             id_dong_ho: String(member.id_dong_ho),
             gioi_tinh: member.gioi_tinh === 'nam' ? 'nu' : 'nam',
-            id_vo_chong: String(member.id),
+            id_vo_chong_list: [String(member.id)],
         });
         setFormOpen(true);
     };
@@ -226,9 +220,10 @@ export default function DanhSachThanhVien() {
             da_mat: Boolean(member.da_mat),
             id_cha: member.id_cha ? String(member.id_cha) : '',
             id_me: member.id_me ? String(member.id_me) : '',
-            id_vo_chong: member.vo_chong_ids?.[0] ? String(member.vo_chong_ids[0]) : '',
+            id_vo_chong_list: (member.vo_chong_ids || []).map(String),
             tieu_su: member.tieu_su || '',
             anh_dai_dien: member.anh_dai_dien || '',
+            thu_tu_sinh: member.thu_tu_sinh ? String(member.thu_tu_sinh) : '',
         });
         setFormOpen(true);
     };
@@ -275,10 +270,15 @@ export default function DanhSachThanhVien() {
             return;
         }
 
-        const selectedSpouse = getMemberById(members, form.id_vo_chong);
-        if (selectedSpouse && !canSelectAsSpouse(members, selectedSpouse, form)) {
-            toast.error('Vợ/chồng không hợp lệ hoặc đã có quan hệ vợ chồng khác.');
-            return;
+        if (form.id_vo_chong_list.length > 0) {
+            const invalidSpouse = form.id_vo_chong_list.some(spouseId => {
+                const spouse = getMemberById(members, spouseId);
+                return spouse && !canSelectAsSpouse(members, spouse, form);
+            });
+            if (invalidSpouse) {
+                toast.error('Có vợ/chồng không hợp lệ.');
+                return;
+            }
         }
 
         setSaving(true);
@@ -453,11 +453,9 @@ export default function DanhSachThanhVien() {
                                                     )}
                                                 </td>
                                                 <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                                                    {!hasSpouseOtherThan(member) && (
-                                                        <button type="button" onClick={() => openCreateSpouseForm(member)} className="mr-4 font-semibold text-emerald-600 hover:text-emerald-900">
+                                                    <button type="button" onClick={() => openCreateSpouseForm(member)} className="mr-4 font-semibold text-emerald-600 hover:text-emerald-900">
                                                             Thêm vợ/chồng
                                                         </button>
-                                                    )}
                                                     <button type="button" onClick={() => openEditForm(member)} className="mr-4 font-semibold text-indigo-600 hover:text-indigo-900">
                                                         Sửa
                                                     </button>
@@ -495,7 +493,7 @@ export default function DanhSachThanhVien() {
                                 <span className="mb-1 block text-sm font-semibold text-gray-700">Dòng họ</span>
                                 <select
                                     value={form.id_dong_ho}
-                                    onChange={(event) => setForm({ ...form, id_dong_ho: event.target.value, id_cha: '', id_me: '', id_vo_chong: '' })}
+                                    onChange={(event) => setForm({ ...form, id_dong_ho: event.target.value, id_cha: '', id_me: '', id_vo_chong_list: [] })}
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
                                     required
                                 >
@@ -523,7 +521,7 @@ export default function DanhSachThanhVien() {
                                 <span className="mb-1 block text-sm font-semibold text-gray-700">Giới tính</span>
                                 <select
                                     value={form.gioi_tinh}
-                                    onChange={(event) => setForm({ ...form, gioi_tinh: event.target.value as 'nam' | 'nu', id_vo_chong: '' })}
+                                    onChange={(event) => setForm({ ...form, gioi_tinh: event.target.value as 'nam' | 'nu', id_vo_chong_list: [] })}
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
                                 >
                                     <option value="nam">Nam</option>
@@ -541,14 +539,30 @@ export default function DanhSachThanhVien() {
                                 />
                             </label>
 
+                            <label>
+                                <span className="mb-1 block text-sm font-semibold text-gray-700">Thứ tự sinh (Con thứ mấy)</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    value={form.thu_tu_sinh}
+                                    onChange={(event) => setForm({ ...form, thu_tu_sinh: event.target.value })}
+                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                    placeholder="Ví dụ: 1 (Trưởng), 2 (Thứ hai)..."
+                                />
+                            </label>
+
                             <label className="md:col-span-2">
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Vợ/chồng</span>
+                                <span className="mb-1 block text-sm font-semibold text-gray-700">Vợ/chồng (Có thể chọn nhiều)</span>
                                 <select
-                                    value={form.id_vo_chong}
-                                    onChange={(event) => setForm({ ...form, id_vo_chong: event.target.value })}
+                                    multiple
+                                    size={3}
+                                    value={form.id_vo_chong_list}
+                                    onChange={(event) => {
+                                        const selectedOptions = Array.from(event.target.selectedOptions, option => option.value);
+                                        setForm({ ...form, id_vo_chong_list: selectedOptions });
+                                    }}
                                     className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
                                 >
-                                    <option value="">Không chọn</option>
                                     {members
                                         .filter((member) => canSelectAsSpouse(members, member, form))
                                         .map((member) => (
@@ -557,6 +571,7 @@ export default function DanhSachThanhVien() {
                                             </option>
                                         ))}
                                 </select>
+                                <p className="mt-1 text-xs text-gray-500">Nhấn giữ Ctrl (Windows) hoặc Cmd (Mac) để chọn nhiều người.</p>
                             </label>
 
                             <label>

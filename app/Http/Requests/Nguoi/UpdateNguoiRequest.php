@@ -90,18 +90,125 @@ class UpdateNguoiRequest extends FormRequest
                 $validator->errors()->add('id_cha', 'Cha va me khong duoc la to tien hoac con chau cua nhau.');
             }
 
+            $voChongList = $this->input('id_vo_chong_list') ?? [];
             if ($idVoChong) {
-                $nguoiVoChong = DB::table('thanh_viens')->where('id', $idVoChong)->first();
+                $voChongList[] = $idVoChong;
+            }
+            $voChongList = array_unique(array_filter($voChongList));
 
-                if ($nguoiVoChong && (int) $nguoiVoChong->dong_ho_id !== $idDongHo) {
-                    $validator->errors()->add('id_vo_chong', 'Vo chong phai thuoc cung dong ho de hien thi trong cay.');
-                }
-
+            if ($idVoChong) {
                 if ($this->nguoiDaCoVoChongKhac($idVoChong, $idNguoi)) {
                     $validator->errors()->add('id_vo_chong', 'Thanh vien duoc chon da co vo hoac chong.');
                 }
             }
+
+            // Kiểm tra cận huyết dưới 4 đời cho vợ chồng cùng dòng họ
+            if (!empty($voChongList) && ($idCha || $idMe)) {
+                $map = $this->getThanhVienMap();
+                $ancestorsA = [];
+                if ($idCha) {
+                    $distCha = $this->getAncestorDistances($idCha, $map);
+                    foreach ($distCha as $ancId => $d) {
+                        $ancestorsA[$ancId] = $d + 1;
+                    }
+                }
+                if ($idMe) {
+                    $distMe = $this->getAncestorDistances($idMe, $map);
+                    foreach ($distMe as $ancId => $d) {
+                        if (!isset($ancestorsA[$ancId]) || $d + 1 < $ancestorsA[$ancId]) {
+                            $ancestorsA[$ancId] = $d + 1;
+                        }
+                    }
+                }
+
+                foreach ($voChongList as $voChongId) {
+                    if (isset($map[$voChongId])) {
+                        $nguoiVoChong = $map[$voChongId];
+                        if ((int) $nguoiVoChong['dong_ho_id'] === (int) $idDongHo) {
+                            $ancestorsB = $this->getAncestorDistances($voChongId, $map);
+                            $best = null;
+                            foreach ($ancestorsA as $ancestorId => $dA) {
+                                if (isset($ancestorsB[$ancestorId])) {
+                                    $dB = $ancestorsB[$ancestorId];
+                                    if (!$best || $dA + $dB < $best['dA'] + $best['dB']) {
+                                        $best = [
+                                            'dA' => $dA,
+                                            'dB' => $dB,
+                                        ];
+                                    }
+                                }
+                            }
+
+                            if ($best) {
+                                $soDoi = max($best['dA'], $best['dB']) + 1;
+                                if ($soDoi < 4) {
+                                    $validator->errors()->add('id_vo_chong_list', "Vợ chồng thuộc cùng dòng họ phải cách nhau từ 4 đời trở lên theo quy định (hiện tại hai người có quan hệ ở đời thứ {$soDoi}).");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         });
+    }
+
+    private function getThanhVienMap(): array
+    {
+        $thanhViens = DB::table('thanh_viens')->get();
+        $quanHes = DB::table('quan_hes')->get();
+
+        $mapCha = [];
+        $mapMe = [];
+        foreach ($quanHes as $qh) {
+            if ($qh->loai_quan_he === 'cha_con') {
+                $mapCha[$qh->node_2_id] = (int) $qh->node_1_id;
+            } elseif ($qh->loai_quan_he === 'me_con') {
+                $mapMe[$qh->node_2_id] = (int) $qh->node_1_id;
+            }
+        }
+
+        $map = [];
+        foreach ($thanhViens as $tv) {
+            $map[$tv->id] = [
+                'id' => $tv->id,
+                'dong_ho_id' => $tv->dong_ho_id,
+                'ten_day_du' => $tv->ho_ten,
+                'gioi_tinh' => $tv->gioi_tinh,
+                'id_cha' => $mapCha[$tv->id] ?? null,
+                'id_me' => $mapMe[$tv->id] ?? null,
+            ];
+        }
+
+        return $map;
+    }
+
+    private function getAncestorDistances($id, array $map): array
+    {
+        $distances = [];
+        $queue = [['id' => $id, 'distance' => 0]];
+
+        while ($queue) {
+            $current = array_shift($queue);
+            $currentId = $current['id'];
+
+            if (!$currentId || isset($distances[$currentId]) || !isset($map[$currentId])) {
+                continue;
+            }
+
+            $distances[$currentId] = $current['distance'];
+            $person = $map[$currentId];
+            
+            foreach ([$person['id_cha'], $person['id_me']] as $parentId) {
+                if ($parentId) {
+                    $queue[] = [
+                        'id' => $parentId,
+                        'distance' => $current['distance'] + 1,
+                    ];
+                }
+            }
+        }
+
+        return $distances;
     }
 
     private function laToTienCua(int|string $idToTien, int|string $idNguoi): bool

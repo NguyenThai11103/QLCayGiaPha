@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('gioi_tinh', 10);
             $table->integer('thu_tu_sinh')->nullable();
             $table->integer('doi_thu')->nullable();
-            $table->string('tinh_trang_song', 20)->default('song');
+            $table->integer('tinh_trang_song')->default(1);
             $table->date('ngay_sinh_duong')->nullable();
             $table->date('ngay_sinh_am')->nullable();
             $table->integer('nam_sinh_uoc_tinh')->nullable();

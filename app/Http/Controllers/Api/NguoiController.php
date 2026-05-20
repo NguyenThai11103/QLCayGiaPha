@@ -93,7 +93,7 @@ class NguoiController extends Controller
             'ho_ten' => $data['ten_day_du'],
             'gioi_tinh' => $data['gioi_tinh'],
             'ngay_sinh_duong' => $data['ngay_sinh'] ?? null,
-            'tinh_trang_song' => $data['da_mat'] ? 'mat' : 'song',
+            'tinh_trang_song' => $data['da_mat'] ? 0 : 1,
             'ngay_mat_am' => $data['ngay_mat'] ?? null,
             'tieu_su' => $data['tieu_su'] ?? null,
             'anh_dai_dien' => $data['anh_dai_dien'] ?? null,
@@ -129,7 +129,7 @@ class NguoiController extends Controller
         if (array_key_exists('gioi_tinh', $data)) $updateData['gioi_tinh'] = $data['gioi_tinh'];
         if (array_key_exists('ngay_sinh', $data)) $updateData['ngay_sinh_duong'] = $data['ngay_sinh'];
         if (array_key_exists('da_mat', $data)) {
-            $updateData['tinh_trang_song'] = $data['da_mat'] ? 'mat' : 'song';
+            $updateData['tinh_trang_song'] = $data['da_mat'] ? 0 : 1;
         }
         if (array_key_exists('ngay_mat', $data)) $updateData['ngay_mat_am'] = $data['ngay_mat'];
         if (array_key_exists('tieu_su', $data)) $updateData['tieu_su'] = $data['tieu_su'];
@@ -450,7 +450,7 @@ class NguoiController extends Controller
                 'gioi_tinh' => $tv->gioi_tinh,
                 'ngay_sinh' => $tv->ngay_sinh_duong,
                 'ngay_mat' => $tv->ngay_mat_am,
-                'da_mat' => $tv->tinh_trang_song === 'mat',
+                'da_mat' => (int) $tv->tinh_trang_song === 0,
                 'id_cha' => $mapCha[$tv->id] ?? null,
                 'id_me' => $mapMe[$tv->id] ?? null,
                 'vo_chong_ids' => array_values(array_unique($mapVoChong[$tv->id] ?? [])),

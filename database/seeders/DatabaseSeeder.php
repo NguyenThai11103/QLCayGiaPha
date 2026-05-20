@@ -15,6 +15,8 @@ class DatabaseSeeder extends Seeder
             DongHoSeeder::class,
             ThanhVienSeeder::class,
             NguoiDungSeeder::class,
+            QuanHeSeeder::class,
+            CacheXungHoSeeder::class,  
             SuKienSeeder::class,
             TaiLieuSeeder::class,
         ]);

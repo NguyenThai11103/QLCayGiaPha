@@ -55,6 +55,42 @@ class TaiLieuSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
+            [
+                'thanh_vien_id' => 4, // Nguyễn Bá Cường
+                'dong_ho_id' => 1,
+                'duong_dan_file' => 'uploads/images/avatar_anh_cuong.jpg',
+                'loai_file' => 'hinh_anh',
+                'du_lieu_orc' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'thanh_vien_id' => 5, // Nguyễn Thị Lan
+                'dong_ho_id' => 1,
+                'duong_dan_file' => 'uploads/documents/bang_khen_hoc_tap_lan.jpg',
+                'loai_file' => 'hinh_anh',
+                'du_lieu_orc' => 'Bằng khen sinh viên xuất sắc năm học 2025-2026.',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'thanh_vien_id' => null,
+                'dong_ho_id' => 1,
+                'duong_dan_file' => 'uploads/documents/bien_ban_hop_ho_dau_nam.docx',
+                'loai_file' => 'document',
+                'du_lieu_orc' => 'Nội dung cuộc họp bàn về việc đóng góp quỹ khuyến học năm 2026.',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'thanh_vien_id' => null,
+                'dong_ho_id' => 1,
+                'duong_dan_file' => 'uploads/images/ban_do_mo_phan_dong_ho.jpg',
+                'loai_file' => 'hinh_anh',
+                'du_lieu_orc' => 'Sơ đồ vị trí các phần mộ tại nghĩa trang dòng họ.',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ]);
     }
 }

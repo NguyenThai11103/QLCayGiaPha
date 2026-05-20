@@ -17,7 +17,7 @@ function createTestThanhVien(int $dongHoId, string $name, string $gender): int
         'dong_ho_id' => $dongHoId,
         'ho_ten' => $name,
         'gioi_tinh' => $gender,
-        'tinh_trang_song' => 'song',
+        'tinh_trang_song' => 1,
         'created_at' => now(),
         'updated_at' => now(),
     ]);
@@ -119,3 +119,127 @@ it('describes grandparents through maternal links and spouses of direct ancestor
     expect(detailRelationFor($this, $child, $grandmotherByMarriage))->toBe('Ba');
     expect(detailRelationFor($this, $grandmotherByMarriage, $child))->toBe('Chau');
 });
+
+it('fails when child order age sequence is violated', function () {
+    $dongHoId = createTestDongHo();
+    $fatherId = createTestThanhVien($dongHoId, 'Cha Test', 'nam');
+
+    // Tạo con thứ 1 sinh năm 2000
+    $child1Id = DB::table('thanh_viens')->insertGetId([
+        'dong_ho_id' => $dongHoId,
+        'ho_ten' => 'Con Thu Nhat',
+        'gioi_tinh' => 'nam',
+        'tinh_trang_song' => 1,
+        'ngay_sinh_duong' => '2000-01-01',
+        'thu_tu_sinh' => 1,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    createTestQuanHe($fatherId, $child1Id, 'cha_con');
+
+    // Thêm con thứ 2 nhưng sinh năm 1999 (vi phạm vì thu_tu_sinh lớn hơn nhưng sinh trước)
+    $response = $this->postJson('/api/nguoi/create', [
+        'id_dong_ho' => $dongHoId,
+        'ten_day_du' => 'Con Thu Hai',
+        'gioi_tinh' => 'nam',
+        'da_mat' => false,
+        'ngay_sinh' => '1999-01-01',
+        'id_cha' => $fatherId,
+        'thu_tu_sinh' => 2,
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors('ngay_sinh');
+});
+
+it('fails when child is born before or in the same year as parents', function () {
+    $dongHoId = createTestDongHo();
+
+    // Tạo cha sinh năm 1980
+    $fatherId = DB::table('thanh_viens')->insertGetId([
+        'dong_ho_id' => $dongHoId,
+        'ho_ten' => 'Cha Test',
+        'gioi_tinh' => 'nam',
+        'tinh_trang_song' => 1,
+        'ngay_sinh_duong' => '1980-05-15',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    // Thêm con sinh năm 1979 (sinh trước cha) -> Lỗi
+    $response = $this->postJson('/api/nguoi/create', [
+        'id_dong_ho' => $dongHoId,
+        'ten_day_du' => 'Con Test',
+        'gioi_tinh' => 'nam',
+        'da_mat' => false,
+        'ngay_sinh' => '1979-01-01',
+        'id_cha' => $fatherId,
+        'thu_tu_sinh' => 1,
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors('ngay_sinh');
+
+    // Thêm con sinh năm 1980 (cùng năm với cha) -> Lỗi
+    $responseSameYear = $this->postJson('/api/nguoi/create', [
+        'id_dong_ho' => $dongHoId,
+        'ten_day_du' => 'Con Test 2',
+        'gioi_tinh' => 'nam',
+        'da_mat' => false,
+        'ngay_sinh' => '1980-12-31',
+        'id_cha' => $fatherId,
+        'thu_tu_sinh' => 2,
+    ]);
+
+    $responseSameYear->assertStatus(422);
+    $responseSameYear->assertJsonValidationErrors('ngay_sinh');
+});
+
+it('fails when spouse is born before or in the same year as parents in law', function () {
+    $dongHoId = createTestDongHo();
+
+    // Tạo cha sinh năm 1980
+    $fatherId = DB::table('thanh_viens')->insertGetId([
+        'dong_ho_id' => $dongHoId,
+        'ho_ten' => 'Cha Chồng',
+        'gioi_tinh' => 'nam',
+        'tinh_trang_song' => 1,
+        'ngay_sinh_duong' => '1980-01-01',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    // Tạo con sinh năm 2005
+    $childId = DB::table('thanh_viens')->insertGetId([
+        'dong_ho_id' => $dongHoId,
+        'ho_ten' => 'Người Con',
+        'gioi_tinh' => 'nam',
+        'tinh_trang_song' => 1,
+        'ngay_sinh_duong' => '2005-01-01',
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+    createTestQuanHe($fatherId, $childId, 'cha_con');
+
+    // Tạo một người sinh năm 1979 (dùng làm con dâu)
+    $spouseId = DB::table('thanh_viens')->insertGetId([
+        'dong_ho_id' => $dongHoId,
+        'ho_ten' => 'Con Dâu Vi Phạm',
+        'gioi_tinh' => 'nu',
+        'tinh_trang_song' => 1,
+        'ngay_sinh_duong' => '1979-12-31', // Sinh trước cha chồng (1980)
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    // Thêm quan hệ vợ chồng (khi cập nhật hoặc thêm con dâu là vợ của người con)
+    // Thử cập nhật người con để kết hôn với người con dâu này
+    $response = $this->postJson('/api/nguoi/update', [
+        'id' => $childId,
+        'id_vo_chong' => $spouseId,
+    ]);
+
+    $response->assertStatus(422);
+    $response->assertJsonValidationErrors('id_vo_chong_list');
+});
+

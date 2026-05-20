@@ -33,6 +33,7 @@ class ThanhVien extends Model
         'ngay_mat_am'     => 'date',
         'thu_tu_sinh'     => 'integer',
         'doi_thu'         => 'integer',
+        'tinh_trang_song' => 'integer',
     ];
 
     // ─── Relationships ─────────────────────────────────────────────────────────
@@ -92,6 +93,6 @@ class ThanhVien extends Model
 
     public function daMat(): bool
     {
-        return $this->tinh_trang_song === 'mat';
+        return (int) $this->tinh_trang_song === 0;
     }
 }

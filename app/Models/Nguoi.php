@@ -36,6 +36,7 @@ class Nguoi extends Model
         'ngay_sinh_duong' => 'date',
         'ngay_sinh_am' => 'date',
         'ngay_mat_am' => 'date',
+        'tinh_trang_song' => 'integer',
     ];
 
     public function dongHo()

@@ -263,6 +263,25 @@ export default function DanhSachThanhVien() {
         setFormOpen(true);
     };
 
+    const openCreateChildForm = (parent: Nguoi) => {
+        setIsDauRe(false);
+        setQuickAddMode('child');
+        setSelectedParentId(String(parent.id));
+
+        const isMaleParent = parent.gioi_tinh === 'nam';
+        const firstSpouseId = parent.vo_chong_ids && parent.vo_chong_ids.length > 0
+            ? String(parent.vo_chong_ids[0])
+            : '';
+
+        setForm({
+            ...emptyForm,
+            id_dong_ho: String(parent.id_dong_ho),
+            id_cha: isMaleParent ? String(parent.id) : firstSpouseId,
+            id_me: isMaleParent ? firstSpouseId : String(parent.id),
+        });
+        setFormOpen(true);
+    };
+
     const openEditForm = (member: Nguoi) => {
         setIsDauRe(!member.id_cha && !member.id_me && (member.vo_chong_ids || []).length > 0);
         setQuickAddMode('none');
@@ -513,9 +532,12 @@ export default function DanhSachThanhVien() {
                                                     )}
                                                 </td>
                                                 <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
+                                                    <button type="button" onClick={() => openCreateChildForm(member)} className="mr-4 font-semibold text-blue-600 hover:text-blue-900">
+                                                        Thêm con
+                                                    </button>
                                                     <button type="button" onClick={() => openCreateSpouseForm(member)} className="mr-4 font-semibold text-emerald-600 hover:text-emerald-900">
-                                                            Thêm vợ/chồng
-                                                        </button>
+                                                        Thêm vợ/chồng
+                                                    </button>
                                                     <button type="button" onClick={() => openEditForm(member)} className="mr-4 font-semibold text-indigo-600 hover:text-indigo-900">
                                                         Sửa
                                                     </button>

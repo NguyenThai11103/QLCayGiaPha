@@ -25,6 +25,41 @@ class NguoiDung extends Authenticatable
         'password',
     ];
 
+    protected $appends = [
+        'ho_va_ten',
+        'ten_goi_nho',
+        'anh_dai_dien',
+        'is_master',
+        'ten_chuc_vu',
+    ];
+
+    // ─── Accessors ─────────────────────────────────────────────────────────────
+
+    public function getHoVaTenAttribute()
+    {
+        return $this->ho_ten;
+    }
+
+    public function getTenGoiNhoAttribute()
+    {
+        return $this->thanhVien?->ten_thuong_goi ?? $this->ho_ten;
+    }
+
+    public function getAnhDaiDienAttribute()
+    {
+        return $this->thanhVien?->anh_dai_dien;
+    }
+
+    public function getIsMasterAttribute()
+    {
+        return in_array($this->quyen_han, ['admin', 'quan_ly']) ? 1 : 0;
+    }
+
+    public function getTenChucVuAttribute()
+    {
+        return in_array($this->quyen_han, ['admin', 'quan_ly']) ? 'Quản trị dòng họ' : 'Thành viên';
+    }
+
     // ─── Relationships ─────────────────────────────────────────────────────────
 
     public function dongHo()

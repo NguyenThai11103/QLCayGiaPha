@@ -10,6 +10,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 }/*EDITMODE-END*/;
 
 function App() {
+  const [authed, setAuthed] = useState(false);
   const [page, setPage] = useState("landing");
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
@@ -23,11 +24,18 @@ function App() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  // Show auth page if not logged in
+  if (!authed) {
+    return <AuthPage onLogin={() => { setAuthed(true); nav("dashboard"); }} />;
+  }
+
   let Content;
   switch (page) {
     case "landing": Content = <LandingPage onNav={nav} />; break;
     case "dashboard": Content = <DashboardPage onNav={nav} />; break;
     case "tree": Content = <FamilyTreePage onNav={nav} />; break;
+    case "lookup": Content = <LookupPage onNav={nav} />; break;
+    case "events": Content = <EventsPage onNav={nav} />; break;
     default:
       Content = <PlaceholderPage page={page} onNav={nav} />;
   }

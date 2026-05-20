@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/gia-pha/Icon';
 import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
 import toast from '../../lib/toast.util';
@@ -255,6 +255,9 @@ export default function CayGiaPha() {
     const [searchTerm, setSearchTerm] = useState('');
     const [bloodlineOnly, setBloodlineOnly] = useState(true);
     const [selectedPerson, setSelectedPerson] = useState<Nguoi | null>(null);
+    const treeViewportRef = useRef<HTMLElement | null>(null);
+    const dragStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+    const [isDraggingTree, setIsDraggingTree] = useState(false);
 
     useEffect(() => {
         dongHoApi.list().then((res) => setDongHos(res.data || []));
@@ -287,6 +290,52 @@ export default function CayGiaPha() {
     useEffect(() => {
         loadData();
     }, [selectedDongHo]);
+
+    const handleMouseDown = (event: MouseEvent<HTMLElement>) => {
+        if (event.button !== 0) {
+            return;
+        }
+
+        const target = event.target as HTMLElement;
+        if (target.closest('button, a, input, select, textarea')) {
+            return;
+        }
+
+        const viewport = treeViewportRef.current;
+        if (!viewport) {
+            return;
+        }
+
+        setIsDraggingTree(true);
+        dragStartRef.current = {
+            x: event.clientX,
+            y: event.clientY,
+            scrollLeft: viewport.scrollLeft,
+            scrollTop: viewport.scrollTop,
+        };
+    };
+
+    const handleMouseMove = (event: MouseEvent<HTMLElement>) => {
+        if (!isDraggingTree) {
+            return;
+        }
+
+        const viewport = treeViewportRef.current;
+        if (!viewport) {
+            return;
+        }
+
+        event.preventDefault();
+
+        const deltaX = event.clientX - dragStartRef.current.x;
+        const deltaY = event.clientY - dragStartRef.current.y;
+        viewport.scrollLeft = dragStartRef.current.scrollLeft - deltaX;
+        viewport.scrollTop = dragStartRef.current.scrollTop - deltaY;
+    };
+
+    const handleMouseUp = () => {
+        setIsDraggingTree(false);
+    };
 
     const handleAddChildQuick = (parent: Nguoi) => {
         setIsDauRe(false);
@@ -471,7 +520,15 @@ export default function CayGiaPha() {
                 </div>
 
                 <div className="grid min-h-0 flex-1 lg:grid-cols-[1fr_360px]">
-                    <section className="dot-grid relative min-h-[680px] overflow-auto bg-[var(--bg)]">
+                    <section
+                        ref={treeViewportRef}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                        className="dot-grid relative min-h-[680px] overflow-auto bg-[var(--bg)]"
+                        style={{ cursor: isDraggingTree ? 'grabbing' : 'grab', userSelect: isDraggingTree ? 'none' : undefined }}
+                    >
                         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(250,241,212,0.8),transparent_48%)]" />
                         {loading ? (
                             <div className="absolute inset-0 grid place-items-center">

@@ -7,6 +7,18 @@ Route::get('/', function () {
     return Inertia::render('landing/index');
 });
 
+Route::get('/login', function () {
+    return Inertia::render('auth/login');
+});
+
+Route::get('/register', function () {
+    return Inertia::render('auth/logout');
+});
+
+Route::get('/forgot-password', function () {
+    return Inertia::render('auth/forgot-password');
+});
+
 Route::get('/gia-pha/dashboard', function () {
     return Inertia::render('dashboard/index');
 });

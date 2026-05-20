@@ -4,7 +4,7 @@
 
 **Gia Phả** is a digital family genealogy platform for Vietnamese clans (dòng họ). It lets families digitize traditional paper family books (sách gia phả), visualize multi-generation trees, look up Vietnamese kinship relationships, manage ancestral events (giỗ chạp), and apply AI to old documents.
 
-This handoff covers the design of 3 hero screens — **Landing**, **Dashboard**, and **Family Tree** — built as a single-page interactive prototype. Seven additional sidebar destinations (Members, Relationship Lookup, AI Assistant, Clan Management, Events, Documents, Settings) currently render an "Coming soon" placeholder and are out of scope for this handoff.
+This handoff covers the design of **7 screens** — **Auth (Login/Register/Forgot)**, **Landing**, **Dashboard**, **Family Tree**, **Relationship Lookup**, **Events & Anniversaries**, and placeholder screens for remaining destinations — built as a single-page interactive prototype.
 
 ---
 
@@ -356,14 +356,17 @@ type Member = {
 design/
 ├── index.html              — Entry. Loads React UMD, Babel, fonts, all .jsx
 ├── src/
-│   ├── styles.css          — All design tokens (3 themes) + utility classes
+│   ├── styles.css          — All design tokens (3 themes) + utility classes + animation keyframes
 │   ├── data.jsx            — Sample Nguyễn clan: MEMBERS, EVENTS, ACTIVITIES, STATS
 │   ├── icons.jsx           — Icon component (~30 inline SVG icons) + VietOrnament
 │   ├── shell.jsx           — Sidebar (logo + nav + user footer), Topbar (crumbs + search + icon buttons)
-│   ├── landing.jsx         — Hero, feature cards, timeline, CTA, hero tree SVG
+│   ├── auth.jsx            — Login / Register / Forgot password — full-bleed two-column layout
+│   ├── landing.jsx         — Hero with scroll-reveal animations, feature cards, timeline, CTA
 │   ├── dashboard.jsx       — Stats, generation bar chart, activity, events, AI card
 │   ├── family-tree.jsx     — Layout algo, member cards, connectors, pan/zoom, side panel
-│   ├── app.jsx             — Router state, theme effect, tweaks panel wiring
+│   ├── lookup.jsx          — Relationship lookup — Vietnamese kinship engine + path visualization
+│   ├── events.jsx          — Events calendar with lunar dates, year heatmap, upcoming timeline
+│   ├── app.jsx             — Router state, auth gate, theme effect, tweaks panel wiring
 │   └── tweaks-panel.jsx    — Tweaks panel host (provided by design tool; do NOT port — replace with your own settings UI)
 ```
 
@@ -388,6 +391,13 @@ Or use any static server. Must be served over HTTP (not file://) for the JSX mod
 5. **The tree layout is O(N²)** in the worst case from `shiftSubtree`. Fine for hundreds of members; if you need thousands, switch to a single-pass Walker's algorithm.
 6. **Pan/zoom uses CSS transforms**, not canvas. Works well to ~1000 cards. Beyond that, consider canvas/WebGL.
 7. **Accessibility**: cards are `<div>`s with `onClick` — make them real `<button>` elements with keyboard handlers in production. Add ARIA roles to the tree (`role="tree"`, `role="treeitem"`). The icon buttons in the topbar already lack accessible names — add `aria-label`s.
+8. **Mobile responsiveness** — the prototype is desktop-first (sidebar 248px, content min 1024px). On phones, collapse sidebar to a drawer and let the tree canvas fill the viewport. The auth page two-column layout should stack vertically on mobile.
+9. **Tree print/export** — not implemented. Plan for "Print to PDF" and "Export PNG" of the tree view.
+10. **Vietnamese localization** — all copy is hardcoded Vietnamese. Wrap in your i18n framework if you plan to support English / other languages.
+11. **Auth integration** — the prototype uses a simple `authed` boolean state. Replace with your real auth system (Laravel Sanctum / JWT / OAuth). The `AuthPage` component accepts `onLogin` callback; wire it to your auth flow.
+12. **Kinship engine** — the `computeRelationship()` function in `lookup.jsx` covers direct ancestors, descendants, siblings, cousins (with level), pibling/nibling with paternal/maternal detection, and in-law bridging. It's pure JS with no dependencies — can be ported as-is to a backend service or kept client-side.
+13. **Lunar calendar** — events.jsx uses a placeholder `fakeLunarFor()`. Replace with a real Vietnamese lunar calendar library (e.g. `vn-lunar-calendar`) for accurate conversion.
+14. **Landing animations** — uses IntersectionObserver for scroll-reveal. The CSS keyframes are in `styles.css` (`revealUp`, `revealLeft`, `revealRight`, `revealScale`, `heroTitle`, `drawLine`, etc). Port as CSS modules or Tailwind @apply utilities.
 8. **Mobile responsiveness** — the prototype is desktop-first (sidebar 248px, content min 1024px). On phones, collapse sidebar to a drawer and let the tree canvas fill the viewport.
 9. **Tree print/export** — not implemented. Plan for "Print to PDF" and "Export PNG" of the tree view.
 10. **Vietnamese localization** — all copy is hardcoded Vietnamese. Wrap in your i18n framework if you plan to support English / other languages.

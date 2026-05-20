@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Models\NguoiDung;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -31,6 +32,24 @@ class AuthController extends Controller
                 'user'  => $user,
                 'token' => $token
             ]
+        ]);
+    }
+
+    public function me(Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'data'    => $request->user(),
+        ]);
+    }
+
+    public function logout(Request $request)
+    {
+        $request->user()?->currentAccessToken()?->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đăng xuất thành công',
         ]);
     }
 }

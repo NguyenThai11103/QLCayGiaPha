@@ -17,6 +17,10 @@ Route::get('/user', function (Request $request) {
 
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/me', [AuthController::class, 'me']);
+        Route::post('/logout', [AuthController::class, 'logout']);
+    });
 });
 
 Route::prefix('dong-ho')->group(function () {
@@ -68,4 +72,3 @@ Route::prefix('cache-xung-ho')->group(function () {
     Route::post('/update', [CacheXungHoController::class, 'update']);
     Route::post('/delete', [CacheXungHoController::class, 'destroy']);
 });
-

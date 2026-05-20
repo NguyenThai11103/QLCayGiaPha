@@ -74,13 +74,23 @@ const navigation: NavigationItem[] = [
 ];
 
 export default function AuthenticatedLayout({ children, fullBleed = false }: AuthenticatedLayoutProps) {
-    const { user, logout } = useAuth();
+    const { user, logout, isAuthenticated, isLoading } = useAuth();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [pathname, setPathname] = useState('');
 
     useEffect(() => {
         setPathname(window.location.pathname);
     }, []);
+
+    useEffect(() => {
+        if (!isLoading && !isAuthenticated) {
+            window.location.href = '/login';
+        }
+    }, [isLoading, isAuthenticated]);
+
+    if (isLoading || !isAuthenticated) {
+        return null;
+    }
 
     const activeItem = navigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
     const displayName = user?.ho_va_ten || 'Minh Anh';

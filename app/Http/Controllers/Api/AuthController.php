@@ -33,4 +33,22 @@ class AuthController extends Controller
             ]
         ]);
     }
+
+    public function me(\Illuminate\Http\Request $request)
+    {
+        return response()->json([
+            'success' => true,
+            'data'    => $request->user()
+        ]);
+    }
+
+    public function logout(\Illuminate\Http\Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đăng xuất thành công'
+        ]);
+    }
 }

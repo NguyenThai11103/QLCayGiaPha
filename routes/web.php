@@ -47,6 +47,11 @@ Route::get('/gia-pha/tra-cuu-danh-xung', function () {
     return Inertia::render('tra-cuu-danh-xung/index');
 });
 
+Route::get('/gia-pha/test-qr', function () {
+    return Inertia::render('test-qr/index');
+});
+
+
 Route::get('/gia-pha/events', function () {
     return Inertia::render('events/index');
 });

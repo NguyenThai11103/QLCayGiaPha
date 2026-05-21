@@ -49,8 +49,8 @@ class AuthController extends Controller
     public function googleUrl()
     {
         if (config('services.google.client_id') === 'mock_client_id_for_testing') {
-            // Trả về trực tiếp trang callback của frontend với mock code
-            $url = 'http://localhost:5173/auth/google/callback?code=mock_authorization_code';
+            // Trả về trực tiếp trang callback của frontend với mock code thông qua cổng 8000 của Laravel
+            $url = 'http://localhost:8000/auth/google/callback?code=mock_authorization_code';
         } else {
             $url = Socialite::driver('google')->stateless()->redirect()->getTargetUrl();
         }

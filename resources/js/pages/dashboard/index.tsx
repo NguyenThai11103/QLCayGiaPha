@@ -6,6 +6,7 @@ import apiClient from '../../lib/api.client';
 import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
 import toast from '../../lib/toast.util';
 import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../services/gia-pha.api';
+import QRHubModal from '../../components/gia-pha/QRHubModal';
 
 interface DongHoWithStats extends DongHo {
     soThanhVien: number;
@@ -32,11 +33,26 @@ const events = [
 export default function Dashboard() {
     const { user } = useAuth();
     const [dongHos, setDongHos] = useState<DongHo[]>([]);
+    const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+    const [qrModalTab, setQrModalTab] = useState<'my-qr' | 'scan'>('my-qr');
     const [members, setMembers] = useState<Nguoi[]>([]);
+    const [selectedThanhVienId, setSelectedThanhVienId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [formOpen, setFormOpen] = useState(false);
     const [form, setForm] = useState<FormState>(emptyForm);
     const [saving, setSaving] = useState(false);
+
+    // Tự động thiết lập thành viên giả lập mặc định nếu chưa liên kết thực tế
+    useEffect(() => {
+        if (user?.thanh_vien_id) {
+            setSelectedThanhVienId(parseInt(String(user.thanh_vien_id), 10));
+        } else if (members.length > 0) {
+            setSelectedThanhVienId(members[0].id);
+        }
+    }, [user?.thanh_vien_id, members]);
+
+    const activeThanhVienId = user?.thanh_vien_id ? parseInt(String(user.thanh_vien_id), 10) : selectedThanhVienId;
+    const activeMember = members.find((m) => m.id === activeThanhVienId) || null;
 
     const loadData = async () => {
         setLoading(true);
@@ -246,12 +262,100 @@ export default function Dashboard() {
                     </div>
 
                     <div className="space-y-6">
+                        {/* Card Định danh QR "Một chạm" */}
+                        {activeThanhVienId && (
+                            <section className="gp-card relative overflow-hidden border-[var(--gold-soft)] bg-[linear-gradient(135deg,rgba(253,250,243,0.9),rgba(255,255,255,0.9))] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-md">
+                                <div className="absolute -right-10 -bottom-10 h-32 w-32 rounded-full bg-[radial-gradient(circle,var(--gold-glow)_0%,transparent_70%)] opacity-60" />
+                                <div className="relative flex flex-col items-center text-center">
+                                    <span className="gp-chip gp-chip-gold mb-3 animate-pulse">
+                                        <Icon name="lotus" size={11} />
+                                        Thẻ gia đình số
+                                    </span>
+
+                                    {/* Cảnh báo chế độ giả lập nếu tài khoản chưa liên kết thực tế */}
+                                    {!user?.thanh_vien_id && (
+                                        <div className="mb-3 rounded-lg bg-[color-mix(in_srgb,var(--gold)_8%,transparent)] p-2 text-left border border-[color-mix(in_srgb,var(--gold)_14%,transparent)] w-full">
+                                            <div className="flex gap-1.5 items-start text-[10px] text-[var(--gold)] font-medium leading-normal">
+                                                <Icon name="sparkle" size={12} className="shrink-0 mt-0.5" />
+                                                <span>Tài khoản chưa liên kết gia phả. Hệ thống tự động giả lập định danh để test.</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <h3 className="font-serif text-[18px] font-bold text-[var(--brown)]">
+                                        {activeMember?.ten_day_du || user?.ho_va_ten || 'Thành viên'}
+                                    </h3>
+                                    <p className="text-[11px] font-medium text-[var(--ink-mute)] uppercase tracking-wider mt-0.5">
+                                        {!user?.thanh_vien_id ? 'Thành viên giả lập' : (user?.ten_chuc_vu || 'Thành viên dòng họ')}
+                                    </p>
+
+                                    {/* Bộ chọn thành viên giả lập nhanh ngay trên Dashboard (chỉ hiện khi chưa liên kết) */}
+                                    {!user?.thanh_vien_id && members.length > 0 && (
+                                        <div className="mt-2.5 mb-1 w-full text-left">
+                                            <label className="block text-[9px] font-bold uppercase tracking-wider text-[var(--ink-mute)] mb-1">
+                                                Chọn nhân vật test nhanh:
+                                            </label>
+                                            <select
+                                                value={selectedThanhVienId || ''}
+                                                onChange={(e) => setSelectedThanhVienId(Number(e.target.value))}
+                                                className="gp-input w-full text-[11px] py-1 px-2.5 bg-white border-[var(--gold-soft)] rounded-lg font-medium text-[var(--ink-soft)] focus:border-[var(--gold)] focus:outline-none"
+                                            >
+                                                {members.map((m) => (
+                                                    <option key={m.id} value={m.id}>
+                                                        {m.ten_day_du} (ID: {m.id})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {/* QR Code hiển thị tức thì */}
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setQrModalTab('my-qr');
+                                            setIsQRModalOpen(true);
+                                        }}
+                                        className="relative mt-4 group rounded-xl border border-[var(--gold-soft)] bg-white p-2.5 transition-all hover:scale-105 hover:shadow-md cursor-zoom-in"
+                                        title="Click để phóng to mã QR"
+                                    >
+                                        <img
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(`${window.location.origin}/gia-pha/tra-cuu-danh-xung?target_id=${activeThanhVienId}`)}&color=63462D&bgcolor=FFFFFF`}
+                                            alt="Mã QR cá nhân"
+                                            className="h-28 w-28 object-contain"
+                                        />
+                                        <span className="absolute inset-0 m-auto grid h-7 w-7 place-items-center rounded-lg border border-[var(--gold-soft)] bg-white text-[var(--gold)] shadow-sm">
+                                            <Icon name="lotus" size={14} />
+                                        </span>
+                                    </button>
+
+                                    <p className="mt-3 text-[11px] leading-relaxed text-[var(--ink-soft)] max-w-[200px]">
+                                        Đăng nhập là có ngay mã QR. Đưa mã cho người khác quét để nhận diện danh xưng lập tức!
+                                    </p>
+
+                                    {/* Nút quét QR người khác */}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setQrModalTab('scan');
+                                            setIsQRModalOpen(true);
+                                        }}
+                                        className="gp-btn gp-btn-primary w-full mt-4 flex items-center justify-center gap-2"
+                                    >
+                                        <Icon name="camera" size={15} />
+                                        Quét QR người khác
+                                    </button>
+                                </div>
+                            </section>
+                        )}
+
                         <section className="gp-card bg-[linear-gradient(145deg,var(--card)_0%,var(--card)_52%,var(--gold-glow)_200%)] p-[22px]">
                             <h2 className="mb-4 text-[16px] font-semibold">Thao tác nhanh</h2>
                             <div className="grid grid-cols-2 gap-3">
                                 <QuickAction icon="add-user" label="Thêm thành viên" color="gold" onClick={() => router.visit('/gia-pha/thanh-vien')} />
                                 <QuickAction icon="link" label="Tra quan hệ" color="jade" onClick={() => router.visit('/gia-pha/tra-cuu-danh-xung')} />
                                 <QuickAction icon="calendar" label="Tạo lễ giỗ" color="crimson" onClick={() => undefined} />
+                                <QuickAction icon="sparkle" label="Thử nghiệm QR" color="gold" onClick={() => router.visit('/gia-pha/test-qr')} />
                                 <QuickAction icon="book" label="Tải gia phả cũ" color="terracotta" onClick={() => undefined} />
                             </div>
                         </section>
@@ -336,6 +440,12 @@ export default function Dashboard() {
                     </form>
                 </div>
             )}
+
+            <QRHubModal
+                isOpen={isQRModalOpen}
+                onClose={() => setIsQRModalOpen(false)}
+                initialTab={qrModalTab}
+            />
         </AuthenticatedLayout>
     );
 }

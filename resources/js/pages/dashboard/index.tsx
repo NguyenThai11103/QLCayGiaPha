@@ -2,6 +2,7 @@ import { Head, router } from '@inertiajs/react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/gia-pha/Icon';
 import { useAuth } from '../../contexts/auth.context';
+import apiClient from '../../lib/api.client';
 import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
 import toast from '../../lib/toast.util';
 import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../services/gia-pha.api';
@@ -103,13 +104,9 @@ export default function Dashboard() {
         setSaving(true);
         try {
             const payload = { ten_dong_ho: form.ten_dong_ho.trim(), mo_ta: form.mo_ta.trim() || null };
-            const url = form.id ? '/api/dong-ho/update' : '/api/dong-ho/create';
+            const url = form.id ? '/dong-ho/update' : '/dong-ho/create';
             const body = form.id ? { id: form.id, ...payload } : payload;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrf() },
-                body: JSON.stringify(body),
-            }).then((r) => r.json());
+            const { data: res } = await apiClient.post(url, body);
 
             if (res.success) {
                 toast.success(res.message || 'Lưu thành công.');
@@ -131,11 +128,7 @@ export default function Dashboard() {
 
         if (!window.confirm(`Xóa dòng họ "${dh.ten_dong_ho}"?`)) return;
 
-        const res = await fetch('/api/dong-ho/delete', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-XSRF-TOKEN': getCsrf() },
-            body: JSON.stringify({ id: dh.id }),
-        }).then((r) => r.json());
+        const { data: res } = await apiClient.post('/dong-ho/delete', { id: dh.id });
 
         if (res.success) {
             toast.success('Đã xóa.');
@@ -484,9 +477,4 @@ function buildGenerationStats(members: Nguoi[]) {
     });
 
     return [...grouped.values()].sort((a, b) => a.generation - b.generation);
-}
-
-function getCsrf(): string {
-    const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
-    return match ? decodeURIComponent(match[1]) : '';
 }

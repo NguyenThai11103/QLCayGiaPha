@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Nguoi\CreateNguoiRequest;
 use App\Http\Requests\Nguoi\DeleteNguoiRequest;
 use App\Http\Requests\Nguoi\UpdateNguoiRequest;
+use App\Support\AccessControl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,12 @@ class NguoiController extends Controller
     {
         $idDongHo = $request->query('id_dong_ho');
         $query = DB::table('thanh_viens');
+
+        if ($idDongHo && !AccessControl::canAccessFamily($request->user(), $idDongHo)) {
+            return AccessControl::forbidden();
+        }
+
+        AccessControl::scopeFamilyQuery($query, $request->user());
 
         if ($idDongHo) {
             $query->where('dong_ho_id', $idDongHo);
@@ -40,6 +47,10 @@ class NguoiController extends Controller
         $nguoiDb = DB::table('thanh_viens')->where('id', $id)->first();
         if (!$nguoiDb) {
             return response()->json(['success' => false, 'message' => 'Khong tim thay']);
+        }
+
+        if (!AccessControl::canAccessFamily($request->user(), $nguoiDb->dong_ho_id)) {
+            return AccessControl::forbidden();
         }
 
         $tatCa = DB::table('thanh_viens')->where('dong_ho_id', $nguoiDb->dong_ho_id)->get();
@@ -79,6 +90,10 @@ class NguoiController extends Controller
     {
         $data = $request->validated();
 
+        if (!AccessControl::canManageFamily($request->user(), $data['id_dong_ho'])) {
+            return AccessControl::forbidden();
+        }
+
         $voChongList = $data['id_vo_chong_list'] ?? [];
         if (isset($data['id_vo_chong']) && $data['id_vo_chong'] !== null) {
             $voChongList[] = $data['id_vo_chong'];
@@ -87,6 +102,10 @@ class NguoiController extends Controller
 
         $idCha = $data['id_cha'] ?? null;
         $idMe = $data['id_me'] ?? null;
+
+        if (!AccessControl::allMembersInFamily(array_merge([$idCha, $idMe], $voChongList), $data['id_dong_ho'])) {
+            return AccessControl::invalidScope('Cha, me hoac vo/chong khong thuoc dong ho duoc phep.');
+        }
 
         $insertData = [
             'dong_ho_id' => $data['id_dong_ho'],
@@ -122,6 +141,35 @@ class NguoiController extends Controller
     {
         $data = $request->validated();
         $id = $data['id'];
+        $nguoiDb = DB::table('thanh_viens')->where('id', $id)->first();
+
+        if (!$nguoiDb) {
+            return response()->json(['success' => false, 'message' => 'Khong tim thay'], 404);
+        }
+
+        if (!AccessControl::canManageFamily($request->user(), $nguoiDb->dong_ho_id)) {
+            return AccessControl::forbidden();
+        }
+
+        $targetFamilyId = array_key_exists('id_dong_ho', $data) ? (int) $data['id_dong_ho'] : (int) $nguoiDb->dong_ho_id;
+
+        if (!AccessControl::canManageFamily($request->user(), $targetFamilyId)) {
+            return AccessControl::forbidden();
+        }
+
+        $linkedMemberIds = [];
+        foreach (['id_cha', 'id_me', 'id_vo_chong'] as $key) {
+            if (array_key_exists($key, $data)) {
+                $linkedMemberIds[] = $data[$key];
+            }
+        }
+        if (array_key_exists('id_vo_chong_list', $data)) {
+            $linkedMemberIds = array_merge($linkedMemberIds, $data['id_vo_chong_list'] ?? []);
+        }
+
+        if (!AccessControl::allMembersInFamily($linkedMemberIds, $targetFamilyId)) {
+            return AccessControl::invalidScope('Quan he duoc chon khong thuoc dong ho duoc phep.');
+        }
 
         $updateData = ['updated_at' => now()];
         if (array_key_exists('id_dong_ho', $data)) $updateData['dong_ho_id'] = $data['id_dong_ho'];
@@ -170,6 +218,15 @@ class NguoiController extends Controller
     public function destroy(DeleteNguoiRequest $request)
     {
         $data = $request->validated();
+        $nguoiDb = DB::table('thanh_viens')->where('id', $data['id'])->first();
+
+        if (!$nguoiDb) {
+            return response()->json(['success' => false, 'message' => 'Khong tim thay'], 404);
+        }
+
+        if (!AccessControl::canManageFamily($request->user(), $nguoiDb->dong_ho_id)) {
+            return AccessControl::forbidden();
+        }
 
         DB::table('thanh_viens')->where('id', $data['id'])->delete();
 

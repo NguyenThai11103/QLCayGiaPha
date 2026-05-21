@@ -13,6 +13,165 @@
                     "name": "Đăng nhập",
                     "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"email\": \"admin@test.com\",\r\n    \"password\": \"123456\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"]} },
                     "response": []
+                },
+                {
+                    "name"     : "Đăng nhập bằng Google - Lấy URL",
+                    "request"  : {
+                        "method" : "GET",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/google/url",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "google",
+                                "url"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"     : "Đăng nhập bằng Google - Callback",
+                    "request"  : {
+                        "method" : "POST",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "body"   : {
+                            "mode"    : "raw",
+                            "raw"     : "{\n    \"code\": \"mã_code_từ_google\"\n}",
+                            "options" : {
+                                "raw" : {
+                                    "language" : "json"
+                                }
+                            }
+                        },
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/google/callback",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "google",
+                                "callback"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"     : "Đăng nhập bằng Google - Xác minh OTP",
+                    "request"  : {
+                        "method" : "POST",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "body"   : {
+                            "mode"    : "raw",
+                            "raw"     : "{\n    \"email\" : \"nguyenvanky20005@gmail.com\",\n    \"token\" : \"mã_OTP_6_chữ_số\"\n}",
+                            "options" : {
+                                "raw" : {
+                                    "language" : "json"
+                                }
+                            }
+                        },
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/google/verify-otp",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "google",
+                                "verify-otp"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"     : "Yêu cầu khôi phục mật khẩu (Quên mật khẩu)",
+                    "request"  : {
+                        "method" : "POST",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "body"   : {
+                            "mode"    : "raw",
+                            "raw"     : "{\n    \"email\": \"test@example.com\"\n}",
+                            "options" : {
+                                "raw" : {
+                                    "language" : "json"
+                                }
+                            }
+                        },
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/forgot-password",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "forgot-password"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"     : "Đặt lại mật khẩu mới",
+                    "request"  : {
+                        "method" : "POST",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "body"   : {
+                            "mode"    : "raw",
+                            "raw"     : "{\n    \"email\"           : \"test@example.com\",\n    \"token\"           : \"mã_OTP_6_chữ_số\",\n    \"password\"        : \"mật_khẩu_mới_123\",\n    \"confirmPassword\" : \"mật_khẩu_mới_123\"\n}",
+                            "options" : {
+                                "raw" : {
+                                    "language" : "json"
+                                }
+                            }
+                        },
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/reset-password",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "reset-password"
+                            ]
+                        }
+                    },
+                    "response" : []
                 }
             ]
         },

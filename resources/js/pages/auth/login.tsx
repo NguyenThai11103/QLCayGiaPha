@@ -3,6 +3,7 @@ import { FormEvent, ReactNode, useState } from 'react';
 import Icon from '../../components/gia-pha/Icon';
 import { useAuth } from '../../contexts/auth.context';
 import toast from '../../lib/toast.util';
+import apiClient from '../../lib/api.client';
 import AuthScaffold from './AuthScaffold';
 
 type Errors = {
@@ -36,6 +37,19 @@ export default function Login() {
         return Object.keys(nextErrors).length === 0;
     };
 
+    const handleGoogleLogin = async () => {
+        try {
+            const response = await apiClient.get('/auth/google/url');
+            if (response.data.success && response.data.url) {
+                window.location.href = response.data.url;
+            } else {
+                toast.error('Không thể khởi tạo đăng nhập bằng Google.');
+            }
+        } catch (error) {
+            console.error('Lỗi khởi tạo đăng nhập Google:', error);
+        }
+    };
+
     const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
@@ -62,7 +76,7 @@ export default function Login() {
             <AuthScaffold eyebrow="Đăng nhập" title="Chào mừng trở lại" subtitle="Đăng nhập để tiếp tục quản lý gia phả, thành viên và lịch giỗ chạp của dòng họ.">
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="grid grid-cols-2 gap-3">
-                        <SocialButton label="Google" />
+                        <SocialButton label="Google" onClick={handleGoogleLogin} />
                         <SocialButton label="Facebook" />
                     </div>
 
@@ -164,9 +178,9 @@ function AuthField({ label, error, children }: { label: string; error?: string; 
     );
 }
 
-function SocialButton({ label }: { label: string }) {
+function SocialButton({ label, onClick }: { label: string; onClick?: () => void }) {
     return (
-        <button type="button" className="flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[var(--card-border)] bg-[var(--card)] px-4 text-[13px] font-semibold text-[var(--ink)] transition hover:-translate-y-px hover:border-[var(--gold)] hover:shadow-[var(--shadow-md)]">
+        <button type="button" onClick={onClick} className="flex min-h-11 items-center justify-center gap-2 rounded-[10px] border border-[var(--card-border)] bg-[var(--card)] px-4 text-[13px] font-semibold text-[var(--ink)] transition hover:-translate-y-px hover:border-[var(--gold)] hover:shadow-[var(--shadow-md)]">
             <span className="grid h-[18px] w-[18px] place-items-center rounded-full bg-[var(--gold-glow)] text-[10px] font-bold text-[var(--gold)]">{label.charAt(0)}</span>
             {label}
         </button>

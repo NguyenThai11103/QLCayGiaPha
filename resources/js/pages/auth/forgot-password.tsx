@@ -1,6 +1,8 @@
 import { Head, router } from '@inertiajs/react';
 import { FormEvent, useState } from 'react';
 import Icon from '../../components/gia-pha/Icon';
+import apiClient from '../../lib/api.client';
+import toast from '../../lib/toast.util';
 import AuthScaffold from './AuthScaffold';
 
 export default function ForgotPassword() {
@@ -9,7 +11,7 @@ export default function ForgotPassword() {
     const [sent, setSent] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
         if (!email.trim()) {
@@ -25,10 +27,25 @@ export default function ForgotPassword() {
         setError('');
         setSubmitting(true);
 
-        window.setTimeout(() => {
+        try {
+            const response = await apiClient.post('/auth/forgot-password', {
+                email: email.trim(),
+            });
+
+            if (response.data?.success) {
+                setSent(true);
+                toast.success(response.data.message || 'Liên kết khôi phục mật khẩu đã được gửi!');
+            } else {
+                toast.error(response.data?.message || 'Không thể gửi email khôi phục.');
+            }
+        } catch (err: any) {
+            console.error('Lỗi gửi email khôi phục mật khẩu:', err);
+            const msg = err.response?.data?.message || 'Có lỗi xảy ra, vui lòng thử lại sau.';
+            setError(msg);
+            toast.error(msg);
+        } finally {
             setSubmitting(false);
-            setSent(true);
-        }, 650);
+        }
     };
 
     return (
@@ -44,9 +61,12 @@ export default function ForgotPassword() {
                         <p className="mt-2 text-[13.5px] leading-6 text-[var(--ink-soft)]">
                             Kiểm tra hộp thư <strong className="text-[var(--ink)]">{email}</strong> để tiếp tục đặt lại mật khẩu. Liên kết sẽ có hiệu lực trong thời gian giới hạn.
                         </p>
-                        <button type="button" onClick={() => router.visit('/login')} className="gp-btn gp-btn-primary mt-6 w-full">
-                            Quay lại đăng nhập
+                        <button type="button" onClick={() => router.visit(`/reset-password?email=${encodeURIComponent(email)}`)} className="gp-btn gp-btn-primary mt-6 w-full">
+                            Nhập mã xác nhận (OTP)
                             <Icon name="arrow-right" size={16} />
+                        </button>
+                        <button type="button" onClick={() => router.visit('/login')} className="gp-btn gp-btn-ghost mt-2.5 w-full">
+                            Quay lại đăng nhập
                         </button>
                     </div>
                 ) : (

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Icon from '../../components/gia-pha/Icon';
 import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
 import { Nguoi, nguoiApi } from '../../services/gia-pha.api';
+import { useAuth } from '../../contexts/auth.context';
 
 type RelationshipKind =
     | 'self'
@@ -102,6 +103,7 @@ const KIND_META: Record<RelationshipKind, { label: string; color: string; icon: 
 };
 
 export default function TraCuuDanhXung() {
+    const { user } = useAuth();
     const [members, setMembers] = useState<Nguoi[]>([]);
     const [loading, setLoading] = useState(true);
     const [aId, setAId] = useState<number | null>(null);
@@ -115,12 +117,33 @@ export default function TraCuuDanhXung() {
             .then((res) => {
                 const data = res.data || [];
                 setMembers(data);
-                setAId((current) => current ?? data[0]?.id ?? null);
-                setBId((current) => current ?? data.find((member) => member.id !== data[0]?.id)?.id ?? null);
-                setRecents(makeInitialRecents(data));
+
+                // Đọc URL Search Params để kiểm tra xem có được chuyển hướng từ quét QR không
+                const params = new URLSearchParams(window.location.search);
+                const targetIdStr = params.get('target_id');
+                const targetId = targetIdStr ? parseInt(targetIdStr, 10) : null;
+
+                // Tự động chọn Người A là chính mình nếu đã đăng nhập và có liên kết thành viên gia phả
+                const loggedInMemberId = user?.thanh_vien_id ? parseInt(String(user.thanh_vien_id), 10) : null;
+                const defaultA = loggedInMemberId && data.some((m) => m.id === loggedInMemberId) 
+                    ? loggedInMemberId 
+                    : (data[0]?.id ?? null);
+
+                let defaultB = data.find((member) => member.id !== defaultA)?.id ?? null;
+
+                if (targetId && data.some((m) => m.id === targetId)) {
+                    // Nếu quét QR hợp lệ, đặt A là chính mình, B là target_id và tự động hiển thị mối quan hệ
+                    setAId(defaultA);
+                    setBId(targetId);
+                    setRecents([{ a: defaultA, b: targetId, time: 'Vừa xong' }]);
+                } else {
+                    setAId(defaultA);
+                    setBId(defaultB);
+                    setRecents(makeInitialRecents(data));
+                }
             })
             .finally(() => setLoading(false));
-    }, []);
+    }, [user?.thanh_vien_id]);
 
     const byId = useMemo(() => new Map(members.map((member) => [member.id, member])), [members]);
     const generations = useMemo(() => buildGenerationMap(members), [members]);

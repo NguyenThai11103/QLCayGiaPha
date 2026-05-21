@@ -32,7 +32,9 @@ type IconProps = SVGProps<SVGSVGElement> & {
         | 'lotus'
         | 'logout'
         | 'menu'
-        | 'x';
+        | 'x'
+        | 'camera'
+        | 'check';
     size?: number;
 };
 
@@ -112,5 +114,9 @@ export default function Icon({ name, size = 18, strokeWidth = 1.75, ...props }: 
             return <svg {...common}><path d="M4 6h16M4 12h16M4 18h16" /></svg>;
         case 'x':
             return <svg {...common}><path d="M18 6L6 18M6 6l12 12" /></svg>;
+        case 'camera':
+            return <svg {...common}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>;
+        case 'check':
+            return <svg {...common}><path d="M20 6L9 17l-5-5" /></svg>;
     }
 }

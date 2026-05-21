@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { ReactNode, useEffect, useState } from 'react';
 import Icon from '../components/gia-pha/Icon';
+import QRHubModal from '../components/gia-pha/QRHubModal';
 import { useAuth } from '../contexts/auth.context';
 
 interface AuthenticatedLayoutProps {
@@ -71,10 +72,20 @@ const navigation: NavigationItem[] = [
             </svg>
         ),
     },
+    {
+        name: 'Phòng Thử Nghiệm QR',
+        href: '/gia-pha/test-qr',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m0 11v2m0-6v2m0-6H4a2 2 0 00-2 2v8a2 2 0 002 2h16a2 2 0 002-2v-8a2 2 0 00-2-2h-8z" />
+            </svg>
+        ),
+    },
 ];
 
 export default function AuthenticatedLayout({ children, fullBleed = false }: AuthenticatedLayoutProps) {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
+    const [isQRModalOpen, setIsQRModalOpen] = useState(false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
         if (typeof window === 'undefined') {
@@ -240,6 +251,20 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                             <Icon name="bell" size={18} />
                             <span className="absolute right-2.5 top-2 h-2 w-2 rounded-full border-2 border-[var(--bg-elev)] bg-[var(--crimson)]" />
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => setIsQRModalOpen(true)}
+                            aria-label="Định danh QR"
+                            className="relative grid h-9 w-9 place-items-center rounded-lg text-[var(--ink-soft)] hover:bg-[var(--card-soft)]"
+                            title="Định danh QR dòng họ"
+                        >
+                            <svg className="h-5 w-5 text-[var(--ink-soft)] hover:text-[var(--gold)] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
+                                <rect x="3" y="3" width="7" height="7" rx="1" />
+                                <rect x="14" y="3" width="7" height="7" rx="1" />
+                                <rect x="3" y="14" width="7" height="7" rx="1" />
+                                <path d="M14 14h3v3h-3zM17 17h4v4h-4zM14 17h3v4h-3zM17 14h4v3h-4z" />
+                            </svg>
+                        </button>
                         <button type="button" onClick={() => visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary hidden sm:inline-flex">
                             <Icon name="plus" size={16} />
                             Thêm thành viên
@@ -251,6 +276,12 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                     {children}
                 </main>
             </div>
+
+            <QRHubModal
+                isOpen={isQRModalOpen}
+                onClose={() => setIsQRModalOpen(false)}
+                initialTab="my-qr"
+            />
         </div>
     );
 }

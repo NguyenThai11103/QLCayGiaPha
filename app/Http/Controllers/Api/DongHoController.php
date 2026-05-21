@@ -6,14 +6,23 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\DongHo\CreateDongHoRequest;
 use App\Http\Requests\DongHo\UpdateDongHoRequest;
 use App\Http\Requests\DongHo\DeleteDongHoRequest;
+use App\Support\AccessControl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class DongHoController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $data = DB::table('dong_hos')->get();
+        $query = DB::table('dong_hos');
+
+        if (!AccessControl::isSystemAdmin($request->user())) {
+            $familyId = AccessControl::familyId($request->user());
+            $familyId ? $query->where('id', $familyId) : $query->whereRaw('1 = 0');
+        }
+
+        $data = $query->get();
+
         return response()->json([
             'success' => true,
             'data' => $data
@@ -22,6 +31,10 @@ class DongHoController extends Controller
 
     public function store(CreateDongHoRequest $request)
     {
+        if (!AccessControl::isSystemAdmin($request->user())) {
+            return AccessControl::forbidden();
+        }
+
         $data = $request->validated();
         $data['created_at'] = now();
         $data['updated_at'] = now();
@@ -39,6 +52,11 @@ class DongHoController extends Controller
         $data = $request->validated();
         $id = $data['id'];
         unset($data['id']);
+
+        if (!AccessControl::canManageFamily($request->user(), $id)) {
+            return AccessControl::forbidden();
+        }
+
         $data['updated_at'] = now();
 
         DB::table('dong_hos')->where('id', $id)->update($data);
@@ -50,6 +68,10 @@ class DongHoController extends Controller
 
     public function destroy(DeleteDongHoRequest $request)
     {
+        if (!AccessControl::isSystemAdmin($request->user())) {
+            return AccessControl::forbidden();
+        }
+
         $data = $request->validated();
         DB::table('dong_hos')->where('id', $data['id'])->delete();
         return response()->json([

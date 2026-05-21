@@ -9,7 +9,7 @@ Route::get('/', function () {
 
 Route::get('/login', function () {
     return Inertia::render('auth/login');
-});
+})->name('login');
 
 Route::get('/register', function () {
     return Inertia::render('auth/logout');
@@ -17,6 +17,14 @@ Route::get('/register', function () {
 
 Route::get('/forgot-password', function () {
     return Inertia::render('auth/forgot-password');
+});
+
+Route::get('/auth/google/callback', function () {
+    return Inertia::render('auth/google-callback');
+});
+
+Route::get('/reset-password', function () {
+    return Inertia::render('auth/reset-password');
 });
 
 Route::get('/gia-pha/dashboard', function () {

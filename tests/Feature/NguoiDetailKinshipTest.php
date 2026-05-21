@@ -1,14 +1,27 @@
 <?php
 
+use App\Models\NguoiDung;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Laravel\Sanctum\Sanctum;
 
 function createTestDongHo(): int
 {
-    return DB::table('dong_hos')->insertGetId([
+    $dongHoId = DB::table('dong_hos')->insertGetId([
         'ten_dong_ho' => 'Test kinship',
         'created_at' => now(),
         'updated_at' => now(),
     ]);
+
+    Sanctum::actingAs(NguoiDung::create([
+        'dong_ho_id' => $dongHoId,
+        'ho_ten' => 'Quan Ly Test',
+        'email' => 'quanly@test.local',
+        'password' => Hash::make('password'),
+        'quyen_han' => 'quan_ly',
+    ]));
+
+    return $dongHoId;
 }
 
 function createTestThanhVien(int $dongHoId, string $name, string $gender): int
@@ -242,4 +255,3 @@ it('fails when spouse is born before or in the same year as parents in law', fun
     $response->assertStatus(422);
     $response->assertJsonValidationErrors('id_vo_chong_list');
 });
-

@@ -11,10 +11,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: mirror-to-gitlab
-  cancel-in-progress: false
-
 jobs:
   mirror:
     runs-on: ubuntu-latest
@@ -27,8 +23,10 @@ jobs:
           GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
         run: |
           set -euo pipefail
-
           git clone --bare "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repository.git
           cd repository.git
-
           git push --mirror "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPOSITORY}"
+
+      - name: Trigger FlashPanel deploy
+        run: |
+          curl -X POST "${{ secrets.FLASHPANEL_DEPLOY_URL }}"

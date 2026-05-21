@@ -54,12 +54,12 @@ class NguoiDung extends Authenticatable
 
     public function getIsMasterAttribute()
     {
-        return in_array($this->quyen_han, ['admin', 'quan_ly']) ? 1 : 0;
+        return in_array($this->quyen_han, ['quan_ly']) ? 1 : 0;
     }
 
     public function getTenChucVuAttribute()
     {
-        return in_array($this->quyen_han, ['admin', 'quan_ly']) ? 'Quản trị dòng họ' : 'Thành viên';
+        return in_array($this->quyen_han, ['quan_ly']) ? 'Quản trị dòng họ' : 'Thành viên';
     }
 
     // ─── Relationships ─────────────────────────────────────────────────────────

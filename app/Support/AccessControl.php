@@ -20,7 +20,7 @@ class AccessControl
             return true;
         }
 
-        return ($user->quyen_han ?? null) === 'admin' && empty($user->dong_ho_id);
+        return false;
     }
 
     public static function isFamilyManager(?Authenticatable $user): bool
@@ -29,7 +29,7 @@ class AccessControl
             return true;
         }
 
-        return in_array($user->quyen_han ?? null, ['admin', 'quan_ly'], true);
+        return ($user->quyen_han ?? null) === 'quan_ly';
     }
 
     public static function familyId(?Authenticatable $user): ?int

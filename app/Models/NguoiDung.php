@@ -17,6 +17,8 @@ class NguoiDung extends Authenticatable
         'ho_ten',
         'email',
         'password',
+        'google_id',
+        'avatar',
         'thanh_vien_id',
         'quyen_han',
     ];

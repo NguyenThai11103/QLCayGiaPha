@@ -19,6 +19,14 @@ Route::get('/forgot-password', function () {
     return Inertia::render('auth/forgot-password');
 });
 
+Route::get('/auth/google/callback', function () {
+    return Inertia::render('auth/google-callback');
+});
+
+Route::get('/reset-password', function () {
+    return Inertia::render('auth/reset-password');
+});
+
 Route::get('/gia-pha/dashboard', function () {
     return Inertia::render('dashboard/index');
 });

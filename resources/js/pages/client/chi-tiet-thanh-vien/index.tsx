@@ -1,7 +1,7 @@
 import { Head, Link } from '@inertiajs/react';
-import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
+import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import apiClient from '../../../lib/api.client';
 
 interface ThongTinNguoi {
     id: number;
@@ -33,7 +33,7 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        axios.get(`/api/nguoi/detail?id=${id}`)
+        apiClient.get(`/nguoi/detail?id=${id}`)
             .then(res => {
                 if (res.data.success) {
                     setData(res.data.data);

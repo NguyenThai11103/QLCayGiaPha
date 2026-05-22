@@ -13,10 +13,15 @@ class DongHo extends Model
 
     protected $fillable = [
         'ten_dong_ho',
+        'logo_path',
         'mo_ta',
+        'gia_huan',
+        'loi_gioi_thieu',
         'dia_chi_tu_duong',
+        'anh_tu_duong_path',
         'thuy_to_id',
         'nguoi_tao',
+        'theme_color',
     ];
 
     // ─── Relationships ─────────────────────────────────────────────────────────

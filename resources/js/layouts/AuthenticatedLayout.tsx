@@ -4,6 +4,49 @@ import Icon from '../components/gia-pha/Icon';
 import QRHubModal from '../components/gia-pha/QRHubModal';
 import { useAuth } from '../contexts/auth.context';
 
+const themePresets: Record<string, Record<string, string>> = {
+    gold: {
+        '--gold': '#b8902c',
+        '--gold-soft': '#d4af55',
+        '--gold-glow': '#faf1d4',
+        '--gold-pale': '#f0e2bb',
+        '--brown': '#5c3a1e',
+        '--brown-soft': '#8a5a2e',
+    },
+    crimson: {
+        '--gold': '#9b2b1f',
+        '--gold-soft': '#c44535',
+        '--gold-glow': '#fdeeed',
+        '--gold-pale': '#fcdcd9',
+        '--brown': '#5a1911',
+        '--brown-soft': '#80261b',
+    },
+    jade: {
+        '--gold': '#2f5d3a',
+        '--gold-soft': '#4a7a52',
+        '--gold-glow': '#edf7ee',
+        '--gold-pale': '#dbeedc',
+        '--brown': '#193a20',
+        '--brown-soft': '#24522d',
+    },
+    indigo: {
+        '--gold': '#225b7a',
+        '--gold-soft': '#3e84a8',
+        '--gold-glow': '#edf6fa',
+        '--gold-pale': '#dcecf5',
+        '--brown': '#123447',
+        '--brown-soft': '#1a4963',
+    },
+    bronze: {
+        '--gold': '#8b5a2b',
+        '--gold-soft': '#a06d3b',
+        '--gold-glow': '#f7f2ed',
+        '--gold-pale': '#eeded1',
+        '--brown': '#4a2f14',
+        '--brown-soft': '#69431c',
+    }
+};
+
 interface AuthenticatedLayoutProps {
     children: ReactNode;
     fullBleed?: boolean;
@@ -124,8 +167,11 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
         router.visit(href);
     };
 
+    const themeColor = user?.dong_ho?.theme_color || 'gold';
+    const themeStyles = themePresets[themeColor] || themePresets.gold;
+
     return (
-        <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
+        <div style={themeStyles as React.CSSProperties} className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
             {sidebarOpen && (
                 <button
                     type="button"
@@ -146,13 +192,19 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                     type="button"
                     className={`flex items-center gap-3 border-b border-[var(--line-soft)] px-2 pb-5 text-left ${sidebarCollapsed ? 'md:justify-center md:px-0' : ''}`}
                     onClick={() => visit('/')}
-                    title="Gia Phả"
+                    title={user?.dong_ho?.ten_dong_ho || 'Gia Phả'}
                 >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] text-[#fffef9] shadow-[var(--shadow-gold)]">
-                        <Icon name="lotus" size={20} />
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] text-[#fffef9] shadow-[var(--shadow-gold)] overflow-hidden">
+                        {user?.dong_ho?.logo_path ? (
+                            <img src={user.dong_ho.logo_path} alt="Logo" className="h-full w-full object-cover" />
+                        ) : (
+                            <Icon name="lotus" size={20} />
+                        )}
                     </span>
                     <span className={`leading-none ${sidebarCollapsed ? 'md:hidden' : ''}`}>
-                        <span className="font-serif text-[24px] font-semibold tracking-[0.4px] text-[var(--ink)]">Gia Phả</span>
+                        <span className="font-serif text-[18px] font-semibold tracking-[0.4px] text-[var(--ink)] block truncate max-w-[150px]">
+                            {user?.dong_ho?.ten_dong_ho || 'Gia Phả'}
+                        </span>
                         <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[1.8px] text-[var(--ink-mute)]">Nguồn cội số</span>
                     </span>
                 </button>
@@ -265,10 +317,7 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                                 <path d="M14 14h3v3h-3zM17 17h4v4h-4zM14 17h3v4h-3zM17 14h4v3h-4z" />
                             </svg>
                         </button>
-                        <button type="button" onClick={() => visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary hidden sm:inline-flex">
-                            <Icon name="plus" size={16} />
-                            Thêm thành viên
-                        </button>
+
                     </div>
                 </header>
 

@@ -17,7 +17,7 @@ class AdminSeeder extends Seeder
             ['email' => 'admin@example.com'],
             [
                 'ho_ten' => 'Admin Hệ Thống',
-                'password' => Hash::make('123456'), // Mật khẩu mặc định là 123456
+                'password' => Hash::make('111111'), // Mật khẩu mặc định là 111111
                 'quyen_han' => 'admin',
                 'trang_thai' => true,
             ]

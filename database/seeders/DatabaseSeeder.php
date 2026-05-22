@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             CacheXungHoSeeder::class,  
             SuKienSeeder::class,
             TaiLieuSeeder::class,
+            ComplexClanSeeder::class,
         ]);
     }
 }

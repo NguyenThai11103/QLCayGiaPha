@@ -12,7 +12,7 @@ Route::get('/login', function () {
 })->name('login');
 
 Route::get('/register', function () {
-    return Inertia::render('auth/logout');
+    return Inertia::render('auth/register');
 });
 
 Route::get('/forgot-password', function () {

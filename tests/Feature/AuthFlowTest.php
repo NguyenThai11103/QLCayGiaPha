@@ -9,6 +9,41 @@ use App\Mail\ResetPasswordEmail;
 
 uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
 
+test('public register creates a member account', function () {
+    $response = $this->postJson('/api/auth/register', [
+        'ho_ten'   => 'Nguyen Van A',
+        'email'    => 'nguyenvana@example.com',
+        'password' => 'password123',
+    ]);
+
+    $response->assertCreated()
+             ->assertJson([
+                 'success' => true,
+             ]);
+
+    $this->assertDatabaseHas('nguoi_dungs', [
+        'ho_ten'    => 'Nguyen Van A',
+        'email'     => 'nguyenvana@example.com',
+        'quyen_han' => 'thanh_vien',
+    ]);
+});
+
+test('public register cannot grant admin role', function () {
+    $response = $this->postJson('/api/auth/register', [
+        'ho_ten'    => 'Nguyen Van B',
+        'email'     => 'nguyenvanb@example.com',
+        'password'  => 'password123',
+        'quyen_han' => 'admin',
+    ]);
+
+    $response->assertCreated();
+
+    $this->assertDatabaseHas('nguoi_dungs', [
+        'email'     => 'nguyenvanb@example.com',
+        'quyen_han' => 'thanh_vien',
+    ]);
+});
+
 test('forgot password requires a valid and existing email', function () {
     $response = $this->postJson('/api/auth/forgot-password', [
         'email' => 'nonexistent@example.com'

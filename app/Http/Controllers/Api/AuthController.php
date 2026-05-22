@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\GoogleLoginRequest;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
@@ -21,6 +22,27 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
+    public function register(RegisterRequest $request)
+    {
+        $data = $request->validated();
+
+        $user = NguoiDung::create([
+            'ho_ten'    => $data['ho_ten'],
+            'email'     => $data['email'],
+            'password'  => Hash::make($data['password']),
+            'quyen_han' => 'thanh_vien',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tao tai khoan thanh cong',
+            'data'    => [
+                'id'    => $user->id,
+                'email' => $user->email,
+            ],
+        ], 201);
+    }
+
     public function login(LoginRequest $request)
     {
         $data = $request->validated();

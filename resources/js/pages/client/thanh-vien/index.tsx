@@ -8,7 +8,7 @@ import AdminDanhSachThanhVien from '../../admin/thanh-vien';
 export default function ClientDanhSachThanhVien() {
     const { user } = useAuth();
 
-    if (user?.is_master === 1) {
+    if (user?.quyen_han === 'quan_ly') {
         return <AdminDanhSachThanhVien />;
     }
     const [members, setMembers] = useState<Nguoi[]>([]);

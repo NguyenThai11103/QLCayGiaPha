@@ -27,19 +27,39 @@ Route::get('/reset-password', function () {
     return Inertia::render('auth/reset-password');
 });
 
-use Illuminate\Http\Request;
+Route::get('/admin/login', function () {
+    return Inertia::render('admin/auth/login');
+})->name('admin.login');
 
-Route::get('/gia-pha/dashboard', function (Request $request) {
-    if ($request->user() && $request->user()->is_master === 1) {
-        return Inertia::render('admin/dashboard/index');
-    }
+Route::get('/admin/dashboard', function () {
+    return Inertia::render('admin/dashboard/index');
+});
+
+Route::get('/admin/dong-ho', function () {
+    return Inertia::render('admin/dong-ho/index');
+});
+
+Route::get('/admin/nguoi-dung', function () {
+    return Inertia::render('admin/nguoi-dung/index');
+});
+
+Route::get('/admin/thanh-vien', function () {
+    return Inertia::render('admin/thanh-vien/index');
+});
+
+Route::get('/admin/thanh-vien/{id}', function ($id) {
+    return Inertia::render('client/chi-tiet-thanh-vien/index', ['id' => $id]);
+});
+
+Route::get('/onboarding', function () {
+    return Inertia::render('client/onboarding/index');
+});
+
+Route::get('/gia-pha/dashboard', function () {
     return Inertia::render('client/dashboard/index');
 });
 
-Route::get('/gia-pha/thanh-vien', function (Request $request) {
-    if ($request->user() && $request->user()->is_master === 1) {
-        return Inertia::render('admin/thanh-vien/index');
-    }
+Route::get('/gia-pha/thanh-vien', function () {
     return Inertia::render('client/thanh-vien/index');
 });
 

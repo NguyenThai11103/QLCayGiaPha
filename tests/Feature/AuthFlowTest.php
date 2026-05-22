@@ -70,7 +70,7 @@ test('forgot password generates token and sends email for valid user', function 
     $response->assertStatus(200)
              ->assertJson([
                  'success' => true,
-                 'message' => 'Liên kết khôi phục mật khẩu đã được gửi qua email của bạn.'
+                 'message' => 'Mã xác nhận (OTP) khôi phục mật khẩu đã được gửi qua email của bạn.'
              ]);
 
     $this->assertDatabaseHas('password_reset_tokens', [

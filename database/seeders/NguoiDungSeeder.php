@@ -13,14 +13,6 @@ class NguoiDungSeeder extends Seeder
         DB::table('nguoi_dungs')->insert([
            // --- HỆ THỐNG & DÒNG HỌ 1: NGUYỄN BÁ ---
             [
-                'dong_ho_id' => null,
-                'ho_ten' => 'Admin Hệ Thống',
-                'email' => 'admin@hethong.com',
-                'password' => Hash::make('password'),
-                'quyen_han' => 'admin',
-                'created_at' => now(), 'updated_at' => now(),
-            ],
-            [
                 'dong_ho_id' => 1,
                 'ho_ten' => 'Nguyễn Bá Bình (Trưởng Tộc)',
                 'email' => 'truongtoc@gmail.com',

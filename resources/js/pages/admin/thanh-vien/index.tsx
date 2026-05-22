@@ -553,7 +553,7 @@ export default function AdminDanhSachThanhVien() {
                                                             {member.ten_day_du.charAt(0)}
                                                         </div>
                                                         <div className="ml-4">
-                                                            <Link href={`/gia-pha/thanh-vien/${member.id}`} className="text-sm font-semibold text-gray-900 hover:text-emerald-700">
+                                                            <Link href={`/admin/thanh-vien/${member.id}`} className="text-sm font-semibold text-gray-900 hover:text-emerald-700">
                                                                 {member.ten_day_du}
                                                             </Link>
                                                             <div className="text-xs text-gray-500">ID: #{member.id}</div>

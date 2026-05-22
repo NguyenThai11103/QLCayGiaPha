@@ -79,11 +79,10 @@ export default function Register() {
         setSubmitting(true);
 
         try {
-            const response = await apiClient.post('/nguoi-dung/create', {
+            const response = await apiClient.post('/auth/register', {
                 ho_ten: name.trim(),
                 email: email.trim(),
                 password,
-                quyen_han: 'thanh_vien',
             });
 
             if (response.data?.success) {
@@ -292,4 +291,3 @@ function EyeOffIcon() {
         </svg>
     );
 }
-

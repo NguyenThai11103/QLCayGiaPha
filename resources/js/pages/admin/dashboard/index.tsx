@@ -1,21 +1,103 @@
 import { Head, router } from '@inertiajs/react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import Icon from '../../components/gia-pha/Icon';
-import { useAuth } from '../../contexts/auth.context';
-import apiClient from '../../lib/api.client';
-import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
-import toast from '../../lib/toast.util';
-import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../services/gia-pha.api';
-import QRHubModal from '../../components/gia-pha/QRHubModal';
+import Icon from '../../../components/gia-pha/Icon';
+import { useAuth } from '../../../contexts/auth.context';
+import apiClient from '../../../lib/api.client';
+import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
+import toast from '../../../lib/toast.util';
+import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../../services/gia-pha.api';
+import QRHubModal from '../../../components/gia-pha/QRHubModal';
 
 interface DongHoWithStats extends DongHo {
     soThanhVien: number;
     daMat: number;
 }
 
-type FormState = { id?: number; ten_dong_ho: string; mo_ta: string };
+type FormState = {
+    id?: number;
+    ten_dong_ho: string;
+    mo_ta: string;
+    gia_huan?: string;
+    loi_gioi_thieu?: string;
+    dia_chi_tu_duong?: string;
+    logo_path?: string;
+    anh_tu_duong_path?: string;
+    theme_color?: 'gold' | 'crimson' | 'jade' | 'indigo' | 'bronze';
+};
 
-const emptyForm: FormState = { ten_dong_ho: '', mo_ta: '' };
+const emptyForm: FormState = {
+    ten_dong_ho: '',
+    mo_ta: '',
+    gia_huan: '',
+    loi_gioi_thieu: '',
+    dia_chi_tu_duong: '',
+    logo_path: '',
+    anh_tu_duong_path: '',
+    theme_color: 'gold',
+};
+
+const localThemePresets: Record<string, Record<string, string>> = {
+    gold: {
+        '--gold': '#b8902c',
+        '--gold-soft': '#d4af55',
+        '--gold-glow': '#faf1d4',
+        '--gold-pale': '#f0e2bb',
+        '--brown': '#5c3a1e',
+        '--brown-soft': '#8a5a2e',
+    },
+    crimson: {
+        '--gold': '#9b2b1f',
+        '--gold-soft': '#c44535',
+        '--gold-glow': '#fdeeed',
+        '--gold-pale': '#fcdcd9',
+        '--brown': '#5a1911',
+        '--brown-soft': '#80261b',
+    },
+    jade: {
+        '--gold': '#2f5d3a',
+        '--gold-soft': '#4a7a52',
+        '--gold-glow': '#edf7ee',
+        '--gold-pale': '#dbeedc',
+        '--brown': '#193a20',
+        '--brown-soft': '#24522d',
+    },
+    indigo: {
+        '--gold': '#225b7a',
+        '--gold-soft': '#3e84a8',
+        '--gold-glow': '#edf6fa',
+        '--gold-pale': '#dcecf5',
+        '--brown': '#123447',
+        '--brown-soft': '#1a4963',
+    },
+    bronze: {
+        '--gold': '#8b5a2b',
+        '--gold-soft': '#a06d3b',
+        '--gold-glow': '#f7f2ed',
+        '--gold-pale': '#eeded1',
+        '--brown': '#4a2f14',
+        '--brown-soft': '#69431c',
+    }
+};
+
+const themePresetsList = [
+    { key: 'gold', name: 'Vàng Cổ Phong', color: '#b8902c', desc: 'Ấm áp, tôn nghiêm' },
+    { key: 'crimson', name: 'Hùng Tráng', color: '#9b2b1f', desc: 'Đỏ thắm, uy nghi' },
+    { key: 'jade', name: 'Thanh Nhã', color: '#2f5d3a', desc: 'Xanh ngọc, an nhiên' },
+    { key: 'indigo', name: 'Thâm Trầm', color: '#225b7a', desc: 'Xanh chàm, trí tuệ' },
+    { key: 'bronze', name: 'Cổ Kính', color: '#8b5a2b', desc: 'Nâu đồng, hoài niệm' },
+] as const;
+
+const logoOptions = [
+    { label: 'Vàng Cổ', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=120&q=80' },
+    { label: 'Hùng Tráng', url: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?w=120&q=80' },
+    { label: 'Thanh Nhã', url: 'https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=120&q=80' },
+];
+
+const anhTuDuongOptions = [
+    { label: 'Cổ Kính', url: 'https://images.unsplash.com/photo-1590076275577-46c41eb4e8c9?w=600&q=80' },
+    { label: 'Truyền Thống', url: 'https://images.unsplash.com/photo-1540959733332-eab4deceeaf7?w=600&q=80' },
+    { label: 'An Bình', url: 'https://images.unsplash.com/photo-1504618223053-559bdef9dd5a?w=600&q=80' },
+];
 
 const activities = [
     ['photo', 'Nguyễn Minh Anh', 'đã thêm ảnh kỷ vật', 'Cụ Tổ Nguyễn Văn Trường', '2 giờ trước', 'jade'],
@@ -30,7 +112,7 @@ const events = [
     ['10', 'Tháng 5 ÂL', '2026', 'Giỗ Cụ Bà Trần Thị Lan', 'Từ đường Tiên Điền', '35 người dự', 51, 'lotus', 'jade'],
 ] as const;
 
-export default function Dashboard() {
+export default function AdminDashboard() {
     const { user } = useAuth();
     const [dongHos, setDongHos] = useState<DongHo[]>([]);
     const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -41,6 +123,7 @@ export default function Dashboard() {
     const [formOpen, setFormOpen] = useState(false);
     const [form, setForm] = useState<FormState>(emptyForm);
     const [saving, setSaving] = useState(false);
+    const [activeTab, setActiveTab] = useState<'info' | 'culture' | 'branding'>('info');
 
     // Tự động thiết lập thành viên giả lập mặc định nếu chưa liên kết thực tế
     useEffect(() => {
@@ -53,6 +136,13 @@ export default function Dashboard() {
 
     const activeThanhVienId = user?.thanh_vien_id ? parseInt(String(user.thanh_vien_id), 10) : selectedThanhVienId;
     const activeMember = members.find((m) => m.id === activeThanhVienId) || null;
+
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Chào buổi sáng';
+        if (hour < 18) return 'Chào buổi chiều';
+        return 'Chào buổi tối';
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -83,8 +173,6 @@ export default function Dashboard() {
     );
 
     const generations = useMemo(() => buildGenerationStats(members), [members]);
-    const aliveCount = members.filter((member) => !Boolean(member.da_mat)).length;
-    const deceasedCount = members.length - aliveCount;
     const maxGeneration = generations.length ? Math.max(...generations.map((item) => item.generation)) : 0;
     const primaryClan = withStats[0];
 
@@ -101,7 +189,18 @@ export default function Dashboard() {
     };
 
     const openEdit = (dh: DongHo) => {
-        setForm({ id: dh.id, ten_dong_ho: dh.ten_dong_ho, mo_ta: dh.mo_ta || '' });
+        setForm({
+            id: dh.id,
+            ten_dong_ho: dh.ten_dong_ho,
+            mo_ta: dh.mo_ta || '',
+            gia_huan: dh.gia_huan || '',
+            loi_gioi_thieu: dh.loi_gioi_thieu || '',
+            dia_chi_tu_duong: dh.dia_chi_tu_duong || '',
+            logo_path: dh.logo_path || '',
+            anh_tu_duong_path: dh.anh_tu_duong_path || '',
+            theme_color: (dh.theme_color as any) || 'gold',
+        });
+        setActiveTab('info');
         setFormOpen(true);
     };
 
@@ -119,7 +218,16 @@ export default function Dashboard() {
 
         setSaving(true);
         try {
-            const payload = { ten_dong_ho: form.ten_dong_ho.trim(), mo_ta: form.mo_ta.trim() || null };
+            const payload = {
+                ten_dong_ho: form.ten_dong_ho.trim(),
+                mo_ta: form.mo_ta.trim() || null,
+                gia_huan: form.gia_huan?.trim() || null,
+                loi_gioi_thieu: form.loi_gioi_thieu?.trim() || null,
+                dia_chi_tu_duong: form.dia_chi_tu_duong?.trim() || null,
+                logo_path: form.logo_path?.trim() || null,
+                anh_tu_duong_path: form.anh_tu_duong_path?.trim() || null,
+                theme_color: form.theme_color || 'gold',
+            };
             const url = form.id ? '/dong-ho/update' : '/dong-ho/create';
             const body = form.id ? { id: form.id, ...payload } : payload;
             const { data: res } = await apiClient.post(url, body);
@@ -128,9 +236,16 @@ export default function Dashboard() {
                 toast.success(res.message || 'Lưu thành công.');
                 closeForm();
                 await loadData();
+                
+                // Tự động tải lại thông tin auth nếu dòng họ được cập nhật trùng với dòng họ của user hiện tại
+                if (form.id === user?.dong_ho?.id) {
+                    router.reload({ only: ['auth'] });
+                }
             } else {
                 toast.error(res.message || 'Không thể lưu.');
             }
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Có lỗi xảy ra.');
         } finally {
             setSaving(false);
         }
@@ -144,24 +259,27 @@ export default function Dashboard() {
 
         if (!window.confirm(`Xóa dòng họ "${dh.ten_dong_ho}"?`)) return;
 
-        const { data: res } = await apiClient.post('/dong-ho/delete', { id: dh.id });
-
-        if (res.success) {
-            toast.success('Đã xóa.');
-            await loadData();
-        } else {
-            toast.error(res.message || 'Không thể xóa.');
+        try {
+            const { data: res } = await apiClient.post('/dong-ho/delete', { id: dh.id });
+            if (res.success) {
+                toast.success(res.message || 'Xóa dòng họ thành công.');
+                await loadData();
+            } else {
+                toast.error(res.message || 'Không thể xóa dòng họ.');
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Có lỗi xảy ra.');
         }
     };
 
     return (
         <AuthenticatedLayout>
-            <Head title="Bảng điều khiển Gia Phả" />
+            <Head title="Bảng điều khiển Quản trị Gia Phả" />
             <div className="mx-auto max-w-[1320px]">
                 <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                        <div className="gp-eyebrow">Bảng điều khiển · Thứ Sáu, 15 tháng 5, 2026 - Mùng 10 tháng 4 ÂL</div>
-                        <h1 className="gp-page-title mt-2">Chào buổi sáng, {user?.ten_goi_nho || user?.ho_va_ten || 'Minh Anh'}</h1>
+                        <div className="gp-eyebrow">Bảng điều khiển Quản trị · Thứ Sáu, 15 tháng 5, 2026</div>
+                        <h1 className="gp-page-title mt-2">{getGreeting()}, {user?.ten_goi_nho || user?.ho_va_ten || 'Quản trị viên'}</h1>
                         <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--ink-mute)]">
                             {primaryClan
                                 ? `Không gian ${primaryClan.ten_dong_ho} đang có ${primaryClan.soThanhVien} thành viên được ghi nhận.`
@@ -262,7 +380,6 @@ export default function Dashboard() {
                     </div>
 
                     <div className="space-y-6">
-                        {/* Card Định danh QR "Một chạm" */}
                         {activeThanhVienId && (
                             <section className="gp-card relative overflow-hidden border-[var(--gold-soft)] bg-[linear-gradient(135deg,rgba(253,250,243,0.9),rgba(255,255,255,0.9))] p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] backdrop-blur-md">
                                 <div className="absolute -right-10 -bottom-10 h-32 w-32 rounded-full bg-[radial-gradient(circle,var(--gold-glow)_0%,transparent_70%)] opacity-60" />
@@ -272,7 +389,6 @@ export default function Dashboard() {
                                         Thẻ gia đình số
                                     </span>
 
-                                    {/* Cảnh báo chế độ giả lập nếu tài khoản chưa liên kết thực tế */}
                                     {!user?.thanh_vien_id && (
                                         <div className="mb-3 rounded-lg bg-[color-mix(in_srgb,var(--gold)_8%,transparent)] p-2 text-left border border-[color-mix(in_srgb,var(--gold)_14%,transparent)] w-full">
                                             <div className="flex gap-1.5 items-start text-[10px] text-[var(--gold)] font-medium leading-normal">
@@ -289,7 +405,6 @@ export default function Dashboard() {
                                         {!user?.thanh_vien_id ? 'Thành viên giả lập' : (user?.ten_chuc_vu || 'Thành viên dòng họ')}
                                     </p>
 
-                                    {/* Bộ chọn thành viên giả lập nhanh ngay trên Dashboard (chỉ hiện khi chưa liên kết) */}
                                     {!user?.thanh_vien_id && members.length > 0 && (
                                         <div className="mt-2.5 mb-1 w-full text-left">
                                             <label className="block text-[9px] font-bold uppercase tracking-wider text-[var(--ink-mute)] mb-1">
@@ -309,7 +424,6 @@ export default function Dashboard() {
                                         </div>
                                     )}
 
-                                    {/* QR Code hiển thị tức thì */}
                                     <button 
                                         type="button"
                                         onClick={() => {
@@ -333,7 +447,6 @@ export default function Dashboard() {
                                         Đăng nhập là có ngay mã QR. Đưa mã cho người khác quét để nhận diện danh xưng lập tức!
                                     </p>
 
-                                    {/* Nút quét QR người khác */}
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -412,30 +525,269 @@ export default function Dashboard() {
 
             {formOpen && (
                 <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4 backdrop-blur-sm">
-                    <form onSubmit={handleSubmit} className="gp-card w-full max-w-md overflow-hidden shadow-[var(--shadow-lg)]">
+                    <form 
+                        onSubmit={handleSubmit} 
+                        className={`gp-card w-full ${form.id ? 'max-w-3xl' : 'max-w-md'} overflow-hidden shadow-[var(--shadow-lg)] transition-all`}
+                    >
                         <div className="bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] px-6 py-4 text-[#fffef9]">
                             <div className="flex items-center justify-between">
-                                <h3 className="font-serif text-[24px] font-semibold">{form.id ? 'Sửa dòng họ' : 'Thêm dòng họ mới'}</h3>
+                                <div>
+                                    <h3 className="font-serif text-[22px] font-semibold">
+                                        {form.id ? 'Cấu hình Bản sắc Gia tộc' : 'Thêm dòng họ mới'}
+                                    </h3>
+                                    {form.id && (
+                                        <p className="text-[11px] text-[#fffef9]/85 mt-0.5 font-sans">
+                                            Thiết lập không gian số, nhận diện và màu sắc phong thủy cho gia tộc
+                                        </p>
+                                    )}
+                                </div>
                                 <button type="button" onClick={closeForm} className="grid h-8 w-8 place-items-center rounded-full bg-white/15 hover:bg-white/25">
                                     <Icon name="x" size={17} />
                                 </button>
                             </div>
                         </div>
-                        <div className="space-y-4 p-6">
-                            <label className="block">
-                                <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Tên dòng họ *</span>
-                                <input value={form.ten_dong_ho} onChange={(e) => setForm({ ...form, ten_dong_ho: e.target.value })} className="gp-input w-full" required maxLength={255} placeholder="Ví dụ: Họ Nguyễn Bá" />
-                            </label>
-                            <label className="block">
-                                <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Mô tả</span>
-                                <textarea value={form.mo_ta} onChange={(e) => setForm({ ...form, mo_ta: e.target.value })} rows={3} className="gp-input w-full resize-none" placeholder="Nguồn gốc, quê quán..." />
-                            </label>
-                            <div className="flex justify-end gap-3 pt-2">
-                                <button type="button" onClick={closeForm} className="gp-btn gp-btn-ghost">Hủy</button>
-                                <button type="submit" disabled={saving} className="gp-btn gp-btn-primary disabled:opacity-60">
-                                    {saving ? 'Đang lưu...' : 'Lưu'}
+
+                        {form.id && (
+                            <div className="flex border-b border-[var(--line-soft)] bg-[var(--card-soft)] px-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('info')}
+                                    className={`py-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+                                        activeTab === 'info'
+                                            ? 'border-[var(--gold)] text-[var(--gold)]'
+                                            : 'border-transparent text-[var(--ink-mute)] hover:text-[var(--ink)]'
+                                    }`}
+                                >
+                                    Thông tin chung
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('culture')}
+                                    className={`py-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+                                        activeTab === 'culture'
+                                            ? 'border-[var(--gold)] text-[var(--gold)]'
+                                            : 'border-transparent text-[var(--ink-mute)] hover:text-[var(--ink)]'
+                                    }`}
+                                >
+                                    Gia huấn & Lịch sử
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveTab('branding')}
+                                    className={`py-3 px-4 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+                                        activeTab === 'branding'
+                                            ? 'border-[var(--gold)] text-[var(--gold)]'
+                                            : 'border-transparent text-[var(--ink-mute)] hover:text-[var(--ink)]'
+                                    }`}
+                                >
+                                    Màu sắc & Nhận diện
                                 </button>
                             </div>
+                        )}
+
+                        <div className="p-6 max-h-[70vh] overflow-y-auto">
+                            {!form.id ? (
+                                <div className="space-y-4">
+                                    <label className="block">
+                                        <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Tên dòng họ *</span>
+                                        <input value={form.ten_dong_ho} onChange={(e) => setForm({ ...form, ten_dong_ho: e.target.value })} className="gp-input w-full" required maxLength={255} placeholder="Ví dụ: Họ Nguyễn Bá" />
+                                    </label>
+                                    <label className="block">
+                                        <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Mô tả sơ lược</span>
+                                        <textarea value={form.mo_ta} onChange={(e) => setForm({ ...form, mo_ta: e.target.value })} rows={4} className="gp-input w-full resize-none" placeholder="Nguồn gốc, quê quán..." />
+                                    </label>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {activeTab === 'info' && (
+                                        <div className="space-y-4">
+                                            <label className="block">
+                                                <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)]">Tên dòng họ *</span>
+                                                <input value={form.ten_dong_ho} onChange={(e) => setForm({ ...form, ten_dong_ho: e.target.value })} className="gp-input w-full" required maxLength={255} placeholder="Ví dụ: Họ Nguyễn Bá" />
+                                            </label>
+                                            <label className="block">
+                                                <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)]">Địa chỉ từ đường</span>
+                                                <input value={form.dia_chi_tu_duong || ''} onChange={(e) => setForm({ ...form, dia_chi_tu_duong: e.target.value })} className="gp-input w-full" maxLength={255} placeholder="Địa chỉ nhà thờ tổ, từ đường dòng tộc..." />
+                                            </label>
+                                            <label className="block">
+                                                <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)]">Mô tả sơ lược</span>
+                                                <textarea value={form.mo_ta} onChange={(e) => setForm({ ...form, mo_ta: e.target.value })} rows={4} className="gp-input w-full resize-none" placeholder="Tóm tắt ngắn gọn nguồn cội, chi nhánh..." />
+                                            </label>
+                                        </div>
+                                    )}
+
+                                    {activeTab === 'culture' && (
+                                        <div className="space-y-4">
+                                            <label className="block">
+                                                <div className="flex justify-between items-center mb-1.5">
+                                                    <span className="block text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)]">Gia huấn dòng tộc</span>
+                                                    <span className="text-[10px] text-[var(--gold)] font-medium">Hiển thị dạng cuộn thư cổ kính ở trang chủ</span>
+                                                </div>
+                                                <textarea 
+                                                    value={form.gia_huan || ''} 
+                                                    onChange={(e) => setForm({ ...form, gia_huan: e.target.value })} 
+                                                    rows={5} 
+                                                    className="gp-input w-full font-serif text-[15px] leading-relaxed bg-[linear-gradient(to_bottom,rgba(253,250,243,0.3),rgba(253,250,243,0.5))]" 
+                                                    placeholder="Lời răn dạy của tổ tiên, gia quy dòng họ, giá trị cốt lõi dòng tộc..." 
+                                                />
+                                            </label>
+                                            <label className="block">
+                                                <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)]">Lời giới thiệu & Lịch sử dòng họ</span>
+                                                <textarea 
+                                                    value={form.loi_gioi_thieu || ''} 
+                                                    onChange={(e) => setForm({ ...form, loi_gioi_thieu: e.target.value })} 
+                                                    rows={6} 
+                                                    className="gp-input w-full leading-relaxed" 
+                                                    placeholder="Lịch sử chi tiết nguồn gốc tổ tiên, hành trình lập nghiệp, định cư qua các thế hệ..." 
+                                                />
+                                            </label>
+                                        </div>
+                                    )}
+
+                                    {activeTab === 'branding' && (
+                                        <div className="space-y-5">
+                                            <div>
+                                                <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)]">
+                                                    Tông màu chủ đạo phong thủy (Theme Color)
+                                                </span>
+                                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                                                    {themePresetsList.map((p) => (
+                                                        <button
+                                                            key={p.key}
+                                                            type="button"
+                                                            onClick={() => setForm({ ...form, theme_color: p.key })}
+                                                            className={`flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-center transition-all ${
+                                                                form.theme_color === p.key
+                                                                    ? 'border-[var(--gold)] bg-[linear-gradient(135deg,rgba(253,250,243,0.7),rgba(253,250,243,1))] ring-2 ring-[var(--gold-soft)] shadow-sm'
+                                                                    : 'border-[var(--line-soft)] hover:bg-[var(--card-soft)] bg-white'
+                                                            }`}
+                                                        >
+                                                            <span className="h-8 w-8 rounded-full border shadow-inner transition-transform group-hover:scale-105" style={{ backgroundColor: p.color, borderColor: 'rgba(0,0,0,0.1)' }} />
+                                                            <span className="text-[11px] font-bold text-[var(--ink)]">{p.name}</span>
+                                                            <span className="text-[8.5px] text-[var(--ink-mute)] leading-none">{p.desc}</span>
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                <div className="mt-3.5 rounded-xl border border-[var(--line-soft)] bg-white p-3 text-left">
+                                                    <div className="mb-2 text-[9px] font-bold uppercase tracking-wider text-[var(--ink-mute)] flex items-center gap-1.5">
+                                                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--gold)]" />
+                                                        Xem trước màu chủ đạo khi áp dụng vào giao diện
+                                                    </div>
+                                                    <div 
+                                                        className="rounded-lg border p-2.5 flex gap-2.5 shadow-sm transition-all" 
+                                                        style={{
+                                                            backgroundColor: '#fafaf9',
+                                                            borderColor: 'var(--line-soft)',
+                                                            ...(form.theme_color ? localThemePresets[form.theme_color] : {})
+                                                        } as any}
+                                                    >
+                                                        {/* Sidebar giả lập */}
+                                                        <div className="w-16 border-r border-[var(--line)] pr-2 shrink-0 space-y-1.5">
+                                                            <div className="h-3.5 rounded-[4px] bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] flex items-center justify-center text-[5px] text-white font-serif tracking-widest leading-none font-bold">GIA TỘC</div>
+                                                            <div className="h-1.5 w-4/5 rounded bg-[var(--gold-pale)]" />
+                                                            <div className="h-1.5 w-2/3 rounded bg-gray-200" />
+                                                        </div>
+                                                        {/* Content giả lập */}
+                                                        <div className="flex-1 space-y-1.5">
+                                                            <div className="h-2 w-1/3 rounded bg-[var(--brown)]" />
+                                                            <div className="h-1.5 w-full rounded bg-gray-200" />
+                                                            <div className="flex gap-1.5">
+                                                                <div className="h-3.5 w-10 rounded bg-[var(--gold)] flex items-center justify-center text-[5px] text-white font-bold leading-none">Cây gia phả</div>
+                                                                <div className="h-3.5 w-8 rounded-[3px] bg-gray-200" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid gap-4 md:grid-cols-2">
+                                                <div className="space-y-2">
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)]">
+                                                            Đường dẫn Logo dòng tộc
+                                                        </span>
+                                                        <input 
+                                                            value={form.logo_path || ''} 
+                                                            onChange={(e) => setForm({ ...form, logo_path: e.target.value })} 
+                                                            className="gp-input w-full text-xs font-mono" 
+                                                            maxLength={255} 
+                                                            placeholder="URL ảnh logo (PNG/JPG)..." 
+                                                        />
+                                                    </label>
+                                                    <div>
+                                                        <span className="text-[9px] font-bold text-[var(--ink-mute)] uppercase tracking-wider block mb-1">
+                                                            Hoặc chọn logo mẫu gợi ý:
+                                                        </span>
+                                                        <div className="flex gap-2">
+                                                            {logoOptions.map((opt, idx) => (
+                                                                <button
+                                                                    key={idx}
+                                                                    type="button"
+                                                                    onClick={() => setForm({ ...form, logo_path: opt.url })}
+                                                                    className="flex items-center gap-1.5 rounded-lg border border-[var(--line-soft)] hover:border-[var(--gold-soft)] p-1 bg-white hover:bg-[var(--gold-glow)] transition-all"
+                                                                >
+                                                                    <img src={opt.url} alt="Sample logo" className="h-5 w-5 rounded object-cover" />
+                                                                    <span className="text-[9.5px] font-semibold text-[var(--ink-soft)]">{opt.label}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="block">
+                                                        <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-[var(--ink-soft)]">
+                                                            Đường dẫn Ảnh Từ đường
+                                                        </span>
+                                                        <input 
+                                                            value={form.anh_tu_duong_path || ''} 
+                                                            onChange={(e) => setForm({ ...form, anh_tu_duong_path: e.target.value })} 
+                                                            className="gp-input w-full text-xs font-mono" 
+                                                            maxLength={255} 
+                                                            placeholder="URL ảnh bìa từ đường dòng họ..." 
+                                                        />
+                                                    </label>
+                                                    <div>
+                                                        <span className="text-[9px] font-bold text-[var(--ink-mute)] uppercase tracking-wider block mb-1">
+                                                            Hoặc chọn ảnh từ đường mẫu:
+                                                        </span>
+                                                        <div className="flex gap-2">
+                                                            {anhTuDuongOptions.map((opt, idx) => (
+                                                                <button
+                                                                    key={idx}
+                                                                    type="button"
+                                                                    onClick={() => setForm({ ...form, anh_tu_duong_path: opt.url })}
+                                                                    className="flex items-center gap-1 rounded-lg border border-[var(--line-soft)] hover:border-[var(--gold-soft)] p-1 bg-white hover:bg-[var(--gold-glow)] transition-all"
+                                                                >
+                                                                    <img src={opt.url} alt="Sample cover" className="h-5 w-8 rounded object-cover" />
+                                                                    <span className="text-[9px] font-semibold text-[var(--ink-soft)] tracking-tight">{opt.label}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-end gap-3 border-t border-[var(--line-soft)] bg-[var(--card-soft)] px-6 py-4">
+                            <button type="button" onClick={closeForm} className="gp-btn gp-btn-ghost">
+                                Hủy
+                            </button>
+                            <button type="submit" disabled={saving} className="gp-btn gp-btn-primary disabled:opacity-60 min-w-20">
+                                {saving ? (
+                                    <span className="flex items-center gap-1.5">
+                                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                                        Đang lưu...
+                                    </span>
+                                ) : (
+                                    'Lưu cấu hình'
+                                )}
+                            </button>
                         </div>
                     </form>
                 </div>

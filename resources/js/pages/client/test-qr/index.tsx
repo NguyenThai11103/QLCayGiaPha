@@ -1,10 +1,10 @@
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useState, useMemo } from 'react';
-import Icon from '../../components/gia-pha/Icon';
-import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
-import { useAuth } from '../../contexts/auth.context';
-import { Nguoi, nguoiApi } from '../../services/gia-pha.api';
-import toast from '../../lib/toast.util';
+import Icon from '../../../components/gia-pha/Icon';
+import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
+import { useAuth } from '../../../contexts/auth.context';
+import { Nguoi, nguoiApi } from '../../../services/gia-pha.api';
+import toast from '../../../lib/toast.util';
 
 export default function TestQRSimulator() {
     const { user } = useAuth();
@@ -65,11 +65,11 @@ export default function TestQRSimulator() {
                 
                 // Tạo dữ liệu giả lập giải mã
                 setDecodedData({
-                    "qr_content" : qrCodeUrl,
-                    "target_id"  : selectedBId,
-                    "target_name": memberB?.ten_day_du || "Ẩn danh",
-                    "scanned_by" : user?.ho_va_ten || "Thành viên hiện tại",
-                    "timestamp"  : new Date().toISOString()
+                    "qr_content"  : qrCodeUrl,
+                    "target_id"   : selectedBId,
+                    "target_name" : memberB?.ten_day_du || "Ẩn danh",
+                    "scanned_by"  : user?.ho_va_ten || "Thành viên hiện tại",
+                    "timestamp"   : new Date().toISOString()
                 });
                 
                 toast.success('Đã giải mã thành công mã QR! Chạm "Kiểm tra thực tế" để xem danh xưng chéo.');

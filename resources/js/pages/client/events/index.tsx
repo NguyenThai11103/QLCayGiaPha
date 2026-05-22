@@ -19,8 +19,8 @@
 
 import { Head, router } from '@inertiajs/react';
 import React, { useMemo, useState } from 'react';
-import IconBase from '../../components/gia-pha/Icon';
-import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
+import IconBase from '../../../components/gia-pha/Icon';
+import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 
 // ============================================================
 // External shared modules — adjust import paths to your codebase

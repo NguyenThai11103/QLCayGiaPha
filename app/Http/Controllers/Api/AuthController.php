@@ -9,6 +9,7 @@ use App\Http\Requests\Auth\GoogleLoginRequest;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\GoogleVerifyOtpRequest;
+use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Models\NguoiDung;
 use App\Mail\WelcomeEmail;
 use App\Mail\ResetPasswordEmail;
@@ -318,9 +319,13 @@ class AuthController extends Controller
 
     public function me(Request $request)
     {
+        $user = $request->user();
+        if ($user) {
+            $user->load('dongHo');
+        }
         return response()->json([
             'success' => true,
-            'data'    => $request->user(),
+            'data'    => $user,
         ]);
     }
 
@@ -332,5 +337,48 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Đăng xuất thành công',
         ]);
+    }
+
+    public function updateProfile(UpdateProfileRequest $request)
+    {
+        $data = $request->validated();
+        $user = $request->user();
+
+        DB::beginTransaction();
+        try {
+            // Cập nhật thông tin trên tài khoản người dùng
+            $user->update([
+                'ho_ten' => $data['ho_ten'],
+            ]);
+
+            // Nếu tài khoản đã liên kết với một thành viên trong gia phả
+            if ($user->thanh_vien_id) {
+                $thanhVien = \App\Models\ThanhVien::find($user->thanh_vien_id);
+                if ($thanhVien) {
+                    $thanhVien->update([
+                        'ho_ten'       => $data['ho_ten'],
+                        'anh_dai_dien' => $data['anh_dai_dien'] ?? null,
+                        'tieu_su'      => $data['tieu_su'] ?? null,
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            // Refresh user model to get latest data with accessors
+            $user->refresh();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cập nhật hồ sơ cá nhân thành công',
+                'data'    => $user,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi cập nhật hồ sơ: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

@@ -5,8 +5,10 @@ export interface NhanVien {
     ten_goi_nho: string;
     so_dien_thoai: string;
     anh_dai_dien: string | null;
-    is_master: number;
-    id_quyen: number;
+    quyen_han: 'admin' | 'quan_ly' | 'thanh_vien';
+    dong_ho_id?: number | null;
+    trang_thai_gia_nhap?: string | null;
+    dong_ho?: any;
     ngay_bat_dau_lam?: string;
     ngay_sinh?: string;
     ten_chuc_vu?: string;

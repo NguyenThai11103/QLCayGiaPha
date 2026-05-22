@@ -39,7 +39,27 @@ Route::prefix('admin/auth')->group(function () {
     });
 });
 
+Route::prefix('admin')->middleware(['auth:sanctum', 'check.admin.system'])->group(function () {
+    Route::prefix('dong-ho')->group(function () {
+        Route::get('/list', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'index']);
+        Route::patch('/{id}/status', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'updateStatus']);
+        Route::delete('/{id}', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'destroy']);
+    });
+    
+    Route::prefix('nguoi-dung')->group(function () {
+        Route::get('/list', [\App\Http\Controllers\Api\Admin\AdminNguoiDungController::class, 'index']);
+        Route::patch('/{id}/status', [\App\Http\Controllers\Api\Admin\AdminNguoiDungController::class, 'updateStatus']);
+        Route::delete('/{id}', [\App\Http\Controllers\Api\Admin\AdminNguoiDungController::class, 'destroy']);
+    });
+});
+
 Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('onboarding')->group(function () {
+        Route::get('/search-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'searchClan']);
+        Route::post('/join-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'joinClan']);
+        Route::post('/create-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'createClan']);
+    });
+
     Route::prefix('dong-ho')->group(function () {
         Route::get('/list', [DongHoController::class, 'index']);
         Route::post('/create', [DongHoController::class, 'store'])->middleware('check.permission:system_admin');

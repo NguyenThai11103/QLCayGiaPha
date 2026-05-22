@@ -465,7 +465,7 @@ export default function AdminDashboard() {
                         <section className="gp-card bg-[linear-gradient(145deg,var(--card)_0%,var(--card)_52%,var(--gold-glow)_200%)] p-[22px]">
                             <h2 className="mb-4 text-[16px] font-semibold">Thao tác nhanh</h2>
                             <div className="grid grid-cols-2 gap-3">
-                                <QuickAction icon="add-user" label="Thêm thành viên" color="gold" onClick={() => router.visit('/gia-pha/thanh-vien')} />
+                                <QuickAction icon="add-user" label="Thêm thành viên" color="gold" onClick={() => router.visit('/admin/thanh-vien')} />
                                 <QuickAction icon="link" label="Tra quan hệ" color="jade" onClick={() => router.visit('/gia-pha/tra-cuu-danh-xung')} />
                                 <QuickAction icon="calendar" label="Tạo lễ giỗ" color="crimson" onClick={() => undefined} />
                                 <QuickAction icon="sparkle" label="Thử nghiệm QR" color="gold" onClick={() => router.visit('/gia-pha/test-qr')} />

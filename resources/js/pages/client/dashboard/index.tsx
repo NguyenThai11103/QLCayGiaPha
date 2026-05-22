@@ -18,7 +18,7 @@ const events = [
 export default function ClientDashboard() {
     const { user, checkAuth } = useAuth();
 
-    if (user?.is_master === 1) {
+    if (user?.quyen_han === 'quan_ly') {
         return <AdminDashboard />;
     }
     const [dongHos, setDongHos] = useState<DongHo[]>([]);
@@ -372,7 +372,7 @@ export default function ClientDashboard() {
                                         <p className="mt-2">
                                             Mỗi thành viên hôm nay là một đại diện tiếp nối hào khí của thế hệ đi trước. Hãy cùng chung tay bảo tồn tư liệu, xây dựng gia phả số để kết nối cội nguồn, hướng tới tương lai rạng rỡ.
                                         </p>
-                                        {user?.is_master === 1 && (
+                                        {user?.quyen_han === 'quan_ly' && (
                                             <p className="mt-3 text-[12px] text-[var(--gold)] italic font-semibold">
                                                 * Quản trị viên dòng họ có thể vào phần Cấu hình để cập nhật Lịch sử chi tiết của dòng họ.
                                             </p>

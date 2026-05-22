@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'check.permission' => \App\Http\Middleware\CheckPermission::class,
             'sanctum.web' => \App\Http\Middleware\CheckSanctumWeb::class,
+            'check.admin.system' => \App\Http\Middleware\CheckAdminSystem::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

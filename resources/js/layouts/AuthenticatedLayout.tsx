@@ -126,6 +126,36 @@ const navigation: NavigationItem[] = [
     },
 ];
 
+const adminNavigation: NavigationItem[] = [
+    {
+        name: 'Tổng quan hệ thống',
+        href: '/admin/dashboard',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+        ),
+    },
+    {
+        name: 'Quản lý Dòng họ',
+        href: '/admin/dong-ho',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+        ),
+    },
+    {
+        name: 'Quản lý Người dùng',
+        href: '/admin/nguoi-dung',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+        ),
+    },
+];
+
 export default function AuthenticatedLayout({ children, fullBleed = false }: AuthenticatedLayoutProps) {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
     const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -150,16 +180,30 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
             window.location.href = '/login';
+        } else if (!isLoading && isAuthenticated) {
+            const isAdminPath = pathname.startsWith('/admin');
+            const isOnboarding = pathname.startsWith('/onboarding');
+            const needsOnboarding = user?.quyen_han !== 'admin' && (!user?.dong_ho_id || user?.trang_thai_gia_nhap === 'cho_duyet');
+            
+            if (!isAdminPath && !isOnboarding && needsOnboarding) {
+                window.location.href = '/onboarding';
+            }
         }
-    }, [isLoading, isAuthenticated]);
+    }, [isLoading, isAuthenticated, pathname, user]);
 
     if (isLoading || !isAuthenticated) {
         return null;
     }
 
-    const activeItem = navigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+    const currentNavigation = user?.quyen_han === 'admin' ? adminNavigation : navigation;
+    const activeItem = currentNavigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
     const displayName = user?.ho_va_ten || 'Minh Anh';
-    const role = user?.ten_chuc_vu || (user?.is_master === 1 ? 'Quản trị dòng họ' : 'Thành viên');
+    
+    let role = 'Thành viên';
+    if (user?.quyen_han === 'admin') role = 'Quản trị viên Hệ thống';
+    else if (user?.quyen_han === 'quan_ly') role = 'Quản trị dòng họ';
+    else if (user?.ten_chuc_vu) role = user.ten_chuc_vu;
+
     const initials = user?.ten_goi_nho?.charAt(0).toUpperCase() || displayName.trim().charAt(0).toUpperCase() || 'G';
 
     const visit = (href: string) => {
@@ -223,7 +267,7 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                         Điều hướng
                     </div>
 
-                    {navigation.map((item) => {
+                    {currentNavigation.map((item) => {
                         const active = activeItem?.href === item.href;
 
                         return (

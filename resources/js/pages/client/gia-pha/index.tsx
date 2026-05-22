@@ -548,7 +548,7 @@ export default function CayGiaPha() {
                             <Icon name="branch" size={16} />
                             Huyết thống
                         </button>
-                        {user?.is_master === 1 && (
+                        {user?.quyen_han === 'quan_ly' && (
                             <button type="button" onClick={() => router.visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary">
                                 <Icon name="plus" size={16} />
                                 Thêm
@@ -581,7 +581,7 @@ export default function CayGiaPha() {
                                     <Icon name="tree" size={36} className="mx-auto text-[var(--gold)]" />
                                     <h2 className="mt-4 font-serif text-3xl font-semibold">Chưa có dữ liệu</h2>
                                     <p className="mt-2 text-sm leading-6 text-[var(--ink-mute)]">Hãy thêm thành viên đầu tiên để hiển thị sơ đồ gia phả.</p>
-                                    {user?.is_master === 1 && (
+                                    {user?.quyen_han === 'quan_ly' && (
                                         <button type="button" onClick={() => router.visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary mt-5">Thêm thành viên</button>
                                     )}
                                 </div>
@@ -619,7 +619,7 @@ export default function CayGiaPha() {
                             <PersonPanel
                                 person={selectedPerson}
                                 people={people}
-                                isMaster={user?.is_master === 1}
+                                isMaster={user?.quyen_han === 'quan_ly'}
                                 onClose={() => setSelectedPerson(null)}
                                 onAddChild={handleAddChildQuick}
                                 onAddSpouse={handleAddSpouseQuick}

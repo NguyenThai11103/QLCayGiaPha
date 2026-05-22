@@ -10,6 +10,7 @@ use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\GoogleVerifyOtpRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
+use App\Http\Requests\Auth\ChangePasswordRequest;
 use App\Models\NguoiDung;
 use App\Mail\WelcomeEmail;
 use App\Mail\ResetPasswordEmail;
@@ -380,5 +381,27 @@ class AuthController extends Controller
                 'message' => 'Có lỗi xảy ra khi cập nhật hồ sơ: ' . $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function changePassword(ChangePasswordRequest $request)
+    {
+        $data = $request->validated();
+        $user = $request->user();
+
+        if (!Hash::check($data['current_password'], $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mật khẩu hiện tại không chính xác.',
+            ], 422);
+        }
+
+        $user->update([
+            'password' => Hash::make($data['new_password']),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại nếu cần.',
+        ]);
     }
 }

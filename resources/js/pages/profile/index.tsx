@@ -1,354 +1,315 @@
-import { useState, useEffect } from 'react';
-import { toast } from 'sonner';
+import { Head } from '@inertiajs/react';
+import { useEffect, useRef, useState } from 'react';
 import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
-import apiClient from '../../lib/api.client';
+import Icon from '../../components/gia-pha/Icon';
 import { useAuth } from '../../contexts/auth.context';
+import apiClient from '../../lib/api.client';
 
-export default function ProfileIndex() {
-    const { user, checkAuth: refreshUser } = useAuth();
-    const [activeTab, setActiveTab] = useState<'general' | 'security' | 'telegram'>('general');
+interface ProfileForm {
+    ho_ten       : string;
+    anh_dai_dien : string;
+    tieu_su      : string;
+}
 
-    // General Info State
-    const [generalForm, setGeneralForm] = useState({
-        ho_va_ten: '',
-        ten_goi_nho: '',
-        so_dien_thoai: '',
-        ngay_sinh: '',
-        email: '',
-    });
-    const [avatarFile, setAvatarFile] = useState<File | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [generalLoading, setGeneralLoading] = useState(false);
+interface PasswordForm {
+    current_password  : string;
+    new_password      : string;
+    confirm_password  : string;
+}
 
-    // Password State
-    const [passwordForm, setPasswordForm] = useState({
-        current_password: '',
-        password: '',
-        password_confirmation: '',
-    });
-    const [passwordLoading, setPasswordLoading] = useState(false);
+function avatarGrad(name: string): string {
+    const seed = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    const pairs = [['#b8902c','#5c3a1e'],['#2f5d3a','#4a7a52'],['#8b2a1f','#c44535'],['#225b7a','#3e84a8'],['#8b5a2b','#a06d3b']];
+    const p = pairs[seed % pairs.length];
+    return `linear-gradient(135deg, ${p[0]}, ${p[1]})`;
+}
 
-    // Telegram State
-    const [telegramChatId, setTelegramChatId] = useState('');
-    const [telegramLoading, setTelegramLoading] = useState(false);
+function initials(name: string): string {
+    const parts = name.trim().split(' ');
+    return parts[parts.length - 1]?.charAt(0)?.toUpperCase() ?? name.charAt(0).toUpperCase();
+}
+
+export default function ProfilePage() {
+    const { user, checkAuth } = useAuth();
+    const [activeTab, setActiveTab] = useState<'profile' | 'password' | 'account'>('profile');
+    const [profile,   setProfile]   = useState<ProfileForm>({ ho_ten: '', anh_dai_dien: '', tieu_su: '' });
+    const [pwForm,    setPwForm]    = useState<PasswordForm>({ current_password: '', new_password: '', confirm_password: '' });
+    const [saving,    setSaving]    = useState(false);
+    const [notice,    setNotice]    = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (user) {
-            setGeneralForm({
-                ho_va_ten: user.ho_va_ten || '',
-                ten_goi_nho: user.ten_goi_nho || '',
-                so_dien_thoai: user.so_dien_thoai || '',
-                ngay_sinh: user.ngay_sinh ? user.ngay_sinh.split('T')[0] : '',
-                email: user.email || '',
+            setProfile({
+                ho_ten       : user.ho_va_ten || '',
+                anh_dai_dien : user.anh_dai_dien || '',
+                tieu_su      : (user as any).tieu_su as string || '',
             });
-            setPreviewUrl(user.anh_dai_dien || null);
-            setTelegramChatId((user as any).telegram_chat_id || '');
         }
     }, [user]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setAvatarFile(file);
-            setPreviewUrl(URL.createObjectURL(file));
-        }
+    const showNotice = (type: 'success' | 'error', msg: string) => {
+        setNotice({ type, msg });
+        setTimeout(() => setNotice(null), 4000);
     };
 
-    const handleGeneralSubmit = async (e: React.FormEvent) => {
+    // ─── Cập nhật hồ sơ ───────────────────────────────────────
+    const handleSaveProfile = async (e: React.FormEvent) => {
         e.preventDefault();
-        setGeneralLoading(true);
+        if (!profile.ho_ten.trim()) { showNotice('error', 'Họ tên không được để trống.'); return; }
+        setSaving(true);
         try {
-            const formData = new FormData();
-            formData.append('ho_va_ten', generalForm.ho_va_ten);
-            formData.append('ten_goi_nho', generalForm.ten_goi_nho || '');
-            formData.append('so_dien_thoai', generalForm.so_dien_thoai);
-            formData.append('ngay_sinh', generalForm.ngay_sinh);
-            formData.append('email', generalForm.email);
-
-            if (avatarFile) {
-                formData.append('anh_dai_dien', avatarFile);
-            }
-
-            const res = await apiClient.post('/auth/update-profile', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
-            });
-
-            if (res.data.success) {
-                toast.success('Cập nhật thông tin thành công');
-                await refreshUser(); // Reload user context
-            }
-        } catch (error: any) {
-            // Error handling is global, but we can show specific toast if needed
-        } finally {
-            setGeneralLoading(false);
-        }
-    };
-
-    const handlePasswordSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setPasswordLoading(true);
-        try {
-            const res = await apiClient.post('/auth/change-password', passwordForm);
-            if (res.data.success) {
-                toast.success('Đổi mật khẩu thành công');
-                setPasswordForm({
-                    current_password: '',
-                    password: '',
-                    password_confirmation: '',
-                });
-            }
-        } catch (error: any) {
-             // Error handled globally
-        } finally {
-            setPasswordLoading(false);
-        }
-    };
-
-    const handleTelegramSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setTelegramLoading(true);
-        try {
-            const res = await apiClient.post('/auth/update-telegram', {
-                telegram_chat_id: telegramChatId || null,
+            const res = await apiClient.post('/auth/profile', {
+                ho_ten       : profile.ho_ten.trim(),
+                anh_dai_dien : profile.anh_dai_dien || null,
+                tieu_su      : profile.tieu_su || null,
             });
             if (res.data.success) {
-                toast.success('Cập nhật Telegram thành công');
-                await refreshUser();
+                showNotice('success', 'Cập nhật hồ sơ thành công!');
+                await checkAuth();
+            } else {
+                showNotice('error', res.data.message || 'Có lỗi xảy ra.');
             }
-        } catch (error: any) {
-            // Error handled globally
+        } catch {
+            showNotice('error', 'Lỗi kết nối máy chủ.');
         } finally {
-            setTelegramLoading(false);
+            setSaving(false);
         }
     };
 
-    if (!user) return null;
+    // ─── Đổi mật khẩu ─────────────────────────────────────────
+    const handleChangePassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!pwForm.current_password || !pwForm.new_password) { showNotice('error', 'Vui lòng điền đầy đủ thông tin.'); return; }
+        if (pwForm.new_password !== pwForm.confirm_password)  { showNotice('error', 'Mật khẩu xác nhận không khớp.'); return; }
+        if (pwForm.new_password.length < 8)                   { showNotice('error', 'Mật khẩu mới phải có ít nhất 8 ký tự.'); return; }
+        setSaving(true);
+        try {
+            const res = await apiClient.post('/auth/change-password', {
+                current_password : pwForm.current_password,
+                new_password     : pwForm.new_password,
+            });
+            if (res.data.success) {
+                showNotice('success', 'Đổi mật khẩu thành công!');
+                setPwForm({ current_password: '', new_password: '', confirm_password: '' });
+            } else {
+                showNotice('error', res.data.message || 'Mật khẩu hiện tại không đúng.');
+            }
+        } catch {
+            showNotice('error', 'Lỗi kết nối máy chủ.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const displayName = user?.ho_va_ten || 'Người dùng';
+    const role        = user?.ten_chuc_vu || 'Thành viên';
+
+    const TABS = [
+        { key: 'profile',  icon: 'users',    label: 'Hồ sơ cá nhân' },
+        { key: 'password', icon: 'scroll',   label: 'Đổi mật khẩu'  },
+        { key: 'account',  icon: 'sparkle',  label: 'Tài khoản'      },
+    ] as const;
 
     return (
         <AuthenticatedLayout>
-            <div className="mx-auto max-w-4xl">
-                <h1 className="mb-6 text-2xl font-bold text-gray-900">Trang Cá Nhân</h1>
+            <Head title="Hồ sơ cá nhân" />
+            <div style={{ maxWidth: 860, margin: '0 auto' }}>
 
-                <div className="overflow-hidden rounded-lg bg-white shadow">
-                    <div className="border-b border-gray-200">
-                        <nav className="-mb-px flex">
-                            <button
-                                onClick={() => setActiveTab('general')}
-                                className={`whitespace-nowrap px-6 py-4 text-sm font-medium transition-colors ${
-                                    activeTab === 'general'
-                                        ? 'border-b-2 border-[#059669] text-[#059669]'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                            >
-                                Thông tin chung
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('security')}
-                                className={`whitespace-nowrap px-6 py-4 text-sm font-medium transition-colors ${
-                                    activeTab === 'security'
-                                        ? 'border-b-2 border-[#059669] text-[#059669]'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                            >
-                                Bảo mật & Mật khẩu
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('telegram')}
-                                className={`whitespace-nowrap px-6 py-4 text-sm font-medium transition-colors ${
-                                    activeTab === 'telegram'
-                                        ? 'border-b-2 border-[#059669] text-[#059669]'
-                                        : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                            >
-                                🔔 Kết nối Telegram
-                            </button>
-                        </nav>
+                {/* ─── Profile Hero ──────────────────────── */}
+                <div style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', overflow: 'hidden', marginBottom: 24, boxShadow: 'var(--shadow-md)' }}>
+                    {/* Banner */}
+                    <div style={{ height: 100, background: avatarGrad(displayName), position: 'relative' }}>
+                        <div style={{ position: 'absolute', inset: 0, opacity: 0.12, backgroundImage: 'radial-gradient(circle at 30% 40%, white 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
+                    </div>
+                    <div style={{ padding: '0 28px 24px', marginTop: -36, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
+                            {/* Avatar */}
+                            <div style={{ position: 'relative' }}>
+                                {profile.anh_dai_dien ? (
+                                    <img src={profile.anh_dai_dien} alt={displayName} style={{ width: 76, height: 76, borderRadius: '50%', border: '3px solid var(--bg-elev)', objectFit: 'cover', boxShadow: 'var(--shadow-md)', display: 'block' }} />
+                                ) : (
+                                    <div style={{ width: 76, height: 76, borderRadius: '50%', border: '3px solid var(--bg-elev)', background: avatarGrad(displayName), display: 'grid', placeItems: 'center', fontSize: 26, fontWeight: 700, color: 'white', boxShadow: 'var(--shadow-md)' }}>
+                                        {initials(displayName)}
+                                    </div>
+                                )}
+                            </div>
+                            <div style={{ paddingBottom: 4 }}>
+                                <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', margin: '0 0 3px', fontFamily: 'Cormorant Garamond, serif' }}>{displayName}</h1>
+                                <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: user?.is_master === 1 ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'var(--card-soft)', color: user?.is_master === 1 ? 'var(--gold)' : 'var(--ink-mute)', border: `1px solid ${user?.is_master === 1 ? 'color-mix(in srgb, var(--gold) 25%, transparent)' : 'var(--line)'}` }}>
+                                        {role}
+                                    </span>
+                                    <span>{user?.email}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {user?.dong_ho && (
+                            <div style={{ padding: '8px 14px', borderRadius: 12, background: 'var(--gold-glow)', border: '1px solid var(--gold-pale)', textAlign: 'right' }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 2 }}>Dòng họ</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--brown)', fontFamily: 'Cormorant Garamond, serif' }}>{user.dong_ho.ten_dong_ho}</div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* ─── Notice ────────────────────────────── */}
+                {notice && (
+                    <div style={{ padding: '12px 18px', borderRadius: 12, marginBottom: 16, background: notice.type === 'success' ? 'color-mix(in srgb, var(--jade) 10%, transparent)' : 'color-mix(in srgb, var(--crimson) 10%, transparent)', border: `1px solid color-mix(in srgb, var(--${notice.type === 'success' ? 'jade' : 'crimson'}) 25%, transparent)`, color: `var(--${notice.type === 'success' ? 'jade' : 'crimson'})`, fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Icon name={notice.type === 'success' ? 'sparkle' : 'x'} size={16} />
+                        {notice.msg}
+                    </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 20, alignItems: 'start' }}>
+
+                    {/* ─── Tab Nav ────────────────────────── */}
+                    <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+                        <div style={{ padding: '12px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {TABS.map(tab => {
+                                const active = activeTab === tab.key;
+                                return (
+                                    <button
+                                        key={tab.key}
+                                        onClick={() => setActiveTab(tab.key)}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: 'none', cursor: 'pointer', background: active ? 'linear-gradient(90deg, var(--gold-glow), transparent)' : 'transparent', color: active ? 'var(--ink)' : 'var(--ink-soft)', fontWeight: active ? 700 : 500, fontSize: 13.5, fontFamily: 'inherit', textAlign: 'left', width: '100%', transition: 'all 0.15s', position: 'relative' }}
+                                    >
+                                        {active && <span style={{ position: 'absolute', left: 0, top: 6, bottom: 6, width: 3, borderRadius: '0 4px 4px 0', background: 'var(--gold)' }} />}
+                                        <Icon name={tab.icon} size={16} color={active ? 'var(--gold)' : 'var(--ink-mute)'} />
+                                        {tab.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
 
-                    <div className="p-6">
-                        {activeTab === 'general' && (
-                            <form onSubmit={handleGeneralSubmit} className="space-y-6">
-                                <div className="grid gap-6 md:grid-cols-2">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Họ và tên</label>
+                    {/* ─── Tab Content ────────────────────── */}
+                    <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)' }}>
+
+                        {/* Tab: Hồ sơ */}
+                        {activeTab === 'profile' && (
+                            <form onSubmit={handleSaveProfile} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+                                <SectionHeader title="Thông tin cá nhân" desc="Cập nhật họ tên và thông tin hiển thị của bạn trong gia phả." />
+
+                                <FormField label="Họ và tên" required>
+                                    <input
+                                        value={profile.ho_ten}
+                                        onChange={e => setProfile(p => ({ ...p, ho_ten: e.target.value }))}
+                                        className="gp-input"
+                                        placeholder="Nguyễn Văn A"
+                                        required
+                                    />
+                                </FormField>
+
+                                <FormField label="URL ảnh đại diện">
+                                    <div style={{ display: 'flex', gap: 8 }}>
                                         <input
-                                            type="text"
-                                            required
-                                            value={generalForm.ho_va_ten}
-                                            onChange={e => setGeneralForm({ ...generalForm, ho_va_ten: e.target.value })}
-                                            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
+                                            value={profile.anh_dai_dien}
+                                            onChange={e => setProfile(p => ({ ...p, anh_dai_dien: e.target.value }))}
+                                            className="gp-input"
+                                            placeholder="https://..."
+                                            style={{ flex: 1 }}
                                         />
+                                        {profile.anh_dai_dien && (
+                                            <img src={profile.anh_dai_dien} alt="preview" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--line)', flexShrink: 0 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                                        )}
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Tên gọi nhớ</label>
-                                        <input
-                                            type="text"
-                                            value={generalForm.ten_goi_nho}
-                                            onChange={e => setGeneralForm({ ...generalForm, ten_goi_nho: e.target.value })}
-                                            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Email</label>
-                                        <input
-                                            type="email"
-                                            required
-                                            value={generalForm.email}
-                                            onChange={e => setGeneralForm({ ...generalForm, email: e.target.value })}
-                                            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Số điện thoại</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={generalForm.so_dien_thoai}
-                                            onChange={e => setGeneralForm({ ...generalForm, so_dien_thoai: e.target.value })}
-                                            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Ngày sinh</label>
-                                        <input
-                                            type="date"
-                                            required
-                                            value={generalForm.ngay_sinh}
-                                            onChange={e => setGeneralForm({ ...generalForm, ngay_sinh: e.target.value })}
-                                            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Ảnh đại diện</label>
-                                        <div className="flex items-center space-x-4">
-                                            {previewUrl && (
-                                                <img src={previewUrl} alt="Preview" className="h-12 w-12 rounded-full object-cover border border-gray-200" />
-                                            )}
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                onChange={handleFileChange}
-                                                className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-full file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-blue-700 hover:file:bg-blue-100"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex justify-end">
-                                    <button
-                                        type="submit"
-                                        disabled={generalLoading}
-                                        className="rounded-lg bg-[#059669] px-4 py-2 font-medium text-white hover:bg-[#d62b22] disabled:opacity-50"
-                                    >
-                                        {generalLoading ? 'Đang lưu...' : 'Lưu thay đổi'}
+                                    <p style={{ fontSize: 11.5, color: 'var(--ink-mute)', margin: '4px 0 0' }}>Dán URL hình ảnh từ internet (Google Drive, Imgur, ...)</p>
+                                </FormField>
+
+                                <FormField label="Tiểu sử ngắn">
+                                    <textarea
+                                        value={profile.tieu_su}
+                                        onChange={e => setProfile(p => ({ ...p, tieu_su: e.target.value }))}
+                                        className="gp-input"
+                                        rows={4}
+                                        placeholder="Giới thiệu ngắn về bản thân..."
+                                        style={{ resize: 'vertical' }}
+                                    />
+                                </FormField>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button type="submit" disabled={saving} className="gp-btn gp-btn-primary" style={{ opacity: saving ? 0.6 : 1 }}>
+                                        {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
                                     </button>
                                 </div>
                             </form>
                         )}
 
-                        {activeTab === 'security' && (
-                            <form onSubmit={handlePasswordSubmit} className="max-w-md space-y-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Mật khẩu hiện tại</label>
+                        {/* Tab: Đổi mật khẩu */}
+                        {activeTab === 'password' && (
+                            <form onSubmit={handleChangePassword} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+                                <SectionHeader title="Đổi mật khẩu" desc="Mật khẩu mới phải có ít nhất 8 ký tự." />
+
+                                <FormField label="Mật khẩu hiện tại" required>
                                     <input
                                         type="password"
+                                        value={pwForm.current_password}
+                                        onChange={e => setPwForm(p => ({ ...p, current_password: e.target.value }))}
+                                        className="gp-input"
+                                        placeholder="••••••••"
                                         required
-                                        value={passwordForm.current_password}
-                                        onChange={e => setPasswordForm({ ...passwordForm, current_password: e.target.value })}
-                                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
                                     />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Mật khẩu mới</label>
+                                </FormField>
+
+                                <FormField label="Mật khẩu mới" required>
                                     <input
                                         type="password"
+                                        value={pwForm.new_password}
+                                        onChange={e => setPwForm(p => ({ ...p, new_password: e.target.value }))}
+                                        className="gp-input"
+                                        placeholder="Tối thiểu 8 ký tự"
                                         required
-                                        minLength={6}
-                                        value={passwordForm.password}
-                                        onChange={e => setPasswordForm({ ...passwordForm, password: e.target.value })}
-                                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
                                     />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Nhập lại mật khẩu mới</label>
+                                    {/* Strength bar */}
+                                    {pwForm.new_password && (
+                                        <PasswordStrength password={pwForm.new_password} />
+                                    )}
+                                </FormField>
+
+                                <FormField label="Xác nhận mật khẩu mới" required>
                                     <input
                                         type="password"
+                                        value={pwForm.confirm_password}
+                                        onChange={e => setPwForm(p => ({ ...p, confirm_password: e.target.value }))}
+                                        className="gp-input"
+                                        placeholder="Nhập lại mật khẩu mới"
                                         required
-                                        minLength={6}
-                                        value={passwordForm.password_confirmation}
-                                        onChange={e => setPasswordForm({ ...passwordForm, password_confirmation: e.target.value })}
-                                        className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
                                     />
-                                </div>
-                                <div className="flex justify-end">
-                                    <button
-                                        type="submit"
-                                        disabled={passwordLoading}
-                                        className="rounded-lg bg-[#059669] px-4 py-2 font-medium text-white hover:bg-[#d62b22] disabled:opacity-50"
-                                    >
-                                        {passwordLoading ? 'Đang xử lý...' : 'Đổi mật khẩu'}
+                                    {pwForm.confirm_password && pwForm.new_password !== pwForm.confirm_password && (
+                                        <p style={{ fontSize: 11.5, color: 'var(--crimson)', margin: '4px 0 0' }}>⚠ Mật khẩu xác nhận không khớp</p>
+                                    )}
+                                </FormField>
+
+                                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                                    <button type="submit" disabled={saving} className="gp-btn gp-btn-primary" style={{ opacity: saving ? 0.6 : 1 }}>
+                                        {saving ? 'Đang đổi...' : 'Đổi mật khẩu'}
                                     </button>
                                 </div>
                             </form>
                         )}
 
-                        {activeTab === 'telegram' && (
-                            <div className="max-w-lg space-y-6">
-                                {/* Hướng dẫn */}
-                                <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-                                    <p className="mb-2 font-semibold">Hướng dẫn kết nối Telegram:</p>
-                                    <ol className="list-decimal space-y-1 pl-4">
-                                        <li>Mở Telegram, tìm bot <strong>@userinfobot</strong></li>
-                                        <li>Nhắn <code className="rounded bg-blue-100 px-1">/start</code> — bot sẽ trả về Chat ID của bạn</li>
-                                        <li>Tìm và nhắn <code className="rounded bg-blue-100 px-1">/start</code> tới bot HRM của công ty để kích hoạt</li>
-                                        <li>Dán Chat ID vào ô bên dưới và lưu lại</li>
-                                    </ol>
+                        {/* Tab: Tài khoản */}
+                        {activeTab === 'account' && (
+                            <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
+                                <SectionHeader title="Thông tin tài khoản" desc="Các thông tin liên kết và trạng thái tài khoản của bạn." />
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    <InfoCard label="Email"        value={user?.email || '—'}       icon="link"    />
+                                    <InfoCard label="Vai trò"      value={role}                      icon="sparkle" />
+                                    <InfoCard label="Đăng nhập qua" value={user?.google_id ? 'Google' : 'Email / Mật khẩu'} icon="users" />
+                                    {user?.dong_ho && (
+                                        <InfoCard label="Dòng họ" value={user.dong_ho.ten_dong_ho} icon="lotus" />
+                                    )}
                                 </div>
 
-                                <form onSubmit={handleTelegramSubmit} className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Telegram Chat ID
-                                        </label>
-                                        <input
-                                            type="text"
-                                            placeholder="VD: 123456789"
-                                            value={telegramChatId}
-                                            onChange={e => setTelegramChatId(e.target.value)}
-                                            className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-[#059669] focus:outline-none focus:ring-1 focus:ring-[#059669]"
-                                        />
-                                        {telegramChatId && (
-                                            <p className="mt-1 text-xs text-green-600">
-                                                ✓ Đã liên kết Telegram Chat ID
-                                            </p>
-                                        )}
-                                        {!telegramChatId && (
-                                            <p className="mt-1 text-xs text-gray-500">
-                                                Để trống nếu muốn hủy liên kết Telegram
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="flex justify-end">
-                                        <button
-                                            type="submit"
-                                            disabled={telegramLoading}
-                                            className="rounded-lg bg-[#059669] px-4 py-2 font-medium text-white hover:bg-[#d62b22] disabled:opacity-50"
-                                        >
-                                            {telegramLoading ? 'Đang lưu...' : 'Lưu Chat ID'}
-                                        </button>
-                                    </div>
-                                </form>
-
-                                {/* Thông báo sẽ nhận */}
-                                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-600">
-                                    <p className="mb-2 font-medium text-gray-700">Bạn sẽ nhận thông báo khi:</p>
-                                    <ul className="space-y-1">
-                                        <li>📋 Được giao task mới</li>
-                                        <li>✅ Task của bạn được hoàn thành (dành cho người giao)</li>
-                                        <li>💬 Có bình luận mới trên task</li>
-                                        <li>⏰ Task sắp đến deadline (mỗi sáng 8:00)</li>
-                                    </ul>
+                                <div style={{ padding: '16px 20px', borderRadius: 14, background: 'color-mix(in srgb, var(--crimson) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--crimson) 20%, transparent)', marginTop: 8 }}>
+                                    <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--crimson)', marginBottom: 4 }}>⚠ Vùng nguy hiểm</div>
+                                    <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Nếu bạn muốn xóa tài khoản, vui lòng liên hệ quản trị viên dòng họ để được hỗ trợ.</p>
+                                    <button type="button" style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid color-mix(in srgb, var(--crimson) 40%, transparent)', background: 'transparent', color: 'var(--crimson)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                        Liên hệ quản trị viên
+                                    </button>
                                 </div>
                             </div>
                         )}
@@ -356,5 +317,64 @@ export default function ProfileIndex() {
                 </div>
             </div>
         </AuthenticatedLayout>
+    );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+function SectionHeader({ title, desc }: { title: string; desc: string }) {
+    return (
+        <div style={{ paddingBottom: 16, borderBottom: '1px solid var(--line-soft)' }}>
+            <h2 style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)', margin: '0 0 4px', fontFamily: 'Cormorant Garamond, serif' }}>{title}</h2>
+            <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: 0 }}>{desc}</p>
+        </div>
+    );
+}
+
+function FormField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+    return (
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-soft)' }}>
+                {label}{required && <span style={{ color: 'var(--crimson)', marginLeft: 3 }}>*</span>}
+            </span>
+            {children}
+        </label>
+    );
+}
+
+function InfoCard({ label, value, icon }: { label: string; value: string; icon: React.ComponentProps<typeof Icon>['name'] }) {
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 12, background: 'var(--card-soft)', border: '1px solid var(--line)' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--gold-glow)', border: '1px solid var(--gold-pale)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <Icon name={icon} size={14} color="var(--gold)" />
+            </div>
+            <div>
+                <div style={{ fontSize: 11, color: 'var(--ink-mute)', fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase' }}>{label}</div>
+                <div style={{ fontSize: 13.5, color: 'var(--ink)', fontWeight: 600 }}>{value}</div>
+            </div>
+        </div>
+    );
+}
+
+function PasswordStrength({ password }: { password: string }) {
+    let score = 0;
+    if (password.length >= 8)                 score++;
+    if (/[A-Z]/.test(password))               score++;
+    if (/[0-9]/.test(password))               score++;
+    if (/[^A-Za-z0-9]/.test(password))        score++;
+
+    const labels = ['Yếu', 'Trung bình', 'Mạnh', 'Rất mạnh'];
+    const colors = ['var(--crimson)', 'var(--terracotta)', 'var(--gold)', 'var(--jade)'];
+
+    return (
+        <div style={{ marginTop: 6 }}>
+            <div style={{ display: 'flex', gap: 4 }}>
+                {[0, 1, 2, 3].map(i => (
+                    <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i < score ? colors[score - 1] : 'var(--line)', transition: 'background 0.3s' }} />
+                ))}
+            </div>
+            <div style={{ fontSize: 11, marginTop: 4, color: score > 0 ? colors[score - 1] : 'var(--ink-mute)', fontWeight: 600 }}>
+                {score > 0 ? labels[score - 1] : 'Nhập mật khẩu'}
+            </div>
+        </div>
     );
 }

@@ -33,6 +33,7 @@ export interface Nguoi {
     anh_dai_dien: string | null;
     thu_tu_sinh: number | null;
     vo_chong_ids?: number[];
+    doi_thu?: number | null;
 }
 
 export type NguoiPayload = Omit<Nguoi, 'id' | 'vo_chong_ids'> & {
@@ -71,3 +72,85 @@ export const nguoiApi = {
         return response.data;
     },
 };
+
+// ─── Sự Kiện ─────────────────────────────────────────────────────────────────
+
+export interface SuKien {
+    id                : number;
+    dong_ho_id        : number;
+    ten_su_kien       : string;
+    loai_su_kien      : string | null;
+    ngay_duong        : string | null;  // ISO date yyyy-mm-dd
+    ngay_am           : string | null;  // ISO date yyyy-mm-dd (âm lịch)
+    lap_lai_hang_nam  : boolean;
+    dia_diem          : string | null;
+    mo_ta             : string | null;
+    created_at        : string;
+    updated_at        : string;
+}
+
+export type SuKienPayload = Omit<SuKien, 'id' | 'created_at' | 'updated_at'>;
+export type SuKienUpdatePayload = Partial<SuKienPayload> & { id: number };
+
+export const suKienApi = {
+    async list(dongHoId?: number | string) {
+        const response = await apiClient.get<ApiResponse<SuKien[]>>('/su-kien/list', {
+            params: dongHoId ? { dong_ho_id: dongHoId } : undefined,
+        });
+        return response.data;
+    },
+
+    async create(payload: SuKienPayload) {
+        const response = await apiClient.post<ApiResponse>('/su-kien/create', payload);
+        return response.data;
+    },
+
+    async update(payload: SuKienUpdatePayload) {
+        const response = await apiClient.post<ApiResponse>('/su-kien/update', payload);
+        return response.data;
+    },
+
+    async delete(id: number) {
+        const response = await apiClient.post<ApiResponse>('/su-kien/delete', { id });
+        return response.data;
+    },
+};
+
+// ─── Tài Liệu ────────────────────────────────────────────────────────────────
+
+export interface TaiLieu {
+    id              : number;
+    dong_ho_id      : number | null;
+    thanh_vien_id   : number | null;
+    duong_dan_file  : string;
+    loai_file       : string;
+    du_lieu_orc     : string | null;
+    created_at      : string;
+    updated_at      : string;
+}
+
+export type TaiLieuPayload = Omit<TaiLieu, 'id' | 'created_at' | 'updated_at'>;
+export type TaiLieuUpdatePayload = Partial<TaiLieuPayload> & { id: number };
+
+export const taiLieuApi = {
+    async list(params?: { dong_ho_id?: number | string; thanh_vien_id?: number | string }) {
+        const response = await apiClient.get<ApiResponse<TaiLieu[]>>('/tai-lieu/list', { params });
+        return response.data;
+    },
+
+    async create(payload: TaiLieuPayload) {
+        const response = await apiClient.post<ApiResponse>('/tai-lieu/create', payload);
+        return response.data;
+    },
+
+    async update(payload: TaiLieuUpdatePayload) {
+        const response = await apiClient.post<ApiResponse>('/tai-lieu/update', payload);
+        return response.data;
+    },
+
+    async delete(id: number) {
+        const response = await apiClient.post<ApiResponse>('/tai-lieu/delete', { id });
+        return response.data;
+    },
+};
+

@@ -1,185 +1,285 @@
 import { Head, Link } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
+import Icon from '../../../components/gia-pha/Icon';
 import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../../services/gia-pha.api';
 import { useAuth } from '../../../contexts/auth.context';
-import AdminDanhSachThanhVien from '../../admin/thanh-vien';
+import AdminDanhSachThanhVien from '../../admin/thanh-vien/index';
+
+// Gradient avatar theo họ tên
+function avatarGrad(name: string): string {
+    const seed = name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    const pairs = [
+        ['#b8902c', '#5c3a1e'],
+        ['#2f5d3a', '#4a7a52'],
+        ['#8b2a1f', '#c44535'],
+        ['#225b7a', '#3e84a8'],
+        ['#8b5a2b', '#a06d3b'],
+        ['#6b3fa0', '#9c6dd6'],
+    ];
+    const p = pairs[seed % pairs.length];
+    return `linear-gradient(135deg, ${p[0]}, ${p[1]})`;
+}
+
+function initials(name: string): string {
+    const parts = name.trim().split(' ');
+    return parts[parts.length - 1]?.charAt(0)?.toUpperCase() ?? name.charAt(0).toUpperCase();
+}
 
 export default function ClientDanhSachThanhVien() {
     const { user } = useAuth();
-
-    if (user?.is_master === 1) {
-        return <AdminDanhSachThanhVien />;
-    }
-    const [members, setMembers] = useState<Nguoi[]>([]);
-    const [dongHos, setDongHos] = useState<DongHo[]>([]);
-    const [selectedDongHo, setSelectedDongHo] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-
-    const filteredMembers = useMemo(() => {
-        if (!selectedDongHo) {
-            return members;
-        }
-
-        return members.filter((member) => String(member.id_dong_ho) === selectedDongHo);
-    }, [members, selectedDongHo]);
+    const [members,      setMembers]      = useState<Nguoi[]>([]);
+    const [dongHos,      setDongHos]      = useState<DongHo[]>([]);
+    const [selectedDH,   setSelectedDH]   = useState('');
+    const [loading,      setLoading]      = useState(true);
+    const [searchTerm,   setSearchTerm]   = useState('');
+    const [viewMode,     setViewMode]     = useState<'grid' | 'table'>('grid');
 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [dongHoResult, nguoiResult] = await Promise.all([dongHoApi.list(), nguoiApi.list(selectedDongHo)]);
-            setDongHos(dongHoResult.data || []);
-            setMembers(nguoiResult.data || []);
+            const [dhRes, ngRes] = await Promise.all([dongHoApi.list(), nguoiApi.list(selectedDH)]);
+            setDongHos(dhRes.data || []);
+            setMembers(ngRes.data || []);
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        void loadData();
-    }, [selectedDongHo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    useEffect(() => { 
+        if (user?.is_master !== 1) {
+            void loadData(); 
+        }
+    }, [selectedDH, user?.is_master]);
 
-    const displayedMembers = useMemo(() => {
-        if (!searchTerm.trim()) return filteredMembers;
-        const q = searchTerm.toLowerCase();
-        return filteredMembers.filter((m) => m.ten_day_du.toLowerCase().includes(q));
-    }, [filteredMembers, searchTerm]);
+    const filtered = useMemo(() => {
+        let list = selectedDH ? members.filter(m => String(m.id_dong_ho) === selectedDH) : members;
+        if (searchTerm.trim()) {
+            const q = searchTerm.toLowerCase();
+            list = list.filter(m => m.ten_day_du.toLowerCase().includes(q));
+        }
+        return list;
+    }, [members, selectedDH, searchTerm]);
 
-    const statsNam = filteredMembers.filter((m) => m.gioi_tinh === 'nam').length;
-    const statsNu = filteredMembers.filter((m) => m.gioi_tinh === 'nu').length;
-    const statsDaMat = filteredMembers.filter((m) => Boolean(m.da_mat)).length;
+    // Phân nhánh admin sau khi khai báo hooks
+    if (user?.is_master === 1) {
+        return <AdminDanhSachThanhVien />;
+    }
 
-    const getMemberById = (id: number) => {
-        return members.find((member) => member.id === id);
-    };
+    const statsNam   = filtered.filter(m => m.gioi_tinh === 'nam').length;
+    const statsNu    = filtered.filter(m => m.gioi_tinh === 'nu').length;
+    const statsMat   = filtered.filter(m => Boolean(m.da_mat)).length;
+    const statsAlive = filtered.length - statsMat;
+
+    const getMemberById = (id: number) => members.find(m => m.id === id);
 
     return (
         <AuthenticatedLayout>
             <Head title="Danh sách thành viên dòng họ" />
-            <div className="mx-auto max-w-7xl">
-                {/* Header */}
-                <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Danh sách thành viên</h2>
-                        <div className="mt-2 flex flex-wrap gap-3">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                                👨 {statsNam} Nam
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-pink-50 px-3 py-1 text-xs font-semibold text-pink-700">
-                                👩 {statsNu} Nữ
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-600">
-                                ✝ {statsDaMat} Đã mất
-                            </span>
+            <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+
+                {/* ─── Header ──────────────────────────────────── */}
+                <div style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 4 }}>Gia phả · Thành viên</div>
+                    <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--ink)', margin: '0 0 8px', fontFamily: 'Cormorant Garamond, serif' }}>Danh sách thành viên</h1>
+                    <p style={{ fontSize: 13.5, color: 'var(--ink-mute)', margin: 0 }}>Tất cả các thành viên trong dòng họ được ghi chép trong gia phả.</p>
+                </div>
+
+                {/* ─── Stats Row ───────────────────────────────── */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+                    {[
+                        { label: 'Tổng số', value: filtered.length, icon: 'users' as const,    color: 'gold'       },
+                        { label: 'Nam',     value: statsNam,        icon: 'users' as const,    color: 'gold'       },
+                        { label: 'Nữ',      value: statsNu,         icon: 'heart' as const,    color: 'terracotta' },
+                        { label: 'Còn sống',value: statsAlive,      icon: 'sparkle' as const,  color: 'jade'       },
+                    ].map(stat => (
+                        <div key={stat.label} style={{ background: 'var(--bg-elev)', borderRadius: 14, border: '1px solid var(--line)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow-sm)' }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 10, background: `color-mix(in srgb, var(--${stat.color}) 12%, transparent)`, border: `1px solid color-mix(in srgb, var(--${stat.color}) 25%, transparent)`, display: 'grid', placeItems: 'center' }}>
+                                <Icon name={stat.icon} size={16} color={`var(--${stat.color})`} />
+                            </div>
+                            <div>
+                                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', lineHeight: 1, fontFamily: 'Cormorant Garamond, serif' }}>{stat.value}</div>
+                                <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', marginTop: 2 }}>{stat.label}</div>
+                            </div>
                         </div>
+                    ))}
+                </div>
+
+                {/* ─── Toolbar ─────────────────────────────────── */}
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 20, alignItems: 'center' }}>
+                    {/* Search */}
+                    <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
+                        <Icon name="search" size={15} color="var(--ink-mute)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                        <input
+                            type="text"
+                            placeholder="Tìm kiếm theo tên..."
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                            style={{ width: '100%', padding: '9px 12px 9px 36px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-elev)', color: 'var(--ink)', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+                        />
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3">
-                        {/* Search */}
-                        <div className="relative">
-                            <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            <input
-                                type="text"
-                                placeholder="Tìm theo tên..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-4 text-sm shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                            />
-                        </div>
+                    {/* Dòng họ filter */}
+                    <select
+                        value={selectedDH}
+                        onChange={e => setSelectedDH(e.target.value)}
+                        style={{ padding: '9px 36px 9px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-elev)', color: 'var(--ink)', fontSize: 13, cursor: 'pointer', appearance: 'none', minWidth: 180 }}
+                    >
+                        <option value="">Tất cả dòng họ</option>
+                        {dongHos.map(dh => <option key={dh.id} value={dh.id}>{dh.ten_dong_ho}</option>)}
+                    </select>
 
-                        <select
-                            value={selectedDongHo}
-                            onChange={(event) => setSelectedDongHo(event.target.value)}
-                            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                        >
-                            <option value="">Tất cả dòng họ</option>
-                            {dongHos.map((dongHo) => (
-                                <option key={dongHo.id} value={dongHo.id}>{dongHo.ten_dong_ho}</option>
-                            ))}
-                        </select>
+                    {/* View toggle */}
+                    <div style={{ display: 'flex', gap: 2, background: 'var(--card-soft)', padding: 3, borderRadius: 10, border: '1px solid var(--line)' }}>
+                        {(['grid', 'table'] as const).map(mode => (
+                            <button
+                                key={mode}
+                                onClick={() => setViewMode(mode)}
+                                style={{ width: 34, height: 30, borderRadius: 8, border: 'none', cursor: 'pointer', background: viewMode === mode ? 'var(--bg-elev)' : 'transparent', color: viewMode === mode ? 'var(--gold)' : 'var(--ink-mute)', transition: 'all 0.15s', display: 'grid', placeItems: 'center', boxShadow: viewMode === mode ? 'var(--shadow-sm)' : 'none' }}
+                                title={mode === 'grid' ? 'Dạng thẻ' : 'Dạng bảng'}
+                            >
+                                <Icon name={mode === 'grid' ? 'lotus' : 'scroll'} size={14} />
+                            </button>
+                        ))}
                     </div>
                 </div>
 
-                <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500">Họ và tên</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500">Dòng họ</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500">Giới tính</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500">Ngày sinh</th>
-                                    <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-500">Trạng thái</th>
-                                    <th className="px-6 py-4 text-right text-xs font-bold uppercase tracking-wider text-gray-500">Thao tác</th>
+                {/* ─── Loading ─────────────────────────────────── */}
+                {loading && (
+                    <div style={{ display: 'grid', placeItems: 'center', height: 280 }}>
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ width: 36, height: 36, border: '4px solid var(--gold-pale)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 10px' }} />
+                            <div style={{ fontSize: 13, color: 'var(--ink-mute)' }}>Đang tải danh sách...</div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ─── Empty state ─────────────────────────────── */}
+                {!loading && filtered.length === 0 && (
+                    <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', padding: '56px 24px', textAlign: 'center' }}>
+                        <Icon name="users" size={44} color="var(--ink-faint)" />
+                        <div style={{ marginTop: 12, fontSize: 16, fontWeight: 600, color: 'var(--ink-mute)' }}>
+                            {searchTerm ? `Không tìm thấy kết quả cho "${searchTerm}"` : 'Chưa có thành viên nào'}
+                        </div>
+                    </div>
+                )}
+
+                {/* ─── Grid view ───────────────────────────────── */}
+                {!loading && filtered.length > 0 && viewMode === 'grid' && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+                        {filtered.map(member => {
+                            const dongHo = dongHos.find(d => d.id === member.id_dong_ho);
+                            const spouseNames = (member.vo_chong_ids || []).map(sid => getMemberById(sid)?.ten_day_du).filter(Boolean).join(', ');
+
+                            return (
+                                <Link key={member.id} href={`/gia-pha/thanh-vien/${member.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+                                    <div
+                                        style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', overflow: 'hidden', transition: 'all 0.2s', boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}
+                                        onMouseEnter={e => {
+                                            (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--gold-soft)';
+                                            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
+                                            (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-md)';
+                                        }}
+                                        onMouseLeave={e => {
+                                            (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--line)';
+                                            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+                                            (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-sm)';
+                                        }}
+                                    >
+                                        {/* Banner */}
+                                        <div style={{ height: 52, background: avatarGrad(member.ten_day_du), position: 'relative' }}>
+                                            {member.da_mat && (
+                                                <div style={{ position: 'absolute', top: 8, right: 10, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.9)' }}>✝ Đã mất</div>
+                                            )}
+                                        </div>
+
+                                        <div style={{ padding: '0 16px 16px', marginTop: -20 }}>
+                                            {/* Avatar */}
+                                            <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid var(--bg-elev)', background: avatarGrad(member.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 10, boxShadow: 'var(--shadow-sm)' }}>
+                                                {initials(member.ten_day_du)}
+                                            </div>
+
+                                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 4, fontFamily: 'Cormorant Garamond, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.ten_day_du}</div>
+
+                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                                                <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 12%, transparent)' : 'color-mix(in srgb, var(--terracotta) 12%, transparent)', color: member.gioi_tinh === 'nam' ? 'var(--gold)' : 'var(--terracotta)', border: `1px solid ${member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 25%, transparent)' : 'color-mix(in srgb, var(--terracotta) 25%, transparent)'}` }}>
+                                                    {member.gioi_tinh === 'nam' ? '♂ Nam' : '♀ Nữ'}
+                                                </span>
+                                                {dongHo && (
+                                                    <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--card-soft)', color: 'var(--ink-mute)', border: '1px solid var(--line)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
+                                                        {dongHo.ten_dong_ho}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                                {member.ngay_sinh && <div>📅 {member.ngay_sinh}</div>}
+                                                {spouseNames && <div>💑 {spouseNames}</div>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Link>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* ─── Table view ──────────────────────────────── */}
+                {!loading && filtered.length > 0 && viewMode === 'table' && (
+                    <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                                <tr style={{ background: 'var(--card-soft)' }}>
+                                    {['Họ và tên', 'Dòng họ', 'Giới tính', 'Ngày sinh', 'Trạng thái', ''].map(col => (
+                                        <th key={col} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--ink-mute)', borderBottom: '1px solid var(--line)' }}>{col}</th>
+                                    ))}
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-200 bg-white">
-                                {loading ? (
-                                    <tr>
-                                        <td colSpan={6} className="px-6 py-10 text-center text-sm font-medium text-gray-500">
-                                            Đang tải dữ liệu...
-                                        </td>
-                                    </tr>
-                                ) : displayedMembers.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="px-6 py-10 text-center text-sm font-medium text-gray-500">
-                                            Chưa có thành viên nào.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    displayedMembers.map((member) => {
-                                        const dongHo = dongHos.find((item) => item.id === member.id_dong_ho);
-                                        const spouseNames = (member.vo_chong_ids || [])
-                                            .map((spouseId) => getMemberById(spouseId)?.ten_day_du)
-                                            .filter(Boolean)
-                                            .join(', ');
-
-                                        return (
-                                            <tr key={member.id} className="transition hover:bg-emerald-50">
-                                                <td className="whitespace-nowrap px-6 py-4">
-                                                    <div className="flex items-center">
-                                                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-100 font-bold text-gray-600">
-                                                            {member.ten_day_du.charAt(0)}
-                                                        </div>
-                                                        <div className="ml-4">
-                                                            <Link href={`/gia-pha/thanh-vien/${member.id}`} className="text-sm font-semibold text-gray-900 hover:text-emerald-700">
-                                                                {member.ten_day_du}
-                                                            </Link>
-                                                            <div className="text-xs text-gray-500">ID: #{member.id}</div>
-                                                            {spouseNames && <div className="text-xs text-gray-500">Vợ/chồng: {spouseNames}</div>}
-                                                        </div>
+                            <tbody>
+                                {filtered.map((member, i) => {
+                                    const dongHo = dongHos.find(d => d.id === member.id_dong_ho);
+                                    return (
+                                        <tr key={member.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--line-soft)' : 'none' }}
+                                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--gold-glow)')}
+                                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                        >
+                                            <td style={{ padding: '12px 16px' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: avatarGrad(member.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 700, color: 'white', flexShrink: 0 }}>
+                                                        {initials(member.ten_day_du)}
                                                     </div>
-                                                </td>
-                                                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{dongHo?.ten_dong_ho || `#${member.id_dong_ho}`}</td>
-                                                <td className="whitespace-nowrap px-6 py-4">
-                                                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${member.gioi_tinh === 'nam' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'}`}>
-                                                        {member.gioi_tinh === 'nam' ? 'Nam' : 'Nữ'}
-                                                    </span>
-                                                </td>
-                                                <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-600">{member.ngay_sinh || '-'}</td>
-                                                <td className="whitespace-nowrap px-6 py-4">
-                                                    {Boolean(member.da_mat) ? (
-                                                        <span className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800">Đã mất</span>
-                                                    ) : (
-                                                        <span className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Còn sống</span>
-                                                    )}
-                                                </td>
-                                                <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                                                    <Link href={`/gia-pha/thanh-vien/${member.id}`} className="font-semibold text-emerald-600 hover:text-emerald-900">
-                                                        Xem chi tiết →
-                                                    </Link>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                )}
+                                                    <div>
+                                                        <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>{member.ten_day_du}</div>
+                                                        <div style={{ fontSize: 11, color: 'var(--ink-faint)' }}>#{member.id}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--ink-soft)' }}>{dongHo?.ten_dong_ho || `#${member.id_dong_ho}`}</td>
+                                            <td style={{ padding: '12px 16px' }}>
+                                                <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 12%, transparent)' : 'color-mix(in srgb, var(--terracotta) 12%, transparent)', color: member.gioi_tinh === 'nam' ? 'var(--gold)' : 'var(--terracotta)', border: `1px solid ${member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 25%, transparent)' : 'color-mix(in srgb, var(--terracotta) 25%, transparent)'}` }}>
+                                                    {member.gioi_tinh === 'nam' ? 'Nam' : 'Nữ'}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--ink-soft)' }}>{member.ngay_sinh || '—'}</td>
+                                            <td style={{ padding: '12px 16px' }}>
+                                                <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: member.da_mat ? 'var(--card-soft)' : 'color-mix(in srgb, var(--jade) 12%, transparent)', color: member.da_mat ? 'var(--ink-mute)' : 'var(--jade)', border: `1px solid ${member.da_mat ? 'var(--line)' : 'color-mix(in srgb, var(--jade) 25%, transparent)'}` }}>
+                                                    {member.da_mat ? '✝ Đã mất' : '● Còn sống'}
+                                                </span>
+                                            </td>
+                                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                                                <Link href={`/gia-pha/thanh-vien/${member.id}`} style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--gold)', textDecoration: 'none' }}>
+                                                    Xem →
+                                                </Link>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
-                </div>
+                )}
+
             </div>
         </AuthenticatedLayout>
     );

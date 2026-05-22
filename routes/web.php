@@ -63,3 +63,10 @@ Route::get('/gia-pha/events', function () {
     return Inertia::render('client/events/index');
 });
 
+Route::get('/profile', function () {
+    return Inertia::render('profile/index');
+});
+
+Route::get('/gia-pha/tai-lieu', function () {
+    return Inertia::render('client/tai-lieu/index');
+});

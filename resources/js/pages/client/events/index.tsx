@@ -21,6 +21,7 @@ import { Head, router } from '@inertiajs/react';
 import React, { useMemo, useState } from 'react';
 import IconBase from '../../../components/gia-pha/Icon';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
+import { useAuth } from '../../../contexts/auth.context';
 
 // ============================================================
 // External shared modules — adjust import paths to your codebase
@@ -1153,44 +1154,213 @@ const DetailItem: React.FC<{ label: string; value: string }> = ({ label, value }
 );
 
 // ============================================================
-// Main page
+// Map SuKien DB → FamilyEvent UI
 // ============================================================
-export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events = EVENTS_2026, today = new Date().toISOString().slice(0, 10) }) => {
-    const [filter, setFilter] = useState<FilterValue>('all');
-    const [viewMonth, setViewMonth] = useState<{ y: number; m: number }>({
+const LOAI_MAP: Record<string, EventType> = {
+    gio_to          : 'anniversary',
+    le_cuoi         : 'wedding',
+    le_truyen_thong : 'ceremony',
+    mung_tho        : 'longevity',
+    sinh_nhat       : 'birthday',
+    anniversary     : 'anniversary',
+    wedding         : 'wedding',
+    ceremony        : 'ceremony',
+    longevity       : 'longevity',
+    birthday        : 'birthday',
+};
+
+function mapSuKienToFamilyEvent(sk: import('../../../services/gia-pha.api').SuKien): FamilyEvent {
+    return {
+        id          : String(sk.id),
+        date        : sk.ngay_duong || sk.ngay_am || new Date().toISOString().slice(0, 10),
+        lunarDate   : sk.ngay_am ? sk.ngay_am.split('-').reverse().join('/') + ' ÂL' : undefined,
+        title       : sk.ten_su_kien,
+        type        : LOAI_MAP[sk.loai_su_kien || ''] ?? 'ceremony',
+        location    : sk.dia_diem || 'Chưa cập nhật địa điểm',
+        attendees   : 0,
+        description : sk.mo_ta ?? undefined,
+        pinned      : false,
+    };
+}
+
+// ============================================================
+// Màn hình thêm sự kiện (admin)
+// ============================================================
+interface AddEventModalProps {
+    dongHoId  : number;
+    onClose   : () => void;
+    onSuccess : () => void;
+}
+
+const LOAI_OPTIONS: { value: string; label: string }[] = [
+    { value: 'gio_to',          label: 'Lễ giỗ' },
+    { value: 'le_cuoi',         label: 'Lễ cưới' },
+    { value: 'le_truyen_thong', label: 'Lễ truyền thống' },
+    { value: 'mung_tho',        label: 'Mừng thọ' },
+    { value: 'sinh_nhat',       label: 'Sinh nhật / Đầy tháng' },
+];
+
+const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, onClose, onSuccess }) => {
+    const [form, setForm] = React.useState({
+        ten_su_kien      : '',
+        loai_su_kien     : 'gio_to',
+        ngay_duong       : '',
+        ngay_am          : '',
+        lap_lai_hang_nam : false,
+        dia_diem         : '',
+        mo_ta            : '',
+    });
+    const [saving, setSaving] = React.useState(false);
+    const [error,  setError]  = React.useState('');
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!form.ten_su_kien.trim()) { setError('Tên sự kiện không được để trống.'); return; }
+        if (!form.ngay_duong && !form.ngay_am) { setError('Vui lòng nhập ít nhất ngày dương hoặc ngày âm.'); return; }
+
+        setSaving(true);
+        setError('');
+        try {
+            const { suKienApi } = await import('../../../services/gia-pha.api');
+            const res = await suKienApi.create({
+                dong_ho_id       : dongHoId,
+                ten_su_kien      : form.ten_su_kien.trim(),
+                loai_su_kien     : form.loai_su_kien,
+                ngay_duong       : form.ngay_duong   || null,
+                ngay_am          : form.ngay_am       || null,
+                lap_lai_hang_nam : form.lap_lai_hang_nam,
+                dia_diem         : form.dia_diem.trim()  || null,
+                mo_ta            : form.mo_ta.trim()      || null,
+            });
+            if (res.success) { onSuccess(); onClose(); }
+            else setError(res.message || 'Không thể tạo sự kiện.');
+        } catch {
+            setError('Lỗi kết nối máy chủ.');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const f = (k: string, v: string | boolean) => setForm(prev => ({ ...prev, [k]: v }));
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}>
+            <form onSubmit={handleSubmit} style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}>
+                <div style={{ padding: '20px 24px', background: 'linear-gradient(135deg, var(--gold), var(--brown-soft))', borderRadius: '20px 20px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                        <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase' }}>Quản lý sự kiện</div>
+                        <h3 style={{ color: 'white', fontSize: 18, fontWeight: 700, margin: 0 }}>Thêm sự kiện mới</h3>
+                    </div>
+                    <button type="button" onClick={onClose} style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+                        <Icon name="x" size={15} />
+                    </button>
+                </div>
+
+                <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {error && <div style={{ padding: '10px 14px', background: 'color-mix(in srgb, var(--crimson) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--crimson) 25%, transparent)', borderRadius: 10, color: 'var(--crimson)', fontSize: 13 }}>{error}</div>}
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Tên sự kiện <span style={{ color: 'var(--crimson)' }}>*</span></span>
+                        <input value={form.ten_su_kien} onChange={e => f('ten_su_kien', e.target.value)} className="gp-input" placeholder="Vd: Giỗ Tổ Cụ Nguyễn Văn A" required />
+                    </label>
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Loại sự kiện</span>
+                        <select value={form.loai_su_kien} onChange={e => f('loai_su_kien', e.target.value)} className="gp-input">
+                            {LOAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                    </label>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Ngày dương lịch</span>
+                            <input type="date" value={form.ngay_duong} onChange={e => f('ngay_duong', e.target.value)} className="gp-input" />
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Ngày âm lịch</span>
+                            <input type="date" value={form.ngay_am} onChange={e => f('ngay_am', e.target.value)} className="gp-input" placeholder="yyyy-mm-dd" />
+                        </label>
+                    </div>
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Địa điểm</span>
+                        <input value={form.dia_diem} onChange={e => f('dia_diem', e.target.value)} className="gp-input" placeholder="Vd: Từ đường dòng họ, Hà Tĩnh" />
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={form.lap_lai_hang_nam} onChange={e => f('lap_lai_hang_nam', e.target.checked)} style={{ width: 16, height: 16, accentColor: 'var(--gold)', cursor: 'pointer' }} />
+                        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--ink-soft)' }}>Lặp lại hàng năm (lễ giỗ, ngày kỷ niệm…)</span>
+                    </label>
+
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Mô tả</span>
+                        <textarea value={form.mo_ta} onChange={e => f('mo_ta', e.target.value)} className="gp-input" rows={3} placeholder="Thông tin chi tiết về sự kiện…" style={{ resize: 'none' }} />
+                    </label>
+
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4 }}>
+                        <button type="button" onClick={onClose} className="gp-btn gp-btn-ghost">Hủy</button>
+                        <button type="submit" disabled={saving} className="gp-btn gp-btn-primary" style={{ opacity: saving ? 0.6 : 1 }}>
+                            {saving ? 'Đang lưu…' : 'Tạo sự kiện'}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+// ============================================================
+// Main page — kết nối API thực
+// ============================================================
+export const EventsPage: React.FC<EventsPageProps> = ({ onNav, today = new Date().toISOString().slice(0, 10) }) => {
+    const { user } = useAuth();
+
+    const [rawEvents,    setRawEvents]    = React.useState<FamilyEvent[]>([]);
+    const [loading,      setLoading]      = React.useState(true);
+    const [showAddModal, setShowAddModal] = React.useState(false);
+    const [filter,       setFilter]       = useState<FilterValue>('all');
+    const [viewMonth,    setViewMonth]    = useState<{ y: number; m: number }>({
         y: parseISO(today).y,
         m: parseISO(today).m,
     });
     const [selectedDate, setSelectedDate] = useState<string | null>(today);
 
+    const loadEvents = React.useCallback(async () => {
+        setLoading(true);
+        try {
+            const { suKienApi } = await import('../../../services/gia-pha.api');
+            const dongHoId = user?.dong_ho?.id;
+            const res = await suKienApi.list(dongHoId);
+            if (res.success && res.data) {
+                setRawEvents(res.data.map(mapSuKienToFamilyEvent));
+            }
+        } catch {
+            // network error — giữ mảng rỗng
+        } finally {
+            setLoading(false);
+        }
+    }, [user?.dong_ho?.id]);
+
+    React.useEffect(() => { void loadEvents(); }, [loadEvents]);
+
+    // Nếu API chưa có dữ liệu, dùng fallback mẫu để không blank hoàn toàn
+    const events = rawEvents.length > 0 ? rawEvents : (loading ? [] : EVENTS_2026);
+
     const filtered = useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
 
     const counts = useMemo<Record<FilterValue, number>>(() => {
-        const c: Record<FilterValue, number> = {
-            all: events.length,
-            anniversary: 0,
-            wedding: 0,
-            ceremony: 0,
-            longevity: 0,
-            birthday: 0,
-        };
+        const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0 };
         for (const e of events) c[e.type]++;
         return c;
     }, [events]);
 
     const nextEvent = useMemo<FamilyEvent | null>(() => {
-        const upcoming = filtered
-            .filter((e) => daysBetween(today, e.date) >= 0)
-            .sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date));
+        const upcoming = filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date));
         return upcoming[0] ?? null;
     }, [filtered, today]);
 
     const upcoming = useMemo<FamilyEvent[]>(
-        () =>
-            filtered
-                .filter((e) => daysBetween(today, e.date) >= 0)
-                .sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date))
-                .slice(0, 8),
+        () => filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date)).slice(0, 8),
         [filtered, today],
     );
 
@@ -1200,11 +1370,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events = EVENTS_2
     }, [events, selectedDate]);
 
     const monthEvents = useMemo<FamilyEvent[]>(
-        () =>
-            filtered.filter((e) => {
-                const { y, m } = parseISO(e.date);
-                return y === viewMonth.y && m === viewMonth.m;
-            }),
+        () => filtered.filter((e) => { const { y, m } = parseISO(e.date); return y === viewMonth.y && m === viewMonth.m; }),
         [filtered, viewMonth],
     );
 
@@ -1212,125 +1378,123 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events = EVENTS_2
         setViewMonth((prev) => {
             let m = prev.m + direction;
             let y = prev.y;
-            if (m < 1) {
-                m = 12;
-                y--;
-            }
-            if (m > 12) {
-                m = 1;
-                y++;
-            }
+            if (m < 1)  { m = 12; y--; }
+            if (m > 12) { m = 1;  y++; }
             return { y, m };
         });
     }
 
-    const navigate =
-        onNav ??
-        ((page: string) => {
-            const href = page === 'dashboard' ? '/gia-pha/dashboard' : page === 'tree' ? '/gia-pha/cay-gia-pha' : '/';
-            router.visit(href);
-        });
+    const navigate = onNav ?? ((page: string) => {
+        const href = page === 'dashboard' ? '/gia-pha/dashboard' : page === 'tree' ? '/gia-pha/cay-gia-pha' : '/';
+        router.visit(href);
+    });
+
+    const isMaster = user?.is_master === 1;
 
     return (
         <AuthenticatedLayout>
             <Head title="Sự kiện & Lễ giỗ" />
             <div className="fade-in" style={{ maxWidth: 1320, margin: '0 auto' }}>
-                <header
-                    className="row"
-                    style={{
-                        justifyContent: 'space-between',
-                        alignItems: 'flex-start',
-                        marginBottom: 24,
-                    }}
-                >
+                <header className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
                     <div>
                         <div className="row gap-2" style={{ marginBottom: 6 }}>
-                            <span
-                                style={{
-                                    fontSize: 11,
-                                    letterSpacing: 2,
-                                    color: 'var(--gold)',
-                                    fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                }}
-                            >
-                                Sự kiện & Lễ giỗ
-                            </span>
+                            <span style={{ fontSize: 11, letterSpacing: 2, color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase' }}>Sự kiện & Lễ giỗ</span>
                             <span style={{ color: 'var(--ink-faint)' }}>·</span>
-                            <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Lịch âm tự động · {events.length} sự kiện năm 2026</span>
+                            <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Lịch âm tự động · {events.length} sự kiện</span>
                         </div>
                         <h1 className="page-title">Lịch dòng họ</h1>
-                        <div className="page-sub">
-                            Lễ giỗ, lễ cưới, lễ truyền thống và mọi cột mốc quan trọng của họ Nguyễn — được tính toán theo cả dương lịch và âm lịch.
-                        </div>
+                        <div className="page-sub">Lễ giỗ, lễ cưới, lễ truyền thống và mọi cột mốc quan trọng của dòng họ — được tính toán theo cả dương lịch và âm lịch.</div>
                     </div>
                     <div className="row gap-2">
                         <button className="btn btn-ghost" onClick={() => navigate('dashboard')}>
                             <Icon name="dashboard" size={14} />
                             Bảng điều khiển
                         </button>
-                        <button className="btn btn-primary">
-                            <Icon name="plus" size={14} />
-                            Tạo sự kiện mới
-                        </button>
+                        {isMaster && (
+                            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+                                <Icon name="plus" size={14} />
+                                Tạo sự kiện
+                            </button>
+                        )}
                     </div>
                 </header>
 
-                {nextEvent && (
-                    <NextEventHero event={nextEvent} honoree={nextEvent.honoreeId ? (BY_ID[nextEvent.honoreeId] ?? null) : null} today={today} />
-                )}
-
-                <FilterBar active={filter} onChange={setFilter} counts={counts} />
-
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1.55fr 1fr',
-                        gap: 24,
-                        marginBottom: 24,
-                    }}
-                >
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                        <CalendarView
-                            year={viewMonth.y}
-                            month={viewMonth.m}
-                            events={monthEvents}
-                            selected={selectedDate}
-                            today={today}
-                            onSelect={setSelectedDate}
-                            onMonthChange={changeMonth}
-                        />
-                        <YearHeatmap events={events} currentMonth={viewMonth.m} onMonthClick={(m) => setViewMonth((v) => ({ ...v, m }))} />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                        <EventDetail event={selectedEvent} honoree={selectedEvent?.honoreeId ? (BY_ID[selectedEvent.honoreeId] ?? null) : null} />
-
-                        <div className="card card-pad">
-                            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
-                                <div>
-                                    <div className="section-title">Sắp diễn ra</div>
-                                    <div className="section-meta">{upcoming.length} sự kiện gần nhất</div>
-                                </div>
-                                <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 11 }}>
-                                    Tất cả →
-                                </button>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                {upcoming.map((e, i) => (
-                                    <UpcomingItem
-                                        key={e.id}
-                                        event={e}
-                                        honoree={e.honoreeId ? (BY_ID[e.honoreeId] ?? null) : null}
-                                        isLast={i === upcoming.length - 1}
-                                        today={today}
-                                    />
-                                ))}
-                            </div>
+                {loading ? (
+                    <div style={{ display: 'grid', placeItems: 'center', height: 300 }}>
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ width: 40, height: 40, border: '4px solid var(--gold-pale)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+                            <div style={{ fontSize: 13, color: 'var(--ink-mute)' }}>Đang tải lịch sự kiện...</div>
                         </div>
                     </div>
-                </div>
+                ) : (
+                    <>
+                        {nextEvent && (
+                            <NextEventHero event={nextEvent} honoree={nextEvent.honoreeId ? (BY_ID[nextEvent.honoreeId] ?? null) : null} today={today} />
+                        )}
+
+                        <FilterBar active={filter} onChange={setFilter} counts={counts} />
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 24, marginBottom: 24 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                <CalendarView
+                                    year={viewMonth.y}
+                                    month={viewMonth.m}
+                                    events={monthEvents}
+                                    selected={selectedDate}
+                                    today={today}
+                                    onSelect={setSelectedDate}
+                                    onMonthChange={changeMonth}
+                                />
+                                <YearHeatmap events={events} currentMonth={viewMonth.m} onMonthClick={(m) => setViewMonth((v) => ({ ...v, m }))} />
+                            </div>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                <EventDetail event={selectedEvent} honoree={selectedEvent?.honoreeId ? (BY_ID[selectedEvent.honoreeId] ?? null) : null} />
+
+                                <div className="card card-pad">
+                                    <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+                                        <div>
+                                            <div className="section-title">Sắp diễn ra</div>
+                                            <div className="section-meta">{upcoming.length} sự kiện gần nhất</div>
+                                        </div>
+                                    </div>
+                                    {upcoming.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink-mute)', fontSize: 13 }}>
+                                            <Icon name="calendar" size={28} color="var(--ink-faint)" />
+                                            <div style={{ marginTop: 8 }}>Không có sự kiện sắp tới</div>
+                                            {isMaster && (
+                                                <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setShowAddModal(true)}>
+                                                    <Icon name="plus" size={13} /> Thêm sự kiện
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            {upcoming.map((e, i) => (
+                                                <UpcomingItem
+                                                    key={e.id}
+                                                    event={e}
+                                                    honoree={e.honoreeId ? (BY_ID[e.honoreeId] ?? null) : null}
+                                                    isLast={i === upcoming.length - 1}
+                                                    today={today}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
             </div>
+
+            {showAddModal && user?.dong_ho?.id && (
+                <AddEventModal
+                    dongHoId={user.dong_ho.id}
+                    onClose={() => setShowAddModal(false)}
+                    onSuccess={() => void loadEvents()}
+                />
+            )}
         </AuthenticatedLayout>
     );
 };

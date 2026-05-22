@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\TaiLieuController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\QuanHeController;
 use App\Http\Controllers\Api\CacheXungHoController;
+use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -27,6 +28,14 @@ Route::prefix('auth')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::post('/update-profile', [AuthController::class, 'updateProfile']);
+    });
+});
+
+Route::prefix('admin/auth')->group(function () {
+    Route::post('/login', [AdminAuthController::class, 'login']);
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/me', [AdminAuthController::class, 'me']);
+        Route::post('/logout', [AdminAuthController::class, 'logout']);
     });
 });
 

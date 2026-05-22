@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Admin;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AdminSeeder extends Seeder
@@ -13,52 +13,14 @@ class AdminSeeder extends Seeder
      */
     public function run(): void
     {
-        DB::table('admins')->insert([
+        Admin::updateOrCreate(
+            ['email' => 'admin@example.com'],
             [
-                'ho_ten' => 'Admin He Thong',
-                'email' => 'admin@hethong.com',
-                'password' => Hash::make('password'),
+                'ho_ten' => 'Admin Hệ Thống',
+                'password' => Hash::make('123456'), // Mật khẩu mặc định là 123456
                 'quyen_han' => 'admin',
                 'trang_thai' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'ho_ten' => 'Nguyen Minh Quan',
-                'email' => 'quan.admin@example.com',
-                'password' => Hash::make('password'),
-                'quyen_han' => 'admin',
-                'trang_thai' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'ho_ten' => 'Tran Thi Mai',
-                'email' => 'mai.admin@example.com',
-                'password' => Hash::make('password'),
-                'quyen_han' => 'admin',
-                'trang_thai' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'ho_ten' => 'Le Hoang Nam',
-                'email' => 'nam.admin@example.com',
-                'password' => Hash::make('password'),
-                'quyen_han' => 'admin',
-                'trang_thai' => true,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'ho_ten' => 'Pham Ngoc Anh',
-                'email' => 'anh.admin@example.com',
-                'password' => Hash::make('password'),
-                'quyen_han' => 'admin',
-                'trang_thai' => false,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        ]);
+            ]
+        );
     }
 }

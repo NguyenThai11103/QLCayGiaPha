@@ -10,12 +10,14 @@ use App\Http\Controllers\Api\TaiLieuController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\QuanHeController;
 use App\Http\Controllers\Api\CacheXungHoController;
+use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
 Route::prefix('auth')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::get('/google/url', [AuthController::class, 'googleUrl']);
     Route::post('/google/callback', [AuthController::class, 'googleCallback']);
@@ -25,10 +27,39 @@ Route::prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/update-profile', [AuthController::class, 'updateProfile']);
+    });
+});
+
+Route::prefix('admin/auth')->group(function () {
+    Route::post('/login', [AdminAuthController::class, 'login']);
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/me', [AdminAuthController::class, 'me']);
+        Route::post('/logout', [AdminAuthController::class, 'logout']);
+    });
+});
+
+Route::prefix('admin')->middleware(['auth:sanctum', 'check.admin.system'])->group(function () {
+    Route::prefix('dong-ho')->group(function () {
+        Route::get('/list', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'index']);
+        Route::patch('/{id}/status', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'updateStatus']);
+        Route::delete('/{id}', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'destroy']);
+    });
+    
+    Route::prefix('nguoi-dung')->group(function () {
+        Route::get('/list', [\App\Http\Controllers\Api\Admin\AdminNguoiDungController::class, 'index']);
+        Route::patch('/{id}/status', [\App\Http\Controllers\Api\Admin\AdminNguoiDungController::class, 'updateStatus']);
+        Route::delete('/{id}', [\App\Http\Controllers\Api\Admin\AdminNguoiDungController::class, 'destroy']);
     });
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('onboarding')->group(function () {
+        Route::get('/search-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'searchClan']);
+        Route::post('/join-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'joinClan']);
+        Route::post('/create-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'createClan']);
+    });
+
     Route::prefix('dong-ho')->group(function () {
         Route::get('/list', [DongHoController::class, 'index']);
         Route::post('/create', [DongHoController::class, 'store'])->middleware('check.permission:system_admin');

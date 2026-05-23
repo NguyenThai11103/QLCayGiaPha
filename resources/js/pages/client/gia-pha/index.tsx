@@ -1,9 +1,10 @@
 import { Head, router } from '@inertiajs/react';
 import { FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
-import Icon from '../../components/gia-pha/Icon';
-import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
-import toast from '../../lib/toast.util';
-import { DongHo, dongHoApi, Nguoi, nguoiApi, NguoiPayload } from '../../services/gia-pha.api';
+import Icon from '../../../components/gia-pha/Icon';
+import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
+import toast from '../../../lib/toast.util';
+import { DongHo, dongHoApi, Nguoi, nguoiApi, NguoiPayload } from '../../../services/gia-pha.api';
+import { useAuth } from '../../../contexts/auth.context';
 
 type FormState = {
     id?: number;
@@ -138,19 +139,19 @@ const findSpouseIdFromChildren = (members: Nguoi[], parentId: string, spouseKey:
     return child?.[spouseKey] ? String(child[spouseKey]) : '';
 };
 
-const buildPayload = (form: FormState): NguoiPayload => ({
+const buildPayload = (form: FormState, isDauRe: boolean): NguoiPayload => ({
     id_dong_ho: Number(form.id_dong_ho),
     ten_day_du: form.ten_day_du.trim(),
     gioi_tinh: form.gioi_tinh,
     ngay_sinh: toNullableString(form.ngay_sinh),
     da_mat: form.da_mat,
     ngay_mat: form.da_mat ? toNullableString(form.ngay_mat) : null,
-    id_cha: toNullableNumber(form.id_cha),
-    id_me: toNullableNumber(form.id_me),
-    id_vo_chong_list: form.id_vo_chong_list.map(id => Number(id)).filter(id => !isNaN(id)),
+    id_cha: isDauRe ? null : toNullableNumber(form.id_cha),
+    id_me: isDauRe ? null : toNullableNumber(form.id_me),
+    id_vo_chong_list: isDauRe ? form.id_vo_chong_list.map(id => Number(id)).filter(id => !isNaN(id)) : [],
     tieu_su: toNullableString(form.tieu_su),
     anh_dai_dien: toNullableString(form.anh_dai_dien),
-    thu_tu_sinh: toNullableNumber(form.thu_tu_sinh),
+    thu_tu_sinh: isDauRe ? null : toNullableNumber(form.thu_tu_sinh),
 });
 
 interface FamilyNode {
@@ -207,7 +208,6 @@ const buildFamilyTree = (people: Nguoi[], selectedDongHo: string) => {
         }
         
         // Không coi là Root nếu họ là phối ngẫu của một thành viên khác trong bloodline
-        // Và người kia là chồng (nam) hoặc có ID nhỏ hơn (để tránh cả hai đều bị loại trừ khỏi root)
         const isSpouseOfOtherBloodline = people.some(other => {
             if (!bloodlineIds.has(other.id) || other.id === p.id) {
                 return false;
@@ -215,7 +215,18 @@ const buildFamilyTree = (people: Nguoi[], selectedDongHo: string) => {
             const isSpouse = (other.vo_chong_ids || []).includes(p.id);
             if (!isSpouse) return false;
             
-            // Nếu người kia là Nam (Chồng), người này là Nữ (Vợ) -> người này không làm root
+            // Trường hợp 1: Nếu 'other' (vợ/chồng của p) có cha hoặc mẹ trong dòng họ chính,
+            // điều này chứng tỏ 'other' mới là người thuộc huyết thống trực hệ của dòng họ này,
+            // còn 'p' chỉ là dâu/rể cưới vào -> 'p' tuyệt đối không làm Root!
+            const otherHasFather = other.id_cha && bloodlineIds.has(other.id_cha);
+            const otherHasMother = other.id_me && bloodlineIds.has(other.id_me);
+            if (otherHasFather || otherHasMother) {
+                return true;
+            }
+            
+            // Trường hợp 2: Nếu cả hai vợ chồng đều không có cha mẹ trong dòng họ chính (ví dụ cặp đôi cụ tổ khai sáng dòng họ),
+            // ta chỉ giữ lại một người làm Root để đại diện cho cả gia tộc.
+            // Ưu tiên chọn người Nam (Chồng) làm Root theo truyền thống tông tộc, người Nữ (Vợ) làm phối ngẫu đi kèm.
             if (other.gioi_tinh === 'nam' && p.gioi_tinh === 'nu') {
                 return true;
             }
@@ -234,9 +245,33 @@ const buildFamilyTree = (people: Nguoi[], selectedDongHo: string) => {
         return true;
     });
 
-    rootMembers.sort((a, b) => a.id - b.id);
+    // Hàm đệ quy đếm số lượng con cháu của một thành viên
+    const countDescendants = (memberId: number, visited = new Set<number>()): number => {
+        if (visited.has(memberId)) return 0;
+        visited.add(memberId);
+        
+        const children = bloodlinePeople.filter(p => p.id_cha === memberId || p.id_me === memberId);
+        let count = children.length;
+        for (const child of children) {
+            count += countDescendants(child.id, visited);
+        }
+        return count;
+    };
 
-    return rootMembers.map(root => buildNode(root));
+    // Sắp xếp các root theo số lượng con cháu giảm dần, nếu bằng nhau thì ID nhỏ hơn xếp trước
+    rootMembers.sort((a, b) => {
+        const countA = countDescendants(a.id);
+        const countB = countDescendants(b.id);
+        if (countB !== countA) {
+            return countB - countA;
+        }
+        return a.id - b.id;
+    });
+
+    // Chỉ lấy 1 Root chính duy nhất có quy mô lớn nhất để hiển thị đúng 1 cây gia phả
+    const primaryRoots = rootMembers.slice(0, 1);
+
+    return primaryRoots.map(root => buildNode(root));
 };
 
 const formatYear = (date: string | null) => (date ? date.substring(0, 4) : null);
@@ -247,6 +282,7 @@ const getDepth = (nodes: FamilyNode[]): number => {
 };
 
 export default function CayGiaPha() {
+    const { user } = useAuth();
     const [people, setPeople] = useState<Nguoi[]>([]);
     const [dongHos, setDongHos] = useState<DongHo[]>([]);
     const [selectedDongHo, setSelectedDongHo] = useState('');
@@ -427,7 +463,7 @@ export default function CayGiaPha() {
 
         setSaving(true);
         try {
-            const payload = buildPayload(form);
+            const payload = buildPayload(form, isDauRe);
             const result = form.id
                 ? await nguoiApi.update({ id: form.id, ...payload })
                 : await nguoiApi.create(payload);
@@ -512,10 +548,12 @@ export default function CayGiaPha() {
                             <Icon name="branch" size={16} />
                             Huyết thống
                         </button>
-                        <button type="button" onClick={() => router.visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary">
-                            <Icon name="plus" size={16} />
-                            Thêm
-                        </button>
+                        {user?.quyen_han === 'quan_ly' && (
+                            <button type="button" onClick={() => router.visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary">
+                                <Icon name="plus" size={16} />
+                                Thêm
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -543,7 +581,9 @@ export default function CayGiaPha() {
                                     <Icon name="tree" size={36} className="mx-auto text-[var(--gold)]" />
                                     <h2 className="mt-4 font-serif text-3xl font-semibold">Chưa có dữ liệu</h2>
                                     <p className="mt-2 text-sm leading-6 text-[var(--ink-mute)]">Hãy thêm thành viên đầu tiên để hiển thị sơ đồ gia phả.</p>
-                                    <button type="button" onClick={() => router.visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary mt-5">Thêm thành viên</button>
+                                    {user?.quyen_han === 'quan_ly' && (
+                                        <button type="button" onClick={() => router.visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary mt-5">Thêm thành viên</button>
+                                    )}
                                 </div>
                             </div>
                         ) : (
@@ -579,6 +619,7 @@ export default function CayGiaPha() {
                             <PersonPanel
                                 person={selectedPerson}
                                 people={people}
+                                isMaster={user?.quyen_han === 'quan_ly'}
                                 onClose={() => setSelectedPerson(null)}
                                 onAddChild={handleAddChildQuick}
                                 onAddSpouse={handleAddSpouseQuick}
@@ -629,7 +670,7 @@ export default function CayGiaPha() {
                                                 checked={!isDauRe}
                                                 onChange={() => {
                                                     setIsDauRe(false);
-                                                    if (!form.id) setForm(f => ({ ...f, id_vo_chong_list: [] }));
+                                                    setForm(f => ({ ...f, id_vo_chong_list: [] }));
                                                 }}
                                                 className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
                                             />
@@ -714,7 +755,7 @@ export default function CayGiaPha() {
                                     />
                                 </label>
 
-                                {quickAddMode !== 'child' && (
+                                {isDauRe && quickAddMode !== 'child' && (
                                     <label className="md:col-span-2">
                                         <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">
                                             Vợ/chồng {form.id ? '(Có thể chọn nhiều)' : ''}
@@ -869,7 +910,7 @@ function RootCard({ roots }: { roots: number }) {
         <div className="flex flex-col items-center">
             <div className="rounded-[14px] bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] px-6 py-3 text-center text-white shadow-[var(--shadow-gold)]">
                 <div className="text-[10px] font-bold uppercase tracking-[1.8px] text-white/75">Gốc gia phả</div>
-                <div className="mt-0.5 text-sm font-bold">{roots} nhánh đầu tiên</div>
+                <div className="mt-0.5 text-sm font-bold">Khởi tổ dòng họ</div>
             </div>
             <div className="h-9 w-px bg-gradient-to-b from-[var(--gold)] to-[var(--line)]" />
         </div>
@@ -898,7 +939,7 @@ function FamilyCard({
             <div
                 className="relative z-10 flex items-center justify-center gap-4 rounded-[20px] border border-[var(--card-border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-4 shadow-[var(--shadow-md)] backdrop-blur"
             >
-                <div className="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full border-2 border-[var(--card)] bg-[var(--gold)] text-xs font-bold text-white shadow">
+                <div className="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-[var(--card)] bg-[var(--gold)] text-xs font-bold text-white shadow">
                     {level}
                 </div>
 
@@ -994,12 +1035,14 @@ function Metric({ label, value }: { label: string; value: number }) {
 function PersonPanel({
     person,
     people,
+    isMaster,
     onClose,
     onAddChild,
     onAddSpouse,
 }: {
     person: Nguoi;
     people: Nguoi[];
+    isMaster: boolean;
     onClose: () => void;
     onAddChild: (parent: Nguoi) => void;
     onAddSpouse: (spouse: Nguoi) => void;
@@ -1042,24 +1085,27 @@ function PersonPanel({
                         <p className="text-[13px] leading-6 text-[var(--ink-soft)]">{person.tieu_su}</p>
                     </div>
                 )}
-                <div className="grid grid-cols-2 gap-2 pt-2">
-                    <button
-                        type="button"
-                        onClick={() => onAddChild(person)}
-                        className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--gold)] bg-[var(--gold-glow)] py-2 text-center text-xs font-bold text-[var(--gold)] hover:bg-[color-mix(in_srgb,var(--gold)_12%,transparent)] transition"
-                    >
-                        <Icon name="plus" size={13} />
-                        Thêm con nhanh
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => onAddSpouse(person)}
-                        className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--terracotta)] bg-[color-mix(in_srgb,var(--terracotta)_10%,transparent)] py-2 text-center text-xs font-bold text-[var(--terracotta)] hover:bg-[color-mix(in_srgb,var(--terracotta)_15%,transparent)] transition"
-                    >
-                        <Icon name="heart" size={13} />
-                        Thêm vợ/chồng
-                    </button>
-                </div>
+                
+                {isMaster && (
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                        <button
+                            type="button"
+                            onClick={() => onAddChild(person)}
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--gold)] bg-[var(--gold-glow)] py-2 text-center text-xs font-bold text-[var(--gold)] hover:bg-[color-mix(in_srgb,var(--gold)_12%,transparent)] transition"
+                        >
+                            <Icon name="plus" size={13} />
+                            Thêm con nhanh
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onAddSpouse(person)}
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--terracotta)] bg-[color-mix(in_srgb,var(--terracotta)_10%,transparent)] py-2 text-center text-xs font-bold text-[var(--terracotta)] hover:bg-[color-mix(in_srgb,var(--terracotta)_15%,transparent)] transition"
+                        >
+                            <Icon name="heart" size={13} />
+                            Thêm vợ/chồng
+                        </button>
+                    </div>
+                )}
 
                 <button type="button" onClick={() => router.visit(`/gia-pha/thanh-vien/${person.id}`)} className="gp-btn gp-btn-primary w-full">
                     Xem hồ sơ chi tiết

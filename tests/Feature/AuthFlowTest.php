@@ -9,6 +9,41 @@ use App\Mail\ResetPasswordEmail;
 
 uses(Illuminate\Foundation\Testing\RefreshDatabase::class);
 
+test('public register creates a member account', function () {
+    $response = $this->postJson('/api/auth/register', [
+        'ho_ten'   => 'Nguyen Van A',
+        'email'    => 'nguyenvana@example.com',
+        'password' => 'password123',
+    ]);
+
+    $response->assertCreated()
+             ->assertJson([
+                 'success' => true,
+             ]);
+
+    $this->assertDatabaseHas('nguoi_dungs', [
+        'ho_ten'    => 'Nguyen Van A',
+        'email'     => 'nguyenvana@example.com',
+        'quyen_han' => 'thanh_vien',
+    ]);
+});
+
+test('public register cannot grant admin role', function () {
+    $response = $this->postJson('/api/auth/register', [
+        'ho_ten'    => 'Nguyen Van B',
+        'email'     => 'nguyenvanb@example.com',
+        'password'  => 'password123',
+        'quyen_han' => 'admin',
+    ]);
+
+    $response->assertCreated();
+
+    $this->assertDatabaseHas('nguoi_dungs', [
+        'email'     => 'nguyenvanb@example.com',
+        'quyen_han' => 'thanh_vien',
+    ]);
+});
+
 test('forgot password requires a valid and existing email', function () {
     $response = $this->postJson('/api/auth/forgot-password', [
         'email' => 'nonexistent@example.com'
@@ -35,7 +70,7 @@ test('forgot password generates token and sends email for valid user', function 
     $response->assertStatus(200)
              ->assertJson([
                  'success' => true,
-                 'message' => 'Liên kết khôi phục mật khẩu đã được gửi qua email của bạn.'
+                 'message' => 'Mã xác nhận (OTP) khôi phục mật khẩu đã được gửi qua email của bạn.'
              ]);
 
     $this->assertDatabaseHas('password_reset_tokens', [

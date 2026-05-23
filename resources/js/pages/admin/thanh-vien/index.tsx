@@ -1,8 +1,9 @@
 import { Head, Link } from '@inertiajs/react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
-import toast from '../../lib/toast.util';
-import { DongHo, dongHoApi, Nguoi, nguoiApi, NguoiPayload } from '../../services/gia-pha.api';
+import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
+import toast from '../../../lib/toast.util';
+import { DongHo, dongHoApi, Nguoi, nguoiApi, NguoiPayload } from '../../../services/gia-pha.api';
+import { useAuth } from '../../../contexts/auth.context';
 
 type FormState = {
     id?: number;
@@ -117,7 +118,20 @@ const canSelectAsSpouse = (members: Nguoi[], candidate: Nguoi, form: FormState) 
     if (candidate.gioi_tinh === form.gioi_tinh) {
         return false;
     }
+
+    if (form.id_dong_ho && String(candidate.id_dong_ho) !== form.id_dong_ho) {
+        return false;
+    }
+
     if (form.id && (isAncestorOf(members, form.id, candidate.id) || isAncestorOf(members, candidate.id, form.id))) {
+        return false;
+    }
+
+    // Hai người trong họ (trực hệ - đều có cha hoặc mẹ trong hệ thống) không thể là vợ chồng của nhau.
+    // Dâu/rể không có cha mẹ đẻ nên không bị coi là trực hệ.
+    const isCandidateBloodline = (candidate.id_cha !== null && candidate.id_cha !== 0) || (candidate.id_me !== null && candidate.id_me !== 0);
+    const isFormBloodline = form.id_cha !== '' || form.id_me !== '';
+    if (isCandidateBloodline && isFormBloodline) {
         return false;
     }
 
@@ -140,22 +154,23 @@ const findSpouseIdFromChildren = (members: Nguoi[], parentId: string, spouseKey:
     return child?.[spouseKey] ? String(child[spouseKey]) : '';
 };
 
-const buildPayload = (form: FormState): NguoiPayload => ({
+const buildPayload = (form: FormState, isDauRe: boolean): NguoiPayload => ({
     id_dong_ho: Number(form.id_dong_ho),
     ten_day_du: form.ten_day_du.trim(),
     gioi_tinh: form.gioi_tinh,
     ngay_sinh: toNullableString(form.ngay_sinh),
     da_mat: form.da_mat,
     ngay_mat: form.da_mat ? toNullableString(form.ngay_mat) : null,
-    id_cha: toNullableNumber(form.id_cha),
-    id_me: toNullableNumber(form.id_me),
-    id_vo_chong_list: form.id_vo_chong_list.map(id => Number(id)).filter(id => !isNaN(id)),
+    id_cha: isDauRe ? null : toNullableNumber(form.id_cha),
+    id_me: isDauRe ? null : toNullableNumber(form.id_me),
+    id_vo_chong_list: isDauRe ? form.id_vo_chong_list.map(id => Number(id)).filter(id => !isNaN(id)) : [],
     tieu_su: toNullableString(form.tieu_su),
     anh_dai_dien: toNullableString(form.anh_dai_dien),
-    thu_tu_sinh: toNullableNumber(form.thu_tu_sinh),
+    thu_tu_sinh: isDauRe ? null : toNullableNumber(form.thu_tu_sinh),
 });
 
-export default function DanhSachThanhVien() {
+export default function AdminDanhSachThanhVien() {
+    const { user } = useAuth();
     const [members, setMembers] = useState<Nguoi[]>([]);
     const [dongHos, setDongHos] = useState<DongHo[]>([]);
     const [selectedDongHo, setSelectedDongHo] = useState('');
@@ -166,6 +181,7 @@ export default function DanhSachThanhVien() {
     const [isDauRe, setIsDauRe] = useState(false);
     const [quickAddMode, setQuickAddMode] = useState<'none' | 'child' | 'spouse'>('none');
     const [selectedParentId, setSelectedParentId] = useState<string>('');
+    const [searchTerm, setSearchTerm] = useState('');
 
     const filteredMembers = useMemo(() => {
         if (!selectedDongHo) {
@@ -200,7 +216,10 @@ export default function DanhSachThanhVien() {
         const parentId = params.get('parent_id');
         const spouseId = params.get('spouse_id');
 
-        if (action === 'add_child' && parentId) {
+        if (action === 'add') {
+            openCreateForm();
+            window.history.replaceState({}, '', window.location.pathname);
+        } else if (action === 'add_child' && parentId) {
             const parent = members.find(m => m.id === Number(parentId));
             if (parent) {
                 setIsDauRe(false);
@@ -250,6 +269,16 @@ export default function DanhSachThanhVien() {
         setFormOpen(true);
     };
 
+    useEffect(() => {
+        const handleOpenAddModal = () => {
+            openCreateForm();
+        };
+        window.addEventListener('open-add-member-modal', handleOpenAddModal);
+        return () => {
+            window.removeEventListener('open-add-member-modal', handleOpenAddModal);
+        };
+    }, [dongHos, selectedDongHo]);
+
     const openCreateSpouseForm = (member: Nguoi) => {
         setIsDauRe(true);
         setQuickAddMode('spouse');
@@ -283,7 +312,22 @@ export default function DanhSachThanhVien() {
     };
 
     const openEditForm = (member: Nguoi) => {
-        setIsDauRe(!member.id_cha && !member.id_me && (member.vo_chong_ids || []).length > 0);
+        // Tự động xác định vai trò dựa trên quan hệ huyết thống thực tế của thành viên
+        let detectedDauRe = false;
+        if (!member.id_cha && !member.id_me) {
+            const spouseIds = member.vo_chong_ids || [];
+            if (spouseIds.length > 0) {
+                const spouse = members.find(m => spouseIds.includes(m.id));
+                if (spouse) {
+                    if (spouse.id_cha || spouse.id_me) {
+                        detectedDauRe = true;
+                    } else if (member.gioi_tinh === 'nu' && spouse.gioi_tinh === 'nam') {
+                        detectedDauRe = true;
+                    }
+                }
+            }
+        }
+        setIsDauRe(detectedDauRe);
         setQuickAddMode('none');
         setSelectedParentId('');
         setForm({
@@ -362,7 +406,7 @@ export default function DanhSachThanhVien() {
 
         setSaving(true);
         try {
-            const payload = buildPayload(form);
+            const payload = buildPayload(form, isDauRe);
             const result = form.id
                 ? await nguoiApi.update({ id: form.id, ...payload })
                 : await nguoiApi.create(payload);
@@ -374,6 +418,8 @@ export default function DanhSachThanhVien() {
             } else {
                 toast.error(result.message || 'Không thể lưu dữ liệu.');
             }
+        } catch (error) {
+            console.error('Lỗi khi lưu thành viên:', error);
         } finally {
             setSaving(false);
         }
@@ -393,8 +439,6 @@ export default function DanhSachThanhVien() {
         }
     };
 
-    const [searchTerm, setSearchTerm] = useState('');
-
     const displayedMembers = useMemo(() => {
         if (!searchTerm.trim()) return filteredMembers;
         const q = searchTerm.toLowerCase();
@@ -407,12 +451,12 @@ export default function DanhSachThanhVien() {
 
     return (
         <AuthenticatedLayout>
-            <Head title="Danh sách thành viên" />
+            <Head title="Quản lý thành viên (Admin)" />
             <div className="mx-auto max-w-7xl">
                 {/* Header */}
                 <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Danh sách thành viên</h2>
+                        <h2 className="text-2xl font-bold text-gray-900">Quản lý thành viên (Admin)</h2>
                         <div className="mt-2 flex flex-wrap gap-3">
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                                 👨 {statsNam} Nam
@@ -487,14 +531,14 @@ export default function DanhSachThanhVien() {
                                             Đang tải dữ liệu...
                                         </td>
                                     </tr>
-                                ) : filteredMembers.length === 0 ? (
+                                ) : displayedMembers.length === 0 ? (
                                     <tr>
                                         <td colSpan={6} className="px-6 py-10 text-center text-sm font-medium text-gray-500">
                                             Chưa có thành viên nào.
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredMembers.map((member) => {
+                                    displayedMembers.map((member) => {
                                         const dongHo = dongHos.find((item) => item.id === member.id_dong_ho);
                                         const spouseNames = (member.vo_chong_ids || [])
                                             .map((spouseId) => getMemberById(members, spouseId)?.ten_day_du)
@@ -509,7 +553,7 @@ export default function DanhSachThanhVien() {
                                                             {member.ten_day_du.charAt(0)}
                                                         </div>
                                                         <div className="ml-4">
-                                                            <Link href={`/gia-pha/thanh-vien/${member.id}`} className="text-sm font-semibold text-gray-900 hover:text-emerald-700">
+                                                            <Link href={`/admin/thanh-vien/${member.id}`} className="text-sm font-semibold text-gray-900 hover:text-emerald-700">
                                                                 {member.ten_day_du}
                                                             </Link>
                                                             <div className="text-xs text-gray-500">ID: #{member.id}</div>
@@ -570,128 +614,148 @@ export default function DanhSachThanhVien() {
                             </div>
                         </div>
                         <div className="p-6">
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                        
-                            {quickAddMode !== 'none' ? (
-                                <div className="md:col-span-2 flex items-center gap-6 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
-                                    <span className="text-sm font-semibold text-emerald-800">Chế độ thêm nhanh:</span>
-                                    <span className="text-sm font-bold text-emerald-700">
-                                        {quickAddMode === 'child' ? 'Thành viên gốc (Thêm con đẻ)' : 'Dâu / Rể (Thêm phối ngẫu)'}
-                                    </span>
-                                </div>
-                            ) : (
-                                <div className="md:col-span-2 flex items-center gap-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-                                    <span className="text-sm font-semibold text-gray-700">Vai trò dòng họ:</span>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            checked={!isDauRe}
-                                            onChange={() => {
-                                                setIsDauRe(false);
-                                                // Reset vo chong if switching back to root member during creation
-                                                if (!form.id) setForm(f => ({ ...f, id_vo_chong_list: [] }));
-                                            }}
-                                            className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
-                                        />
-                                        <span className="text-sm text-gray-700">Thành viên gốc (Có cha/mẹ)</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            checked={isDauRe}
-                                            onChange={() => {
-                                                setIsDauRe(true);
-                                                setForm(f => ({ ...f, id_cha: '', id_me: '' }));
-                                            }}
-                                            className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
-                                        />
-                                        <span className="text-sm text-gray-700">Dâu / Rể (Từ họ khác)</span>
-                                    </label>
-                                </div>
-                            )}
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                            
+                                {quickAddMode !== 'none' ? (
+                                    <div className="md:col-span-2 flex items-center gap-6 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
+                                        <span className="text-sm font-semibold text-emerald-800">Chế độ thêm nhanh:</span>
+                                        <span className="text-sm font-bold text-emerald-700">
+                                            {quickAddMode === 'child' ? 'Thành viên gốc (Thêm con đẻ)' : 'Dâu / Rể (Thêm phối ngẫu)'}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="md:col-span-2 flex items-center gap-6 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+                                        <span className="text-sm font-semibold text-gray-700">Vai trò dòng họ:</span>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                checked={!isDauRe}
+                                                onChange={() => {
+                                                    setIsDauRe(false);
+                                                    setForm(f => ({ ...f, id_vo_chong_list: [] }));
+                                                }}
+                                                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <span className="text-sm text-gray-700">Thành viên gốc (Có cha/mẹ)</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                checked={isDauRe}
+                                                onChange={() => {
+                                                    setIsDauRe(true);
+                                                    setForm(f => ({ ...f, id_cha: '', id_me: '' }));
+                                                }}
+                                                className="h-4 w-4 text-emerald-600 focus:ring-emerald-500"
+                                            />
+                                            <span className="text-sm text-gray-700">Dâu / Rể (Từ họ khác)</span>
+                                        </label>
+                                    </div>
+                                )}
 
-                            <label className="md:col-span-2">
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Họ và tên <span className="text-red-500">*</span></span>
-                                <input
-                                    type="text"
-                                    required
-                                    value={form.ten_day_du}
-                                    onChange={(event) => setForm({ ...form, ten_day_du: event.target.value })}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                                    placeholder="Ví dụ: Nguyễn Văn A"
-                                />
-                            </label>
-
-                            <label>
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Dòng họ <span className="text-red-500">*</span></span>
-                                <select
-                                    value={form.id_dong_ho}
-                                    onChange={(event) => setForm({ ...form, id_dong_ho: event.target.value })}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                                    required
-                                >
-                                    <option value="">-- Chọn Dòng họ --</option>
-                                    {dongHos.map((dongHo) => (
-                                        <option key={dongHo.id} value={dongHo.id}>
-                                            {dongHo.ten_dong_ho}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-
-                            <label>
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Giới tính <span className="text-red-500">*</span></span>
-                                <select
-                                    value={form.gioi_tinh}
-                                    onChange={(event) => setForm({ ...form, gioi_tinh: event.target.value as 'nam' | 'nu' })}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                                    required
-                                >
-                                    <option value="nam">Nam</option>
-                                    <option value="nu">Nữ</option>
-                                </select>
-                            </label>
-
-                            <label>
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Ngày sinh (Dương lịch)</span>
-                                <input
-                                    type="date"
-                                    value={form.ngay_sinh}
-                                    onChange={(event) => setForm({ ...form, ngay_sinh: event.target.value })}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                                />
-                            </label>
-
-                            <label>
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Thứ tự sinh</span>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    value={form.thu_tu_sinh}
-                                    onChange={(event) => setForm({ ...form, thu_tu_sinh: event.target.value })}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                                    placeholder="Ví dụ: 1 (con trưởng)"
-                                />
-                            </label>
-
-                            {quickAddMode !== 'child' && (
                                 <label className="md:col-span-2">
-                                    <span className="mb-1 block text-sm font-semibold text-gray-700">
-                                        Vợ/chồng {form.id ? '(Có thể chọn nhiều)' : ''}
-                                    </span>
-                                    {form.id ? (
-                                        <>
+                                    <span className="mb-1 block text-sm font-semibold text-gray-700">Họ và tên <span className="text-red-500">*</span></span>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={form.ten_day_du}
+                                        onChange={(event) => setForm({ ...form, ten_day_du: event.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        placeholder="Ví dụ: Nguyễn Văn A"
+                                    />
+                                </label>
+
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-gray-700">Dòng họ <span className="text-red-500">*</span></span>
+                                    <select
+                                        value={form.id_dong_ho}
+                                        onChange={(event) => setForm({ ...form, id_dong_ho: event.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        required
+                                    >
+                                        <option value="">-- Chọn Dòng họ --</option>
+                                        {dongHos.map((dongHo) => (
+                                            <option key={dongHo.id} value={dongHo.id}>
+                                                {dongHo.ten_dong_ho}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-gray-700">Giới tính <span className="text-red-500">*</span></span>
+                                    <select
+                                        value={form.gioi_tinh}
+                                        onChange={(event) => setForm({ ...form, gioi_tinh: event.target.value as 'nam' | 'nu' })}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        required
+                                    >
+                                        <option value="nam">Nam</option>
+                                        <option value="nu">Nữ</option>
+                                    </select>
+                                </label>
+
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-gray-700">Ngày sinh (Dương lịch)</span>
+                                    <input
+                                        type="date"
+                                        value={form.ngay_sinh}
+                                        onChange={(event) => setForm({ ...form, ngay_sinh: event.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                    />
+                                </label>
+
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-gray-700">Thứ tự sinh</span>
+                                    <input
+                                        type="number"
+                                        min="1"
+                                        value={form.thu_tu_sinh}
+                                        onChange={(event) => setForm({ ...form, thu_tu_sinh: event.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        placeholder="Ví dụ: 1 (con trưởng)"
+                                    />
+                                </label>
+
+                                {isDauRe && quickAddMode !== 'child' && (
+                                    <label className="md:col-span-2">
+                                        <span className="mb-1 block text-sm font-semibold text-gray-700">
+                                            Vợ/chồng {form.id ? '(Có thể chọn nhiều)' : ''}
+                                        </span>
+                                        {form.id ? (
+                                            <>
+                                                <select
+                                                    multiple
+                                                    size={3}
+                                                    value={form.id_vo_chong_list}
+                                                    onChange={(event) => {
+                                                        const selectedOptions = Array.from(event.target.selectedOptions, option => option.value);
+                                                        setForm({ ...form, id_vo_chong_list: selectedOptions });
+                                                    }}
+                                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50 disabled:text-gray-500"
+                                                    disabled={quickAddMode === 'spouse'}
+                                                >
+                                                    {members
+                                                        .filter((member) => canSelectAsSpouse(members, member, form))
+                                                        .map((member) => (
+                                                            <option key={member.id} value={member.id}>
+                                                                {member.ten_day_du}
+                                                            </option>
+                                                        ))}
+                                                </select>
+                                                <p className="mt-1 text-xs text-gray-500">Nhấn giữ Ctrl (Windows) hoặc Cmd (Mac) để chọn nhiều người.</p>
+                                            </>
+                                        ) : (
                                             <select
-                                                multiple
-                                                size={3}
-                                                value={form.id_vo_chong_list}
+                                                value={form.id_vo_chong_list[0] || ''}
                                                 onChange={(event) => {
-                                                    const selectedOptions = Array.from(event.target.selectedOptions, option => option.value);
-                                                    setForm({ ...form, id_vo_chong_list: selectedOptions });
+                                                    const val = event.target.value;
+                                                    setForm({ ...form, id_vo_chong_list: val ? [val] : [] });
                                                 }}
                                                 className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50 disabled:text-gray-500"
                                                 disabled={quickAddMode === 'spouse'}
                                             >
+                                                <option value="">-- Chọn Vợ/chồng (tùy chọn) --</option>
                                                 {members
                                                     .filter((member) => canSelectAsSpouse(members, member, form))
                                                     .map((member) => (
@@ -700,122 +764,101 @@ export default function DanhSachThanhVien() {
                                                         </option>
                                                     ))}
                                             </select>
-                                            <p className="mt-1 text-xs text-gray-500">Nhấn giữ Ctrl (Windows) hoặc Cmd (Mac) để chọn nhiều người.</p>
-                                        </>
-                                    ) : (
-                                        <select
-                                            value={form.id_vo_chong_list[0] || ''}
-                                            onChange={(event) => {
-                                                const val = event.target.value;
-                                                setForm({ ...form, id_vo_chong_list: val ? [val] : [] });
-                                            }}
-                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50 disabled:text-gray-500"
-                                            disabled={quickAddMode === 'spouse'}
-                                        >
-                                            <option value="">-- Chọn Vợ/chồng (tùy chọn) --</option>
-                                            {members
-                                                .filter((member) => canSelectAsSpouse(members, member, form))
-                                                .map((member) => (
-                                                    <option key={member.id} value={member.id}>
-                                                        {member.ten_day_du}
-                                                    </option>
-                                                ))}
-                                        </select>
-                                    )}
+                                        )}
+                                    </label>
+                                )}
+
+                                {!isDauRe && (
+                                    <>
+                                        <label>
+                                            <span className="mb-1 block text-sm font-semibold text-gray-700">Cha</span>
+                                            <select
+                                                value={form.id_cha}
+                                                onChange={(event) => handleParentChange('id_cha', event.target.value)}
+                                                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50 disabled:text-gray-500"
+                                                disabled={quickAddMode === 'child' && String(form.id_cha) === selectedParentId}
+                                            >
+                                                <option value="">Không chọn</option>
+                                                {members
+                                                    .filter((member) => member.gioi_tinh === 'nam' && canSelectAsParent(members, member, form, form.id_me))
+                                                    .map((member) => (
+                                                        <option key={member.id} value={member.id}>
+                                                            {member.ten_day_du}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
+
+                                        <label>
+                                            <span className="mb-1 block text-sm font-semibold text-gray-700">Mẹ</span>
+                                            <select
+                                                value={form.id_me}
+                                                onChange={(event) => handleParentChange('id_me', event.target.value)}
+                                                className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50 disabled:text-gray-500"
+                                                disabled={quickAddMode === 'child' && String(form.id_me) === selectedParentId}
+                                            >
+                                                <option value="">Không chọn</option>
+                                                {members
+                                                    .filter((member) => member.gioi_tinh === 'nu' && canSelectAsParent(members, member, form, form.id_cha))
+                                                    .map((member) => (
+                                                        <option key={member.id} value={member.id}>
+                                                            {member.ten_day_du}
+                                                        </option>
+                                                    ))}
+                                            </select>
+                                        </label>
+                                    </>
+                                )}
+
+                                <label className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={form.da_mat}
+                                        onChange={(event) => setForm({ ...form, da_mat: event.target.checked, ngay_mat: event.target.checked ? form.ngay_mat : '' })}
+                                        className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    <span className="text-sm font-semibold text-gray-700">Đã mất</span>
                                 </label>
-                            )}
 
-                            {!isDauRe && (
-                                <>
-                                    <label>
-                                        <span className="mb-1 block text-sm font-semibold text-gray-700">Cha</span>
-                                        <select
-                                            value={form.id_cha}
-                                            onChange={(event) => handleParentChange('id_cha', event.target.value)}
-                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50 disabled:text-gray-500"
-                                            disabled={quickAddMode === 'child' && String(form.id_cha) === selectedParentId}
-                                        >
-                                            <option value="">Không chọn</option>
-                                            {members
-                                                .filter((member) => member.gioi_tinh === 'nam' && canSelectAsParent(members, member, form, form.id_me))
-                                                .map((member) => (
-                                                    <option key={member.id} value={member.id}>
-                                                        {member.ten_day_du}
-                                                    </option>
-                                                ))}
-                                        </select>
-                                    </label>
+                                <label>
+                                    <span className="mb-1 block text-sm font-semibold text-gray-700">Ngày mất</span>
+                                    <input
+                                        type="date"
+                                        value={form.ngay_mat}
+                                        onChange={(event) => setForm({ ...form, ngay_mat: event.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-100"
+                                        disabled={!form.da_mat}
+                                    />
+                                </label>
 
-                                    <label>
-                                        <span className="mb-1 block text-sm font-semibold text-gray-700">Mẹ</span>
-                                        <select
-                                            value={form.id_me}
-                                            onChange={(event) => handleParentChange('id_me', event.target.value)}
-                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-50 disabled:text-gray-500"
-                                            disabled={quickAddMode === 'child' && String(form.id_me) === selectedParentId}
-                                        >
-                                            <option value="">Không chọn</option>
-                                            {members
-                                                .filter((member) => member.gioi_tinh === 'nu' && canSelectAsParent(members, member, form, form.id_cha))
-                                                .map((member) => (
-                                                    <option key={member.id} value={member.id}>
-                                                        {member.ten_day_du}
-                                                    </option>
-                                                ))}
-                                        </select>
-                                    </label>
-                                </>
-                            )}
+                                <label className="md:col-span-2">
+                                    <span className="mb-1 block text-sm font-semibold text-gray-700">Ảnh đại diện URL</span>
+                                    <input
+                                        value={form.anh_dai_dien}
+                                        onChange={(event) => setForm({ ...form, anh_dai_dien: event.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                        placeholder="https://..."
+                                    />
+                                </label>
 
-                            <label className="flex items-center gap-3 rounded-lg border border-gray-200 px-3 py-2">
-                                <input
-                                    type="checkbox"
-                                    checked={form.da_mat}
-                                    onChange={(event) => setForm({ ...form, da_mat: event.target.checked, ngay_mat: event.target.checked ? form.ngay_mat : '' })}
-                                    className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                                />
-                                <span className="text-sm font-semibold text-gray-700">Đã mất</span>
-                            </label>
+                                <label className="md:col-span-2">
+                                    <span className="mb-1 block text-sm font-semibold text-gray-700">Tiểu sử</span>
+                                    <textarea
+                                        value={form.tieu_su}
+                                        onChange={(event) => setForm({ ...form, tieu_su: event.target.value })}
+                                        className="min-h-24 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                                    />
+                                </label>
+                            </div>
 
-                            <label>
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Ngày mất</span>
-                                <input
-                                    type="date"
-                                    value={form.ngay_mat}
-                                    onChange={(event) => setForm({ ...form, ngay_mat: event.target.value })}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:bg-gray-100"
-                                    disabled={!form.da_mat}
-                                />
-                            </label>
-
-                            <label className="md:col-span-2">
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Ảnh đại diện URL</span>
-                                <input
-                                    value={form.anh_dai_dien}
-                                    onChange={(event) => setForm({ ...form, anh_dai_dien: event.target.value })}
-                                    className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                                    placeholder="https://..."
-                                />
-                            </label>
-
-                            <label className="md:col-span-2">
-                                <span className="mb-1 block text-sm font-semibold text-gray-700">Tiểu sử</span>
-                                <textarea
-                                    value={form.tieu_su}
-                                    onChange={(event) => setForm({ ...form, tieu_su: event.target.value })}
-                                    className="min-h-24 w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
-                                />
-                            </label>
-                        </div>
-
-                        <div className="mt-6 flex justify-end gap-3">
-                            <button type="button" onClick={closeForm} className="rounded-lg border border-gray-200 px-4 py-2 font-semibold text-gray-600 hover:bg-gray-50">
-                                Hủy
-                            </button>
-                            <button type="submit" disabled={saving} className="rounded-lg px-5 py-2 font-semibold text-white shadow hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}>
-                                {saving ? 'Đang lưu...' : 'Lưu thông tin'}
-                            </button>
-                        </div>
+                            <div className="mt-6 flex justify-end gap-3">
+                                <button type="button" onClick={closeForm} className="rounded-lg border border-gray-200 px-4 py-2 font-semibold text-gray-600 hover:bg-gray-50">
+                                    Hủy
+                                </button>
+                                <button type="submit" disabled={saving} className="rounded-lg px-5 py-2 font-semibold text-white shadow hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60" style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}>
+                                    {saving ? 'Đang lưu...' : 'Lưu thông tin'}
+                                </button>
+                            </div>
                         </div>{/* end p-6 */}
                     </form>
                 </div>

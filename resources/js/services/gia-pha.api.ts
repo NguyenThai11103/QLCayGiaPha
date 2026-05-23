@@ -11,6 +11,12 @@ export interface DongHo {
     id: number;
     ten_dong_ho: string;
     mo_ta: string | null;
+    gia_huan?: string | null;
+    loi_gioi_thieu?: string | null;
+    dia_chi_tu_duong?: string | null;
+    logo_path?: string | null;
+    anh_tu_duong_path?: string | null;
+    theme_color?: 'gold' | 'crimson' | 'jade' | 'indigo' | 'bronze' | null;
 }
 
 export interface Nguoi {

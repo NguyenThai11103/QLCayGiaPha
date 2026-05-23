@@ -78,7 +78,14 @@ it('allows system admin to read all family scopes', function () {
     createScopeTestThanhVien($familyA, 'Nguoi A');
     createScopeTestThanhVien($familyB, 'Nguoi B');
 
-    Sanctum::actingAs(createScopeTestUser(null, 'admin'));
+    $admin = \App\Models\Admin::create([
+        'ho_ten' => 'Test Admin',
+        'email' => 'admin_' . uniqid() . '@test.local',
+        'password' => Hash::make('password'),
+        'quyen_han' => 'admin',
+        'trang_thai' => true
+    ]);
+    Sanctum::actingAs($admin);
 
     $response = $this->getJson('/api/nguoi/list')
         ->assertOk()

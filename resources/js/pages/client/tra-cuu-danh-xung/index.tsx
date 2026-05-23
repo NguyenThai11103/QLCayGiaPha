@@ -1,9 +1,9 @@
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
-import Icon from '../../components/gia-pha/Icon';
-import AuthenticatedLayout from '../../layouts/AuthenticatedLayout';
-import { Nguoi, nguoiApi } from '../../services/gia-pha.api';
-import { useAuth } from '../../contexts/auth.context';
+import Icon from '../../../components/gia-pha/Icon';
+import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
+import { Nguoi, nguoiApi } from '../../../services/gia-pha.api';
+import { useAuth } from '../../../contexts/auth.context';
 
 type RelationshipKind =
     | 'self'
@@ -183,10 +183,6 @@ export default function TraCuuDanhXung() {
                         <button type="button" className="gp-btn gp-btn-ghost" onClick={() => router.visit('/gia-pha/cay-gia-pha')}>
                             <Icon name="tree" size={14} />
                             Xem trên cây
-                        </button>
-                        <button type="button" className="gp-btn gp-btn-primary">
-                            <Icon name="sparkle" size={14} />
-                            Hỏi AI
                         </button>
                     </div>
                 </div>
@@ -854,6 +850,7 @@ function pibName(person: Nguoi, isPaternal: boolean, older: boolean) {
     return 'Dì';
 }
 
+// Helper functions for relationship computation
 function siblingTerm(person: Nguoi, rank: 'older' | 'younger') {
     if (person.gioi_tinh === 'nam') return rank === 'older' ? 'Anh trai' : 'Em trai';
     return rank === 'older' ? 'Chị gái' : 'Em gái';

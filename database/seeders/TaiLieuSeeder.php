@@ -28,69 +28,57 @@ class TaiLieuSeeder extends Seeder
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
+            // ----------------------------------------------------------------
+            // DÒNG HỌ 2: TRẦN LÊ
+            // ----------------------------------------------------------------
             [
                 'thanh_vien_id' => null,
-                'dong_ho_id' => 1,
-                'duong_dan_file' => 'uploads/images/nha_tho_to_nguyen_ba.png',
-                'loai_file' => 'hinh_anh',
-                'du_lieu_orc' => null,
+                'dong_ho_id' => 2,
+                'duong_dan_file' => 'uploads/documents/gia_pha_tran_le_2000.pdf',
+                'loai_file' => 'pdf',
+                'du_lieu_orc' => 'Bản scan cuốn gia phả họ Trần Lê, lưu giữ tại từ đường.',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
-                'thanh_vien_id' => 3,
-                'dong_ho_id' => 1,
-                'duong_dan_file' => 'uploads/videos/le_mung_tho_cu_nam_2023.mp4',
+                'thanh_vien_id' => null,
+                'dong_ho_id' => 2,
+                'duong_dan_file' => 'uploads/images/tu_duong_tran_le.jpg',
+                'loai_file' => 'hinh_anh',
+                'du_lieu_orc' => 'Ảnh mặt trước nhà thờ tổ dòng họ Trần Lê.',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'thanh_vien_id' => 10, // Trần Lê Phúc (Cụ Tổ)
+                'dong_ho_id' => 2,
+                'duong_dan_file' => 'uploads/documents/to_uoc_tran_le.docx',
+                'loai_file' => 'document',
+                'du_lieu_orc' => 'Tộc ước dòng họ Trần Lê do cụ Trần Lê Phúc để lại.',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'thanh_vien_id' => 14, // Trần Lê Kỷ
+                'dong_ho_id' => 2,
+                'duong_dan_file' => 'uploads/videos/video_hop_ho_2025.mp4',
                 'loai_file' => 'video',
                 'du_lieu_orc' => null,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
+            // ----------------------------------------------------------------
+            // DÒNG HỌ 3: PHẠM VŨ
+            // ----------------------------------------------------------------
             [
                 'thanh_vien_id' => null,
-                'dong_ho_id' => 1,
-                'duong_dan_file' => 'uploads/documents/to_uoc_dong_ho_ban_viet_tay.jpg',
+                'dong_ho_id' => 3,
+                'duong_dan_file' => 'uploads/images/ho_pham_vu_to_uoc.jpg',
                 'loai_file' => 'hinh_anh',
-                'du_lieu_orc' => 'Tộc ước dòng họ Nguyễn Bá. Điều 1: Con cháu phải hiếu thảo với ông bà cha mẹ...',
+                'du_lieu_orc' => 'Bản khắc gỗ gia quy họ Phạm Vũ.',
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
-            [
-                'thanh_vien_id' => 4, // Nguyễn Bá Cường
-                'dong_ho_id' => 1,
-                'duong_dan_file' => 'uploads/images/avatar_anh_cuong.jpg',
-                'loai_file' => 'hinh_anh',
-                'du_lieu_orc' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'thanh_vien_id' => 5, // Nguyễn Thị Lan
-                'dong_ho_id' => 1,
-                'duong_dan_file' => 'uploads/documents/bang_khen_hoc_tap_lan.jpg',
-                'loai_file' => 'hinh_anh',
-                'du_lieu_orc' => 'Bằng khen sinh viên xuất sắc năm học 2025-2026.',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'thanh_vien_id' => null,
-                'dong_ho_id' => 1,
-                'duong_dan_file' => 'uploads/documents/bien_ban_hop_ho_dau_nam.docx',
-                'loai_file' => 'document',
-                'du_lieu_orc' => 'Nội dung cuộc họp bàn về việc đóng góp quỹ khuyến học năm 2026.',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'thanh_vien_id' => null,
-                'dong_ho_id' => 1,
-                'duong_dan_file' => 'uploads/images/ban_do_mo_phan_dong_ho.jpg',
-                'loai_file' => 'hinh_anh',
-                'du_lieu_orc' => 'Sơ đồ vị trí các phần mộ tại nghĩa trang dòng họ.',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
+            ]
         ]);
     }
 }

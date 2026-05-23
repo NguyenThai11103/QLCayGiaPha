@@ -4,6 +4,49 @@ import Icon from '../components/gia-pha/Icon';
 import QRHubModal from '../components/gia-pha/QRHubModal';
 import { useAuth } from '../contexts/auth.context';
 
+const themePresets: Record<string, Record<string, string>> = {
+    gold: {
+        '--gold': '#b8902c',
+        '--gold-soft': '#d4af55',
+        '--gold-glow': '#faf1d4',
+        '--gold-pale': '#f0e2bb',
+        '--brown': '#5c3a1e',
+        '--brown-soft': '#8a5a2e',
+    },
+    crimson: {
+        '--gold': '#9b2b1f',
+        '--gold-soft': '#c44535',
+        '--gold-glow': '#fdeeed',
+        '--gold-pale': '#fcdcd9',
+        '--brown': '#5a1911',
+        '--brown-soft': '#80261b',
+    },
+    jade: {
+        '--gold': '#2f5d3a',
+        '--gold-soft': '#4a7a52',
+        '--gold-glow': '#edf7ee',
+        '--gold-pale': '#dbeedc',
+        '--brown': '#193a20',
+        '--brown-soft': '#24522d',
+    },
+    indigo: {
+        '--gold': '#225b7a',
+        '--gold-soft': '#3e84a8',
+        '--gold-glow': '#edf6fa',
+        '--gold-pale': '#dcecf5',
+        '--brown': '#123447',
+        '--brown-soft': '#1a4963',
+    },
+    bronze: {
+        '--gold': '#8b5a2b',
+        '--gold-soft': '#a06d3b',
+        '--gold-glow': '#f7f2ed',
+        '--gold-pale': '#eeded1',
+        '--brown': '#4a2f14',
+        '--brown-soft': '#69431c',
+    }
+};
+
 interface AuthenticatedLayoutProps {
     children: ReactNode;
     fullBleed?: boolean;
@@ -83,6 +126,36 @@ const navigation: NavigationItem[] = [
     },
 ];
 
+const adminNavigation: NavigationItem[] = [
+    {
+        name: 'Tổng quan hệ thống',
+        href: '/admin/dashboard',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+        ),
+    },
+    {
+        name: 'Quản lý Dòng họ',
+        href: '/admin/dong-ho',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+        ),
+    },
+    {
+        name: 'Quản lý Người dùng',
+        href: '/admin/nguoi-dung',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+        ),
+    },
+];
+
 export default function AuthenticatedLayout({ children, fullBleed = false }: AuthenticatedLayoutProps) {
     const { user, logout, isAuthenticated, isLoading } = useAuth();
     const [isQRModalOpen, setIsQRModalOpen] = useState(false);
@@ -107,16 +180,30 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
     useEffect(() => {
         if (!isLoading && !isAuthenticated) {
             window.location.href = '/login';
+        } else if (!isLoading && isAuthenticated) {
+            const isAdminPath = pathname.startsWith('/admin');
+            const isOnboarding = pathname.startsWith('/onboarding');
+            const needsOnboarding = user?.quyen_han !== 'admin' && (!user?.dong_ho_id || user?.trang_thai_gia_nhap === 'cho_duyet');
+            
+            if (!isAdminPath && !isOnboarding && needsOnboarding) {
+                window.location.href = '/onboarding';
+            }
         }
-    }, [isLoading, isAuthenticated]);
+    }, [isLoading, isAuthenticated, pathname, user]);
 
     if (isLoading || !isAuthenticated) {
         return null;
     }
 
-    const activeItem = navigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
+    const currentNavigation = user?.quyen_han === 'admin' ? adminNavigation : navigation;
+    const activeItem = currentNavigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
     const displayName = user?.ho_va_ten || 'Minh Anh';
-    const role = user?.ten_chuc_vu || (user?.is_master === 1 ? 'Quản trị dòng họ' : 'Thành viên');
+    
+    let role = 'Thành viên';
+    if (user?.quyen_han === 'admin') role = 'Quản trị viên Hệ thống';
+    else if (user?.quyen_han === 'quan_ly') role = 'Quản trị dòng họ';
+    else if (user?.ten_chuc_vu) role = user.ten_chuc_vu;
+
     const initials = user?.ten_goi_nho?.charAt(0).toUpperCase() || displayName.trim().charAt(0).toUpperCase() || 'G';
 
     const visit = (href: string) => {
@@ -124,8 +211,11 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
         router.visit(href);
     };
 
+    const themeColor = user?.dong_ho?.theme_color || 'gold';
+    const themeStyles = themePresets[themeColor] || themePresets.gold;
+
     return (
-        <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
+        <div style={themeStyles as React.CSSProperties} className="min-h-screen bg-[var(--bg)] text-[var(--ink)]">
             {sidebarOpen && (
                 <button
                     type="button"
@@ -146,13 +236,19 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                     type="button"
                     className={`flex items-center gap-3 border-b border-[var(--line-soft)] px-2 pb-5 text-left ${sidebarCollapsed ? 'md:justify-center md:px-0' : ''}`}
                     onClick={() => visit('/')}
-                    title="Gia Phả"
+                    title={user?.dong_ho?.ten_dong_ho || 'Gia Phả'}
                 >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] text-[#fffef9] shadow-[var(--shadow-gold)]">
-                        <Icon name="lotus" size={20} />
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] text-[#fffef9] shadow-[var(--shadow-gold)] overflow-hidden">
+                        {user?.dong_ho?.logo_path ? (
+                            <img src={user.dong_ho.logo_path} alt="Logo" className="h-full w-full object-cover" />
+                        ) : (
+                            <Icon name="lotus" size={20} />
+                        )}
                     </span>
                     <span className={`leading-none ${sidebarCollapsed ? 'md:hidden' : ''}`}>
-                        <span className="font-serif text-[24px] font-semibold tracking-[0.4px] text-[var(--ink)]">Gia Phả</span>
+                        <span className="font-serif text-[18px] font-semibold tracking-[0.4px] text-[var(--ink)] block truncate max-w-[150px]">
+                            {user?.dong_ho?.ten_dong_ho || 'Gia Phả'}
+                        </span>
                         <span className="mt-1 block text-[10px] font-semibold uppercase tracking-[1.8px] text-[var(--ink-mute)]">Nguồn cội số</span>
                     </span>
                 </button>
@@ -171,7 +267,7 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                         Điều hướng
                     </div>
 
-                    {navigation.map((item) => {
+                    {currentNavigation.map((item) => {
                         const active = activeItem?.href === item.href;
 
                         return (
@@ -265,10 +361,7 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                                 <path d="M14 14h3v3h-3zM17 17h4v4h-4zM14 17h3v4h-3zM17 14h4v3h-4z" />
                             </svg>
                         </button>
-                        <button type="button" onClick={() => visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary hidden sm:inline-flex">
-                            <Icon name="plus" size={16} />
-                            Thêm thành viên
-                        </button>
+
                     </div>
                 </header>
 

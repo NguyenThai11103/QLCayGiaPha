@@ -13,10 +13,15 @@ class DongHo extends Model
 
     protected $fillable = [
         'ten_dong_ho',
+        'logo_path',
         'mo_ta',
+        'gia_huan',
+        'loi_gioi_thieu',
         'dia_chi_tu_duong',
+        'anh_tu_duong_path',
         'thuy_to_id',
         'nguoi_tao',
+        'theme_color',
     ];
 
     // ─── Relationships ─────────────────────────────────────────────────────────
@@ -29,6 +34,11 @@ class DongHo extends Model
     public function nguoiTao()
     {
         return $this->belongsTo(NguoiDung::class, 'nguoi_tao');
+    }
+
+    public function nguoiDungs()
+    {
+        return $this->hasMany(NguoiDung::class, 'dong_ho_id');
     }
 
     public function thanhViens()

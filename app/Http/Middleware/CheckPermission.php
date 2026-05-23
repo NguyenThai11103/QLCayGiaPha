@@ -18,11 +18,11 @@ class CheckPermission
                 return $next($request);
             }
 
-            if (in_array($role, ['admin', 'quan_ly', 'family_manager'], true) && AccessControl::isFamilyManager($user)) {
+            if ($role === 'quan_ly' && AccessControl::isFamilyManager($user)) {
                 return $next($request);
             }
 
-            if (in_array($role, ['thanh_vien', 'member', 'authenticated'], true) && $user) {
+            if ($role === 'thanh_vien' && $user) {
                 return $next($request);
             }
         }

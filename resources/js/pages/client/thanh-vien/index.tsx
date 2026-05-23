@@ -25,19 +25,6 @@ function initials(name: string): string {
     const parts = name.trim().split(' ');
     return parts[parts.length - 1]?.charAt(0)?.toUpperCase() ?? name.charAt(0).toUpperCase();
 }
-    if (user?.quyen_han === 'quan_ly') {
-        return <AdminDanhSachThanhVien />;
-    }
-    const [members, setMembers] = useState<Nguoi[]>([]);
-    const [dongHos, setDongHos] = useState<DongHo[]>([]);
-    const [selectedDongHo, setSelectedDongHo] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-
-    const filteredMembers = useMemo(() => {
-        if (!selectedDongHo) {
-            return members;
-        }
 
 export default function ClientDanhSachThanhVien() {
     const { user } = useAuth();
@@ -112,7 +99,7 @@ export default function ClientDanhSachThanhVien() {
                                 <Icon name={stat.icon} size={16} color={`var(--${stat.color})`} />
                             </div>
                             <div>
-                                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', lineHeight: 1, fontFamily: 'Cormorant Garamond, serif' }}>{stat.value}</div>
+                                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{stat.value}</div>
                                 <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', marginTop: 2 }}>{stat.label}</div>
                             </div>
                         </div>
@@ -180,15 +167,15 @@ export default function ClientDanhSachThanhVien() {
 
                 {/* ─── Grid view ───────────────────────────────── */}
                 {!loading && filtered.length > 0 && viewMode === 'grid' && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16, alignItems: 'stretch' }}>
                         {filtered.map(member => {
                             const dongHo = dongHos.find(d => d.id === member.id_dong_ho);
                             const spouseNames = (member.vo_chong_ids || []).map(sid => getMemberById(sid)?.ten_day_du).filter(Boolean).join(', ');
 
                             return (
-                                <Link key={member.id} href={`/gia-pha/thanh-vien/${member.id}`} style={{ textDecoration: 'none', display: 'block' }}>
+                                <Link key={member.id} href={`/gia-pha/thanh-vien/${member.id}`} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', height: '100%' }}>
                                     <div
-                                        style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', overflow: 'hidden', transition: 'all 0.2s', boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}
+                                        style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', overflow: 'hidden', transition: 'all 0.2s', boxShadow: 'var(--shadow-sm)', cursor: 'pointer', display: 'flex', flexDirection: 'column', flex: 1 }}
                                         onMouseEnter={e => {
                                             (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--gold-soft)';
                                             (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
@@ -201,21 +188,21 @@ export default function ClientDanhSachThanhVien() {
                                         }}
                                     >
                                         {/* Banner */}
-                                        <div style={{ height: 52, background: avatarGrad(member.ten_day_du), position: 'relative' }}>
+                                        <div style={{ height: 80, background: avatarGrad(member.ten_day_du), position: 'relative' }}>
                                             {member.da_mat && (
-                                                <div style={{ position: 'absolute', top: 8, right: 10, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.9)' }}>✝ Đã mất</div>
+                                                <div style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.9)', letterSpacing: 0.5 }}>✝ Đã mất</div>
                                             )}
-                                        </div>
-
-                                        <div style={{ padding: '0 16px 16px', marginTop: -20 }}>
-                                            {/* Avatar */}
-                                            <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid var(--bg-elev)', background: avatarGrad(member.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 10, boxShadow: 'var(--shadow-sm)' }}>
+                                            {/* Avatar nhô ra khỏi banner */}
+                                            <div style={{ position: 'absolute', bottom: -26, left: 16, width: 56, height: 56, borderRadius: '50%', border: '3px solid var(--bg-elev)', background: avatarGrad(member.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 20, fontWeight: 700, color: 'white', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>
                                                 {initials(member.ten_day_du)}
                                             </div>
+                                        </div>
 
-                                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 4, fontFamily: 'Cormorant Garamond, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.ten_day_du}</div>
+                                        <div style={{ padding: '38px 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
 
-                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                                            <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.ten_day_du}</div>
+
+                                            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 10 }}>
                                                 <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 12%, transparent)' : 'color-mix(in srgb, var(--terracotta) 12%, transparent)', color: member.gioi_tinh === 'nam' ? 'var(--gold)' : 'var(--terracotta)', border: `1px solid ${member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 25%, transparent)' : 'color-mix(in srgb, var(--terracotta) 25%, transparent)'}` }}>
                                                     {member.gioi_tinh === 'nam' ? '♂ Nam' : '♀ Nữ'}
                                                 </span>
@@ -226,9 +213,19 @@ export default function ClientDanhSachThanhVien() {
                                                 )}
                                             </div>
 
-                                            <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                                {member.ngay_sinh && <div>📅 {member.ngay_sinh}</div>}
-                                                {spouseNames && <div>💑 {spouseNames}</div>}
+                                            <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 'auto', paddingTop: 8 }}>
+                                                {member.ngay_sinh && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                        <span style={{ fontSize: 10, opacity: 0.6 }}>📅</span>
+                                                        <span>{member.ngay_sinh}</span>
+                                                    </div>
+                                                )}
+                                                {spouseNames && (
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                                        <span style={{ fontSize: 10, opacity: 0.6 }}>💑</span>
+                                                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{spouseNames}</span>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

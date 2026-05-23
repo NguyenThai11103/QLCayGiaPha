@@ -56,6 +56,11 @@ class DongHo extends Model
         return $this->hasMany(TaiLieu::class, 'dong_ho_id');
     }
 
+    public function moPhans()
+    {
+        return $this->hasMany(MoPhan::class, 'dong_ho_id');
+    }
+
     public function cacheXungHos()
     {
         return $this->hasMany(CacheXungHo::class, 'dong_ho_id');

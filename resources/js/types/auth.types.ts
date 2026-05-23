@@ -7,17 +7,16 @@ export interface NhanVien {
     ten_goi_nho: string;
     so_dien_thoai: string;
     anh_dai_dien: string | null;
-    quyen_han: 'admin' | 'quan_ly' | 'thanh_vien';
+    quyen_han: 'admin' | 'quan_ly' | 'thanh_vien' | string | null;
+    is_master?: number | boolean | null;
     dong_ho_id?: number | null;
     trang_thai_gia_nhap?: string | null;
-    dong_ho?: any;
     ngay_bat_dau_lam?: string;
     ngay_sinh?: string;
     ten_chuc_vu?: string;
     thanh_vien_id?: number | null;
     dong_ho?: DongHo | null;
     google_id?: string | null;
-    quyen_han?: string | null;
 }
 
 export interface LoginCredentials {

@@ -96,6 +96,16 @@ const navigation: NavigationItem[] = [
         ),
     },
     {
+        name: 'Mộ phần',
+        href: '/gia-pha/mo-phan',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 21s6-5.2 6-11a6 6 0 10-12 0c0 5.8 6 11 6 11z" />
+                <circle cx="12" cy="10" r="2" strokeWidth={2} />
+            </svg>
+        ),
+    },
+    {
         name: 'Tra cứu danh xưng',
         href: '/gia-pha/tra-cuu-danh-xung',
         icon: (

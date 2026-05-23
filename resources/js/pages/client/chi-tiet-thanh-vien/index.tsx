@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import apiClient from '../../../lib/api.client';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import Icon from '../../../components/gia-pha/Icon';
+import toast from '../../../lib/toast.util';
+import { MoPhan, moPhanApi } from '../../../services/gia-pha.api';
 
 interface ThongTinNguoi {
     id          : number;
@@ -84,6 +86,8 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
     const [data,    setData]    = useState<DetailData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error,   setError]   = useState('');
+    const [moPhan, setMoPhan] = useState<MoPhan | null>(null);
+    const [moPhanLoading, setMoPhanLoading] = useState(false);
 
     useEffect(() => {
         apiClient.get(`/nguoi/detail?id=${id}`)
@@ -96,6 +100,19 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
     }, [id]);
 
     const tv = data?.thong_tin;
+
+    useEffect(() => {
+        if (!tv || !tv.da_mat) {
+            setMoPhan(null);
+            return;
+        }
+
+        setMoPhanLoading(true);
+        moPhanApi.list({ thanh_vien_id: tv.id })
+            .then(res => setMoPhan(res.data?.[0] || null))
+            .catch(() => setMoPhan(null))
+            .finally(() => setMoPhanLoading(false));
+    }, [tv?.id, tv?.da_mat]);
 
     return (
         <AuthenticatedLayout>
@@ -189,6 +206,14 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                                 </div>
                             )}
 
+                            {tv.da_mat && (
+                                <MoPhanSummaryCard
+                                    memberId={tv.id}
+                                    moPhan={moPhan}
+                                    loading={moPhanLoading}
+                                />
+                            )}
+
                             {/* Actions */}
                             <div style={{ display: 'flex', gap: 10 }}>
                                 <Link href="/gia-pha/thanh-vien" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'var(--card-soft)', color: 'var(--ink-soft)', fontWeight: 600, fontSize: 13, textDecoration: 'none', border: '1px solid var(--line)' }}>
@@ -266,6 +291,77 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+function moPhanMapUrl(moPhan: MoPhan): string {
+    return `https://www.google.com/maps?q=${moPhan.vi_do},${moPhan.kinh_do}`;
+}
+
+function MoPhanSummaryCard({ memberId, moPhan, loading }: { memberId: number; moPhan: MoPhan | null; loading: boolean }) {
+    const copyLocation = async () => {
+        if (!moPhan) return;
+
+        await navigator.clipboard?.writeText(`${moPhan.vi_do}, ${moPhan.kinh_do}`);
+        toast.success('Đã sao chép tọa độ');
+    };
+
+    return (
+        <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', padding: 20, boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+                <div>
+                    <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 3 }}>Mộ phần</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>Tọa độ an nghỉ</div>
+                </div>
+                <Icon name="pin" size={20} color="var(--gold)" />
+            </div>
+
+            {loading ? (
+                <div style={{ fontSize: 13, color: 'var(--ink-mute)' }}>Đang tải tọa độ...</div>
+            ) : moPhan ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ borderRadius: 12, background: 'var(--card-soft)', border: '1px solid var(--line-soft)', padding: 12 }}>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--brown)', background: 'var(--gold-glow)', border: '1px solid var(--gold-pale)', borderRadius: 999, padding: '4px 9px' }}>
+                                Vĩ độ {Number(moPhan.vi_do).toFixed(7)}
+                            </span>
+                            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--brown)', background: 'var(--gold-glow)', border: '1px solid var(--gold-pale)', borderRadius: 999, padding: '4px 9px' }}>
+                                Kinh độ {Number(moPhan.kinh_do).toFixed(7)}
+                            </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.55 }}>
+                            {moPhan.ghi_chu || 'Chưa có ghi chú tìm đường.'}
+                        </p>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <a href={moPhanMapUrl(moPhan)} target="_blank" rel="noreferrer" className="gp-btn gp-btn-ghost" style={{ textDecoration: 'none', justifyContent: 'center' }}>
+                            <Icon name="map" size={14} />
+                            Bản đồ
+                        </a>
+                        <button type="button" onClick={() => void copyLocation()} className="gp-btn gp-btn-ghost">
+                            <Icon name="copy" size={14} />
+                            Sao chép
+                        </button>
+                    </div>
+
+                    <Link href={`/gia-pha/mo-phan?thanh_vien_id=${memberId}`} className="gp-btn gp-btn-primary" style={{ justifyContent: 'center', textDecoration: 'none' }}>
+                        <Icon name="edit" size={14} />
+                        Cập nhật mộ phần
+                    </Link>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ fontSize: 13, color: 'var(--ink-mute)', lineHeight: 1.55 }}>
+                        Chưa lưu tọa độ mộ phần cho thành viên này.
+                    </div>
+                    <Link href={`/gia-pha/mo-phan?thanh_vien_id=${memberId}`} className="gp-btn gp-btn-primary" style={{ justifyContent: 'center', textDecoration: 'none' }}>
+                        <Icon name="plus" size={14} />
+                        Thêm tọa độ
+                    </Link>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function InfoRow({ icon, label, value, sub }: { icon: React.ComponentProps<typeof Icon>['name']; label: string; value: string; sub?: string | null }) {
     return (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line-soft)' }}>

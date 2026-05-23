@@ -90,3 +90,7 @@ Route::get('/profile', function () {
 Route::get('/gia-pha/tai-lieu', function () {
     return Inertia::render('client/tai-lieu/index');
 });
+
+Route::get('/gia-pha/mo-phan', function () {
+    return Inertia::render('client/mo-phan/index');
+});

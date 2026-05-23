@@ -12,6 +12,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
+            AdminSeeder::class,
             DongHoSeeder::class,
             ThanhVienSeeder::class,
             NguoiDungSeeder::class,
@@ -19,6 +20,7 @@ class DatabaseSeeder extends Seeder
             CacheXungHoSeeder::class,  
             SuKienSeeder::class,
             TaiLieuSeeder::class,
+            ComplexClanSeeder::class,
         ]);
     }
 }

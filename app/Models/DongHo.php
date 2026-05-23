@@ -36,6 +36,11 @@ class DongHo extends Model
         return $this->belongsTo(NguoiDung::class, 'nguoi_tao');
     }
 
+    public function nguoiDungs()
+    {
+        return $this->hasMany(NguoiDung::class, 'dong_ho_id');
+    }
+
     public function thanhViens()
     {
         return $this->hasMany(ThanhVien::class, 'dong_ho_id');

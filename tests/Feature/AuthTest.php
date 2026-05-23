@@ -19,8 +19,8 @@ class AuthTest extends TestCase
         NguoiDung::create([
             'email' => 'test@example.com',
             'password' => Hash::make('password123'),
-            'ho_va_ten' => 'Người Dùng Test',
-            'is_master' => 1
+            'ho_ten' => 'Người Dùng Test',
+            'quyen_han' => 'quan_ly'
         ]);
     }
 
@@ -105,6 +105,9 @@ class AuthTest extends TestCase
                            'success' => true,
                            'message' => 'Đăng xuất thành công'
                        ]);
+
+        // Xoá bộ nhớ đệm xác thực của ứng dụng trong môi trường test
+        app('auth')->forgetGuards();
 
         // Cố gắng gọi lại /auth/me với token đã bị xoá
         $meResponse = $this->withHeader('Authorization', 'Bearer ' . $token)

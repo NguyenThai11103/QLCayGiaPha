@@ -31,7 +31,6 @@ class NguoiDung extends Authenticatable
         'ho_va_ten',
         'ten_goi_nho',
         'anh_dai_dien',
-        'is_master',
         'ten_chuc_vu',
     ];
 
@@ -52,14 +51,11 @@ class NguoiDung extends Authenticatable
         return $this->thanhVien?->anh_dai_dien;
     }
 
-    public function getIsMasterAttribute()
-    {
-        return in_array($this->quyen_han, ['admin', 'quan_ly']) ? 1 : 0;
-    }
+
 
     public function getTenChucVuAttribute()
     {
-        return in_array($this->quyen_han, ['admin', 'quan_ly']) ? 'Quản trị dòng họ' : 'Thành viên';
+        return in_array($this->quyen_han, ['quan_ly']) ? 'Quản trị dòng họ' : 'Thành viên';
     }
 
     // ─── Relationships ─────────────────────────────────────────────────────────

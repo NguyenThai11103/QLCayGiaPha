@@ -321,7 +321,7 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         $user = $request->user();
-        if ($user) {
+        if ($user && method_exists($user, 'dongHo')) {
             $user->load('dongHo');
         }
         return response()->json([

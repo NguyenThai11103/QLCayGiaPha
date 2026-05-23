@@ -7,7 +7,7 @@ import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import toast from '../../../lib/toast.util';
 import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../../services/gia-pha.api';
 import QRHubModal from '../../../components/gia-pha/QRHubModal';
-import AdminDashboard from '../../admin/dashboard';
+import AdminDashboard from '../../admin/dashboard/index';
 
 const events = [
     ['15', 'Tháng 3 ÂL', '2026', 'Giỗ Tổ - Cụ Nguyễn Văn Trường', 'Từ đường Tiên Điền', '47 người dự', 12, 'scroll', 'brown'],
@@ -138,7 +138,7 @@ export default function ClientDashboard() {
     const deceasedCount = members.length - aliveCount;
     const maxGeneration = generations.length ? Math.max(...generations.map((item) => item.generation)) : 0;
 
-    return (
+    return user?.is_master === 1 ? <AdminDashboard /> : (
         <AuthenticatedLayout>
             <Head title="Bảng điều khiển Gia Phả" />
             <div className="mx-auto max-w-[1320px]">
@@ -540,7 +540,7 @@ export default function ClientDashboard() {
     );
 }
 
-function QuickAction({ icon, label, color, onClick }: { icon: 'add-user' | 'link' | 'calendar' | 'book'; label: string; color: string; onClick: () => void }) {
+function QuickAction({ icon, label, color, onClick }: { icon: React.ComponentProps<typeof Icon>['name']; label: string; color: string; onClick: () => void }) {
     return (
         <button type="button" onClick={onClick} className="gp-card gp-card-hover flex min-h-[108px] flex-col items-start gap-2 p-3.5 text-left">
             <span

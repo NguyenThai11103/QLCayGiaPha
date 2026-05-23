@@ -1,3 +1,5 @@
+import type { DongHo } from '../services/gia-pha.api';
+
 export interface NhanVien {
     id: number;
     email: string;
@@ -12,6 +14,10 @@ export interface NhanVien {
     ngay_bat_dau_lam?: string;
     ngay_sinh?: string;
     ten_chuc_vu?: string;
+    thanh_vien_id?: number | null;
+    dong_ho?: DongHo | null;
+    google_id?: string | null;
+    quyen_han?: string | null;
 }
 
 export interface LoginCredentials {

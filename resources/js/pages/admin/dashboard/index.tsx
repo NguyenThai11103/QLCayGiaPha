@@ -833,7 +833,7 @@ function StatCard({ label, value, delta, icon, accent }: { label: string; value:
     );
 }
 
-function QuickAction({ icon, label, color, onClick }: { icon: 'add-user' | 'link' | 'calendar' | 'book'; label: string; color: string; onClick: () => void }) {
+function QuickAction({ icon, label, color, onClick }: { icon: React.ComponentProps<typeof Icon>['name']; label: string; color: string; onClick: () => void }) {
     return (
         <button type="button" onClick={onClick} className="gp-card gp-card-hover flex min-h-[108px] flex-col items-start gap-2 p-3.5 text-left">
             <span

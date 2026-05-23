@@ -11,7 +11,7 @@ export interface LoginPayload {
 
 export interface NguoiDung {
   id         : number;
-  name       : string;
+  ho_ten       : string;
   email      : string;
   dong_ho    : string | null;
   created_at : string;

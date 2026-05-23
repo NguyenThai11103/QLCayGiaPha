@@ -1,9 +1,9 @@
-// ─────────────────────────────────────────────
-//  API Base Configuration
-// ─────────────────────────────────────────────
-export const BASE_URL = 'http://192.168.1.197:8000/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const API_TIMEOUT = 15000; // 15s
+// ─────────────────────────────────────────────
+export const BASE_URL         = 'http://192.168.1.197:8000/api';
+export const STORAGE_TOKEN_KEY = 'auth_token';
+export const API_TIMEOUT       = 15000; // 15s
 
 /**
  * Wrapper fetch với timeout và xử lý lỗi chung.
@@ -36,6 +36,11 @@ export async function apiFetch<T>(
     const json = await response.json();
 
     if (!response.ok) {
+      // Xử lý 401: xóa token cũ để buộc login lại
+      if (response.status === 401) {
+        await AsyncStorage.removeItem('auth_token').catch(() => {});
+        throw { status: 401, message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', isUnauthorized: true };
+      }
       throw {
         status  : response.status,
         message : json?.message ?? 'Đã xảy ra lỗi từ máy chủ',

@@ -12,12 +12,16 @@ import {
   Animated,
   Dimensions,
   Modal,
+  Linking,
+  ActivityIndicator,
 } from 'react-native';
 import TreeLoadingAnimation from '../components/TreeLoadingAnimation';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import { colors, spacing, fontSize, borderRadius, shadows } from '../config/theme';
 import { loginApi } from '../genaral/authService';
+import { apiFetch, BASE_URL, STORAGE_TOKEN_KEY } from '../genaral/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -32,6 +36,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ email?: string; password?: string; server?: string }>({});
+
+  // Google Sign-In states
+  const [googleStep,   setGoogleStep]   = useState<'idle' | 'otp'>('idle');
+  const [googleLoading,setGoogleLoading] = useState(false);
+  const [googleEmail,  setGoogleEmail]  = useState('');
+  const [googleOtp,    setGoogleOtp]    = useState('');
+  const [googleErr,    setGoogleErr]    = useState('');
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const otpAnim = useRef(new Animated.Value(0)).current;
 
   const cardAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
@@ -114,6 +127,75 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // ─── Google OAuth flow ──────────────────────────────
+  const handleGoogleLogin = async () => {
+    setGoogleErr('');
+    setGoogleLoading(true);
+    try {
+      // 1. Lấy Google Auth URL từ BE
+      const urlRes = await apiFetch<{ success: boolean; url: string }>('/auth/google/url');
+      const authUrl = urlRes.url;
+
+      // 2. Parse code từ URL (mock mode trả về ?code=mock_authorization_code)
+      const urlObj = new URL(authUrl);
+      const code   = urlObj.searchParams.get('code');
+
+      if (!code) {
+        setGoogleErr('Chế độ production cần WebView. Hiện chỉ hỗ trợ mock mode.');
+        return;
+      }
+
+      // 3. Gọi POST /auth/google/callback → BE xử lý + gửi OTP về email
+      const cbRes = await apiFetch<{ success: boolean; need_otp: boolean; email: string }>(
+        '/auth/google/callback',
+        { method: 'POST', body: JSON.stringify({ code }) },
+      );
+
+      // 4. Pre-fill email từ response
+      if (cbRes.email) setGoogleEmail(cbRes.email);
+
+      // 5. Hiện modal nhập OTP
+      setGoogleStep('otp');
+      setShowGoogleModal(true);
+      Animated.spring(otpAnim, { toValue: 1, tension: 80, friction: 10, useNativeDriver: true }).start();
+    } catch (e: any) {
+      setGoogleErr(e?.message ?? 'Không thể kết nối Google. Thử lại sau.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleVerifyOtp = async () => {
+    if (!googleEmail.trim()) { setGoogleErr('Vui lòng nhập email của bạn'); return; }
+    if (googleOtp.length < 6) { setGoogleErr('Mã OTP phải có 6 chữ số'); return; }
+    setGoogleLoading(true);
+    setGoogleErr('');
+    try {
+      const res = await apiFetch<{ success: boolean; data: { user: any; token: string } }>(
+        '/auth/google/verify-otp',
+        { method: 'POST', body: JSON.stringify({ email: googleEmail.trim(), token: googleOtp }) },
+      );
+      // Lưu token + user
+      await AsyncStorage.setItem(STORAGE_TOKEN_KEY, res.data.token);
+      await AsyncStorage.setItem('auth_user', JSON.stringify(res.data.user));
+      setShowGoogleModal(false);
+      navigation.replace('Home');
+    } catch (e: any) {
+      setGoogleErr(e?.message ?? 'Mã OTP không đúng hoặc đã hết hạn');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const closeGoogleModal = () => {
+    setShowGoogleModal(false);
+    setGoogleStep('idle');
+    setGoogleEmail('');
+    setGoogleOtp('');
+    setGoogleErr('');
+    otpAnim.setValue(0);
   };
 
   const FIELD_HEIGHT = Math.max(52, height * 0.065);
@@ -233,7 +315,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             </View>
 
             {/* Forgot */}
-            <TouchableOpacity style={styles.forgotWrap}>
+            <TouchableOpacity style={styles.forgotWrap} onPress={() => navigation.navigate('ForgotPassword')}>
               <Text style={styles.forgotText}>Quên mật khẩu?</Text>
             </TouchableOpacity>
 
@@ -274,9 +356,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                 <Ionicons name="logo-apple" size={20} color="#fff" />
                 <Text style={styles.socialLabel}>Apple</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.socialBtn} activeOpacity={0.75}>
-                <Ionicons name="logo-google" size={20} color="#DB4437" />
-                <Text style={styles.socialLabel}>Google</Text>
+
+              {/* Google Button */}
+              <TouchableOpacity
+                style={[styles.socialBtn, styles.googleBtn]}
+                activeOpacity={0.75}
+                onPress={handleGoogleLogin}
+                disabled={googleLoading}>
+                {googleLoading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <>
+                      <View style={styles.googleIconCircle}>
+                        <Text style={styles.googleIconTxt}>G</Text>
+                      </View>
+                      <Text style={styles.googleLabel}>Google</Text>
+                    </>}
               </TouchableOpacity>
             </View>
           </Animated.View>
@@ -290,6 +384,92 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ── Google OTP Modal ── */}
+      <Modal visible={showGoogleModal} transparent animationType="none" statusBarTranslucent onRequestClose={closeGoogleModal}>
+        <View style={styles.googleOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFill} onPress={closeGoogleModal} activeOpacity={1} />
+          <Animated.View style={[styles.googleSheet, {
+            opacity  : otpAnim,
+            transform: [{ translateY: otpAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] }) }],
+          }]}>
+            {/* Handle */}
+            <View style={styles.sheetHandle} />
+
+            {/* Google icon header */}
+            <View style={styles.googleHeader}>
+              <LinearGradient colors={['#EA4335', '#DB4437']} style={styles.gIconLg}>
+                <Text style={styles.gIconTxt}>G</Text>
+              </LinearGradient>
+              <Text style={styles.googleSheetTitle}>Xác nhập đăng nhập Google</Text>
+              <Text style={styles.googleSheetSub}>
+                Mã OTP đã được gửi về email Google của bạn.
+                Vui lòng kiểm tra hộp thư.
+              </Text>
+            </View>
+
+            {/* Email input */}
+            <View style={styles.otpFieldWrap}>
+              <Ionicons name="mail-outline" size={18} color="rgba(255,255,255,0.35)" />
+              <TextInput
+                style={styles.otpInput}
+                placeholder="Email Google của bạn"
+                placeholderTextColor="rgba(255,255,255,0.2)"
+                value={googleEmail}
+                onChangeText={t => { setGoogleEmail(t); setGoogleErr(''); }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            {/* OTP input */}
+            <View style={[styles.otpFieldWrap, { marginTop: 12 }]}>
+              <Ionicons name="keypad-outline" size={18} color="rgba(255,255,255,0.35)" />
+              <TextInput
+                style={[styles.otpInput, styles.otpCode]}
+                placeholder="Mã OTP 6 chữ số"
+                placeholderTextColor="rgba(255,255,255,0.2)"
+                value={googleOtp}
+                onChangeText={t => { setGoogleOtp(t.replace(/[^0-9]/g, '').slice(0, 6)); setGoogleErr(''); }}
+                keyboardType="number-pad"
+                maxLength={6}
+              />
+              {googleOtp.length > 0 && (
+                <Text style={styles.otpCount}>{googleOtp.length}/6</Text>
+              )}
+            </View>
+
+            {/* Error */}
+            {googleErr ? (
+              <View style={styles.googleErrRow}>
+                <Ionicons name="alert-circle" size={14} color="#FCA5A5" />
+                <Text style={styles.googleErrTxt}>{googleErr}</Text>
+              </View>
+            ) : null}
+
+            {/* Confirm button */}
+            <TouchableOpacity
+              style={[styles.confirmBtn, googleLoading && { opacity: 0.7 }]}
+              onPress={handleGoogleVerifyOtp}
+              disabled={googleLoading}
+              activeOpacity={0.85}>
+              <LinearGradient colors={['#EA4335', '#C62828']} style={styles.confirmGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
+                {googleLoading
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <>
+                      <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                      <Text style={styles.confirmTxt}>Xác nhập OTP</Text>
+                    </>}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.resendRow} onPress={handleGoogleLogin} disabled={googleLoading}>
+              <Text style={styles.resendTxt}>Chưa nhận mã? </Text>
+              <Text style={styles.resendLink}>Mở lại Google</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
 
       {/* ── Loading overlay: cây mọc cành ── */}
       <Modal visible={isLoading} transparent animationType="fade" statusBarTranslucent>
@@ -391,6 +571,44 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)', backgroundColor: 'rgba(255,255,255,0.04)', gap: spacing.xs,
   },
   socialLabel: { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.6)', fontWeight: '500' },
+
+  // Google button
+  googleBtn         : { borderColor: 'rgba(219,68,55,0.3)', backgroundColor: 'rgba(219,68,55,0.07)' },
+  googleIconCircle  : { width: 22, height: 22, borderRadius: 11, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center' },
+  googleIconTxt     : { fontSize: 13, fontWeight: '900', color: '#EA4335' },
+  googleLabel       : { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.75)', fontWeight: '600' },
+
+  // Google OTP Modal
+  googleOverlay   : { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  googleSheet     : {
+    backgroundColor: '#10082A', borderTopLeftRadius: 32, borderTopRightRadius: 32,
+    borderWidth: 1, borderColor: 'rgba(234,67,53,0.25)',
+    padding: spacing.xl, paddingBottom: Platform.OS === 'ios' ? 44 : 28,
+  },
+  sheetHandle     : { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.2)', alignSelf: 'center', marginBottom: 24 },
+  googleHeader    : { alignItems: 'center', marginBottom: 24 },
+  gIconLg         : { width: 56, height: 56, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: 12 },
+  gIconTxt        : { fontSize: 28, fontWeight: '900', color: '#fff' },
+  googleSheetTitle: { fontSize: 18, fontWeight: '800', color: '#fff', letterSpacing: -0.3 },
+  googleSheetSub  : { fontSize: 13, color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 6, lineHeight: 20 },
+  otpFieldWrap    : {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    height: 52, paddingHorizontal: 14, borderRadius: 14,
+    borderWidth: 1.5, borderColor: 'rgba(234,67,53,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  otpInput        : { flex: 1, fontSize: 14, color: '#fff' },
+  otpCode         : { fontSize: 22, fontWeight: '800', letterSpacing: 4, color: '#EA4335' },
+  otpCount        : { fontSize: 11, color: 'rgba(255,255,255,0.3)', fontWeight: '600' },
+  googleErrRow    : { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  googleErrTxt    : { fontSize: 12, color: '#FCA5A5', flex: 1 },
+  confirmBtn      : { borderRadius: 16, overflow: 'hidden', marginTop: 20 },
+  confirmGrad     : { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15, borderRadius: 16 },
+  confirmTxt      : { fontSize: 15, fontWeight: '800', color: '#fff' },
+  resendRow       : { flexDirection: 'row', justifyContent: 'center', marginTop: 14 },
+  resendTxt       : { fontSize: 13, color: 'rgba(255,255,255,0.35)' },
+  resendLink      : { fontSize: 13, color: '#EA4335', fontWeight: '700' },
+
   regLinkRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   regLinkText: { fontSize: fontSize.md, color: 'rgba(255,255,255,0.4)' },
   regLinkCta: { fontSize: fontSize.md, color: '#A78BFA', fontWeight: '700' },

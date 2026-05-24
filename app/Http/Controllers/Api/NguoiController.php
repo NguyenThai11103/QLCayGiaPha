@@ -126,11 +126,18 @@ class NguoiController extends Controller
             }
         }
 
+        $ngaySinhAm = null;
+        if (!empty($data['ngay_sinh'])) {
+            $lunarConversion = \App\Support\LunarSolarConverter::solarToLunar($data['ngay_sinh']);
+            $ngaySinhAm = sprintf('%04d-%02d-%02d', $lunarConversion['year'], $lunarConversion['month'], $lunarConversion['day']);
+        }
+
         $insertData = [
             'dong_ho_id'      => $data['id_dong_ho'],
             'ho_ten'          => $data['ten_day_du'],
             'gioi_tinh'       => $data['gioi_tinh'],
             'ngay_sinh_duong' => $data['ngay_sinh'] ?? null,
+            'ngay_sinh_am'    => $ngaySinhAm,
             'tinh_trang_song' => $data['da_mat'] ? 0 : 1,
             'ngay_mat_am'     => $data['ngay_mat'] ?? null,
             'tieu_su'         => $data['tieu_su'] ?? null,
@@ -198,7 +205,15 @@ class NguoiController extends Controller
         if (array_key_exists('id_dong_ho', $data)) $updateData['dong_ho_id'] = $data['id_dong_ho'];
         if (array_key_exists('ten_day_du', $data)) $updateData['ho_ten'] = $data['ten_day_du'];
         if (array_key_exists('gioi_tinh', $data)) $updateData['gioi_tinh'] = $data['gioi_tinh'];
-        if (array_key_exists('ngay_sinh', $data)) $updateData['ngay_sinh_duong'] = $data['ngay_sinh'];
+        if (array_key_exists('ngay_sinh', $data)) {
+            $updateData['ngay_sinh_duong'] = $data['ngay_sinh'];
+            if (!empty($data['ngay_sinh'])) {
+                $lunarConversion = \App\Support\LunarSolarConverter::solarToLunar($data['ngay_sinh']);
+                $updateData['ngay_sinh_am'] = sprintf('%04d-%02d-%02d', $lunarConversion['year'], $lunarConversion['month'], $lunarConversion['day']);
+            } else {
+                $updateData['ngay_sinh_am'] = null;
+            }
+        }
         if (array_key_exists('da_mat', $data)) {
             $updateData['tinh_trang_song'] = $data['da_mat'] ? 0 : 1;
         }
@@ -552,14 +567,33 @@ class NguoiController extends Controller
         }
 
         return $thanhViens->map(function ($tv) use ($mapVoChong, $mapCha, $mapMe) {
+            $ngaySinhAmFormatted = null;
+            if ($tv->ngay_sinh_am) {
+                try {
+                    $carbonAm = \Carbon\Carbon::parse($tv->ngay_sinh_am);
+                    $ngaySinhAmFormatted = \App\Support\LunarSolarConverter::formatLunarDate($carbonAm->day, $carbonAm->month, $carbonAm->year);
+                } catch (\Exception $e) {}
+            }
+
+            $ngayMatAmFormatted = null;
+            if ($tv->ngay_mat_am) {
+                try {
+                    $carbonMat = \Carbon\Carbon::parse($tv->ngay_mat_am);
+                    $ngayMatAmFormatted = \App\Support\LunarSolarConverter::formatLunarDate($carbonMat->day, $carbonMat->month, $carbonMat->year);
+                } catch (\Exception $e) {}
+            }
+
             return [
                 'id' => $tv->id,
                 'id_dong_ho' => $tv->dong_ho_id,
                 'ten_day_du' => $tv->ho_ten,
                 'gioi_tinh' => $tv->gioi_tinh,
                 'ngay_sinh' => $tv->ngay_sinh_duong,
+                'ngay_sinh_am' => $tv->ngay_sinh_am,
+                'ngay_sinh_am_formatted' => $ngaySinhAmFormatted,
                 'ngay_mat' => $tv->ngay_mat_am,
-                'da_mat' => (int) $tv->tinh_trang_song === 0,
+                'ngay_mat_formatted' => $ngayMatAmFormatted,
+                'da_mat' => in_array($tv->tinh_trang_song, [0, '0', 'mat'], true),
                 'id_cha' => $mapCha[$tv->id] ?? null,
                 'id_me' => $mapMe[$tv->id] ?? null,
                 'vo_chong_ids' => array_values(array_unique($mapVoChong[$tv->id] ?? [])),

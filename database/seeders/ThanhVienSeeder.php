@@ -25,7 +25,7 @@ class ThanhVienSeeder extends Seeder
                 'thu_tu_sinh' => 1,
                 'ngay_sinh_duong' => '1900-01-01',
                 'tinh_trang_song' => 0,
-                'ngay_mat_am' => '1980-05-15',
+                'ngay_mat_am' => '1980-04-11',
                 'tieu_su' => 'Cụ tổ khởi nghiệp của dòng họ Trần Lê',
                 'created_at' => now(), 'updated_at' => now(),
             ],

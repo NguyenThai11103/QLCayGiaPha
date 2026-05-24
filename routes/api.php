@@ -111,4 +111,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/update', [CacheXungHoController::class, 'update'])->middleware('check.permission:quan_ly');
         Route::post('/delete', [CacheXungHoController::class, 'destroy'])->middleware('check.permission:quan_ly');
     });
+
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\ThongBaoController::class, 'index']);
+        Route::post('/read', [\App\Http\Controllers\Api\ThongBaoController::class, 'read']);
+        Route::post('/read-all', [\App\Http\Controllers\Api\ThongBaoController::class, 'readAll']);
+    });
 });

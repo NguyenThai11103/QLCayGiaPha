@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "dc4288ebebe16766986ea25eecd1fc4e",
+    "content-hash": "49b5d13f3dc326a2123fb02f97d4f849",
     "packages": [
         {
             "name": "brick/math",
@@ -7124,6 +7124,49 @@
                 "source": "https://github.com/tijsverkoyen/CssToInlineStyles/tree/v2.4.0"
             },
             "time": "2025-12-02T11:56:42+00:00"
+        },
+        {
+            "name": "vantran/lunar-calendar",
+            "version": "3.2.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/luc-nham/lunar-calendar.git",
+                "reference": "4385e669613ebea3f9f450d0aa3a6937fde01ae1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/luc-nham/lunar-calendar/zipball/4385e669613ebea3f9f450d0aa3a6937fde01ae1",
+                "reference": "4385e669613ebea3f9f450d0aa3a6937fde01ae1",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.2"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^11.3"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "LucNham\\LunarCalendar\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "luc-nham",
+                    "email": "admin@lucnham.com"
+                }
+            ],
+            "description": "Thư viện PHP Âm lịch Việt Nam",
+            "support": {
+                "issues": "https://github.com/luc-nham/lunar-calendar/issues",
+                "source": "https://github.com/luc-nham/lunar-calendar/tree/3.2.3"
+            },
+            "time": "2025-01-11T03:03:31+00:00"
         },
         {
             "name": "vlucas/phpdotenv",

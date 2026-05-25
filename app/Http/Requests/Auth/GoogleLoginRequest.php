@@ -20,7 +20,8 @@ class GoogleLoginRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'code' => ['required', 'string'],
+            'code'  => ['required', 'string'],
+            'email' => ['nullable', 'email'],
         ];
     }
 

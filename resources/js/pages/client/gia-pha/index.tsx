@@ -287,7 +287,7 @@ export default function CayGiaPha() {
     const [dongHos, setDongHos] = useState<DongHo[]>([]);
     const [selectedDongHo, setSelectedDongHo] = useState('');
     const [loading, setLoading] = useState(true);
-    const [zoom, setZoom] = useState(0.72);
+    const [zoom, setZoom] = useState(0.85);
     const [searchTerm, setSearchTerm] = useState('');
     const [bloodlineOnly, setBloodlineOnly] = useState(true);
     const [selectedPerson, setSelectedPerson] = useState<Nguoi | null>(null);
@@ -486,8 +486,8 @@ export default function CayGiaPha() {
     const deceased = people.filter((person) => Boolean(person.da_mat)).length;
 
     const zoomOut = () => setZoom((value) => Math.max(value - 0.08, 0.4));
-    const zoomIn = () => setZoom((value) => Math.min(value + 0.08, 1.4));
-    const fit = () => setZoom(0.72);
+    const zoomIn = () => setZoom((value) => Math.min(value + 0.08, 1.6));
+    const fit = () => setZoom(0.85);
 
     return (
         <AuthenticatedLayout fullBleed>
@@ -937,7 +937,7 @@ function FamilyCard({
     return (
         <div className="flex flex-col items-center">
             <div
-                className="relative z-10 flex items-center justify-center gap-4 rounded-[20px] border border-[var(--card-border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-4 shadow-[var(--shadow-md)] backdrop-blur"
+                className="relative z-10 flex items-center justify-center gap-5 rounded-[20px] border border-[var(--card-border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-5 shadow-[var(--shadow-md)] backdrop-blur"
             >
                 <div className="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-[var(--card)] bg-[var(--gold)] text-xs font-bold text-white shadow">
                     {level}
@@ -957,7 +957,7 @@ function FamilyCard({
                 ))}
             </div>
 
-            <div className={`h-8 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
+            <div className={`h-10 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
 
             {hasChildren && (
                 <div className="flex justify-center">
@@ -973,7 +973,7 @@ function FamilyCard({
                                         {!isLast && <div className={`absolute right-0 top-0 h-px w-1/2 ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />}
                                     </>
                                 )}
-                                <div className={`h-8 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
+                                <div className={`h-10 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
                                 <FamilyCard family={child} level={level + 1} searchTerm={searchTerm} bloodlineOnly={bloodlineOnly} selectedPerson={selectedPerson} onSelect={onSelect} />
                             </div>
                         );
@@ -995,28 +995,28 @@ function PersonMiniCard({ person, searchTerm, selected, onSelect }: { person: Ng
         <button
             type="button"
             onClick={() => onSelect(person)}
-            className="group relative flex w-28 flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-center transition hover:bg-[var(--card-soft)]"
+            className="group relative flex w-40 flex-col items-center gap-2 rounded-xl px-2 py-3 text-center transition hover:bg-[var(--card-soft)]"
             style={selected || isHighlighted ? { outline: `2px solid ${selected ? 'var(--gold)' : 'var(--jade)'}`, outlineOffset: '2px' } : undefined}
         >
             <span
-                className="relative grid h-14 w-14 place-items-center overflow-hidden rounded-full text-lg font-bold text-white shadow-md ring-2 ring-[var(--card)] transition group-hover:scale-105"
+                className="relative grid h-[72px] w-[72px] place-items-center overflow-hidden rounded-full text-2xl font-bold text-white shadow-md ring-2 ring-[var(--card)] transition group-hover:scale-105"
                 style={{
                     background: isMale ? 'linear-gradient(135deg,var(--jade),var(--jade-soft))' : 'linear-gradient(135deg,var(--terracotta),var(--crimson))',
                     opacity: isDead ? 0.78 : 1,
                 }}
             >
                 {person.anh_dai_dien ? <img src={person.anh_dai_dien} alt={person.ten_day_du} className="h-full w-full object-cover" /> : person.ten_day_du.charAt(0).toUpperCase()}
-                {isDead && <span className="absolute -right-0.5 -top-0.5 grid h-4 w-4 place-items-center rounded-full bg-[var(--deceased)] text-[9px] ring-2 ring-[var(--card)]">†</span>}
+                {isDead && <span className="absolute -right-0.5 -top-0.5 grid h-5 w-5 place-items-center rounded-full bg-[var(--deceased)] text-[10px] ring-2 ring-[var(--card)]">†</span>}
                 {person.thu_tu_sinh && (
-                    <span className="absolute -left-0.5 -top-0.5 grid h-4.5 w-4.5 place-items-center rounded-full bg-[var(--gold)] text-[9px] font-bold text-white ring-2 ring-[var(--card)] shadow-sm">
+                    <span className="absolute -left-0.5 -top-0.5 grid h-5 w-5 place-items-center rounded-full bg-[var(--gold)] text-[10px] font-bold text-white ring-2 ring-[var(--card)] shadow-sm">
                         {person.thu_tu_sinh}
                     </span>
                 )}
             </span>
-            <span className="line-clamp-2 min-h-8 w-full text-xs font-bold leading-tight text-[var(--ink)] group-hover:text-[var(--gold)]">{person.ten_day_du}</span>
+            <span className="line-clamp-2 min-h-9 w-full text-sm font-bold leading-tight text-[var(--ink)] group-hover:text-[var(--gold)]">{person.ten_day_du}</span>
             {(birthYear || deathYear) && (
-                <span className="text-[10px] font-medium text-[var(--ink-mute)]">
-                    {birthYear || '?'}{isDead ? ` - ${deathYear || '?'}` : ''}
+                <span className="text-[11.5px] font-medium text-[var(--ink-mute)]">
+                    {birthYear || '?'}{isDead ? ` – ${deathYear || '?'}` : ''}
                 </span>
             )}
         </button>

@@ -302,7 +302,7 @@ export default function CayGiaPha() {
     const [formOpen, setFormOpen] = useState(false);
     const [form, setForm] = useState<FormState>(emptyForm);
     const [isDauRe, setIsDauRe] = useState(false);
-    const [quickAddMode, setQuickAddMode] = useState<'none' | 'child' | 'spouse'>('none');
+    const [quickAddMode, setQuickAddMode] = useState<'none' | 'child' | 'spouse' | 'parent'>('none');
     const [selectedParentId, setSelectedParentId] = useState<string>('');
     const [saving, setSaving] = useState(false);
 
@@ -371,6 +371,19 @@ export default function CayGiaPha() {
 
     const handleMouseUp = () => {
         setIsDraggingTree(false);
+    };
+
+    const handleAddParentQuick = (child: Nguoi) => {
+        setSelectedPerson(child);
+        setIsDauRe(false);
+        setQuickAddMode('parent');
+        setForm({
+            ...emptyForm,
+            id_dong_ho: String(selectedDongHo),
+            ngay_sinh: '',
+            ngay_mat: '',
+        });
+        setFormOpen(true);
     };
 
     const handleAddChildQuick = (parent: Nguoi) => {
@@ -464,6 +477,16 @@ export default function CayGiaPha() {
         setSaving(true);
         try {
             const payload = buildPayload(form, isDauRe);
+
+            if (quickAddMode === 'child' && selectedPerson) {
+                payload.id_cha = selectedPerson.gioi_tinh === 'nam' ? selectedPerson.id : undefined;
+                payload.id_me = selectedPerson.gioi_tinh === 'nu' ? selectedPerson.id : undefined;
+            } else if (quickAddMode === 'spouse' && selectedPerson) {
+                payload.id_vo_chong = selectedPerson.id;
+            } else if (quickAddMode === 'parent' && selectedPerson) {
+                payload.id_con = selectedPerson.id;
+            }
+
             const result = form.id
                 ? await nguoiApi.update({ id: form.id, ...payload })
                 : await nguoiApi.create(payload);
@@ -623,6 +646,7 @@ export default function CayGiaPha() {
                                 onClose={() => setSelectedPerson(null)}
                                 onAddChild={handleAddChildQuick}
                                 onAddSpouse={handleAddSpouseQuick}
+                                onAddParent={handleAddParentQuick}
                             />
                         ) : (
                             <div className="gp-card bg-[linear-gradient(145deg,var(--card),var(--gold-glow)_180%)] p-5">
@@ -658,7 +682,7 @@ export default function CayGiaPha() {
                                     <div className="md:col-span-2 flex items-center gap-6 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
                                         <span className="text-sm font-semibold text-emerald-800">Chế độ thêm nhanh:</span>
                                         <span className="text-sm font-bold text-emerald-700">
-                                            {quickAddMode === 'child' ? 'Thành viên gốc (Thêm con đẻ)' : 'Dâu / Rể (Thêm phối ngẫu)'}
+                                            {quickAddMode === 'child' ? 'Thành viên gốc (Thêm con đẻ)' : quickAddMode === 'spouse' ? 'Dâu / Rể (Thêm phối ngẫu)' : 'Thành viên gốc (Thêm cha/mẹ)'}
                                         </span>
                                     </div>
                                 ) : (
@@ -1039,6 +1063,7 @@ function PersonPanel({
     onClose,
     onAddChild,
     onAddSpouse,
+    onAddParent,
 }: {
     person: Nguoi;
     people: Nguoi[];
@@ -1046,6 +1071,7 @@ function PersonPanel({
     onClose: () => void;
     onAddChild: (parent: Nguoi) => void;
     onAddSpouse: (spouse: Nguoi) => void;
+    onAddParent: (child: Nguoi) => void;
 }) {
     const father = person.id_cha ? people.find((item) => item.id === person.id_cha) : undefined;
     const mother = person.id_me ? people.find((item) => item.id === person.id_me) : undefined;
@@ -1087,21 +1113,29 @@ function PersonPanel({
                 )}
                 
                 {isMaster && (
-                    <div className="grid grid-cols-2 gap-2 pt-2">
+                    <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-3">
+                        <button
+                            type="button"
+                            onClick={() => onAddParent(person)}
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--jade)] bg-[color-mix(in_srgb,var(--jade)_10%,transparent)] py-2 text-center text-[11px] font-bold text-[var(--jade)] hover:bg-[color-mix(in_srgb,var(--jade)_15%,transparent)] transition"
+                        >
+                            <Icon name="arrow-up" size={12} />
+                            Thêm cha/mẹ
+                        </button>
                         <button
                             type="button"
                             onClick={() => onAddChild(person)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--gold)] bg-[var(--gold-glow)] py-2 text-center text-xs font-bold text-[var(--gold)] hover:bg-[color-mix(in_srgb,var(--gold)_12%,transparent)] transition"
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--gold)] bg-[var(--gold-glow)] py-2 text-center text-[11px] font-bold text-[var(--gold)] hover:bg-[color-mix(in_srgb,var(--gold)_12%,transparent)] transition"
                         >
-                            <Icon name="plus" size={13} />
-                            Thêm con nhanh
+                            <Icon name="arrow-down" size={12} />
+                            Thêm con
                         </button>
                         <button
                             type="button"
                             onClick={() => onAddSpouse(person)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--terracotta)] bg-[color-mix(in_srgb,var(--terracotta)_10%,transparent)] py-2 text-center text-xs font-bold text-[var(--terracotta)] hover:bg-[color-mix(in_srgb,var(--terracotta)_15%,transparent)] transition"
+                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--terracotta)] bg-[color-mix(in_srgb,var(--terracotta)_10%,transparent)] py-2 text-center text-[11px] font-bold text-[var(--terracotta)] hover:bg-[color-mix(in_srgb,var(--terracotta)_15%,transparent)] transition"
                         >
-                            <Icon name="heart" size={13} />
+                            <Icon name="heart" size={12} />
                             Thêm vợ/chồng
                         </button>
                     </div>

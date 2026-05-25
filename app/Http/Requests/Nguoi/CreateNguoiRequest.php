@@ -27,6 +27,7 @@ class CreateNguoiRequest extends FormRequest
             'id_vo_chong' => 'nullable|integer|exists:thanh_viens,id',
             'id_vo_chong_list' => 'nullable|array',
             'id_vo_chong_list.*' => 'integer|exists:thanh_viens,id',
+            'id_con' => 'nullable|integer|exists:thanh_viens,id',
             'tieu_su' => 'nullable|string',
             'anh_dai_dien' => 'nullable|string',
             'thu_tu_sinh' => 'nullable|integer|min:1',
@@ -38,9 +39,28 @@ class CreateNguoiRequest extends FormRequest
         $validator->after(function (Validator $validator) {
             $idCha = $this->input('id_cha');
             $idMe = $this->input('id_me');
+            $idCon = $this->input('id_con');
+            $gioiTinh = $this->input('gioi_tinh');
             $ngaySinh = $this->input('ngay_sinh');
             $namSinh = $ngaySinh ? (int) date('Y', strtotime($ngaySinh)) : null;
             $thuTuSinh = $this->input('thu_tu_sinh');
+
+            if ($idCon) {
+                $conDb = DB::table('thanh_viens')->where('id', $idCon)->first();
+                if ($conDb) {
+                    // Kiểm tra xem người con đã có cha/mẹ tương ứng với giới tính người đang thêm chưa
+                    $loaiQuanHeChaMe = $gioiTinh === 'nam' ? 'cha_con' : 'me_con';
+                    $daCoChaMe = DB::table('quan_hes')
+                        ->where('node_2_id', $idCon)
+                        ->where('loai_quan_he', $loaiQuanHeChaMe)
+                        ->exists();
+
+                    if ($daCoChaMe) {
+                        $tenVaiTro = $gioiTinh === 'nam' ? 'cha' : 'mẹ';
+                        $validator->errors()->add('id_con', "Thành viên này đã có {$tenVaiTro} rồi, không thể thêm {$tenVaiTro} mới.");
+                    }
+                }
+            }
 
             if ($idCha && $idMe && $this->laToTienCua($idCha, $idMe)) {
                 $validator->errors()->add('id_me', 'Cha va me khong duoc la to tien hoac con chau cua nhau.');

@@ -37,8 +37,11 @@ export interface Nguoi {
 }
 
 export type NguoiPayload = Omit<Nguoi, 'id' | 'vo_chong_ids'> & {
+    id_me?: number;
+    id_vo_chong?: number;
     id_vo_chong_list?: number[];
-    id_vo_chong?: number | null; // Tương thích API cũ nếu có
+    id_con?: number;
+    tieu_su?: string;
 };
 export type NguoiUpdatePayload = Partial<NguoiPayload> & { id: number };
 

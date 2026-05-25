@@ -118,3 +118,4 @@ Route::prefix('cache-xung-ho')->group(function () {
     Route::post('/update', [CacheXungHoController::class, 'update']);
     Route::post('/delete', [CacheXungHoController::class, 'destroy']);
 });
+});

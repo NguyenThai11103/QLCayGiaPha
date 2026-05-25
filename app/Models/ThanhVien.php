@@ -98,6 +98,6 @@ class ThanhVien extends Model
 
     public function daMat(): bool
     {
-        return (int) $this->tinh_trang_song === 0;
+        return in_array($this->tinh_trang_song, [0, '0', 'mat'], true);
     }
 }

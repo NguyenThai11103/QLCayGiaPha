@@ -119,5 +119,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/create', [MoPhanController::class, 'store']);
         Route::post('/update', [MoPhanController::class, 'update']);
         Route::post('/delete', [MoPhanController::class, 'destroy'])->middleware('check.permission:quan_ly');
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\ThongBaoController::class, 'index']);
+        Route::post('/read', [\App\Http\Controllers\Api\ThongBaoController::class, 'read']);
+        Route::post('/read-all', [\App\Http\Controllers\Api\ThongBaoController::class, 'readAll']);
     });
 });

@@ -66,11 +66,25 @@ class AuthController extends Controller
         $data = $request->validated();
  
         if (config('services.google.client_id') === 'mock_client_id_for_testing' || $data['code'] === 'mock_authorization_code') {
-            // Giả lập thông tin người dùng Google của Nguyễn Văn Kỳ để chạy thử không lỗi
-            $googleUser = new class {
-                public function getId() { return '102938475647382910'; }
-                public function getName() { return 'Nguyễn Văn Kỳ'; }
-                public function getEmail() { return 'nguyenvanky20005@gmail.com'; }
+            // Giả lập thông tin người dùng Google động từ email truyền lên hoặc email mặc định
+            $mockEmail = $data['email'] ?? 'nguyenvanky20005@gmail.com';
+            // Tách phần tên từ email để làm ho_ten giả lập
+            $namePart = explode('@', $mockEmail)[0];
+            $mockName = ucwords(str_replace(['.', '_', '-'], ' ', $namePart));
+
+            $googleUser = new class($mockEmail, $mockName) {
+                private $email;
+                private $name;
+
+                public function __construct($email, $name)
+                {
+                    $this->email = $email;
+                    $this->name  = $name;
+                }
+
+                public function getId() { return 'mock_google_id_' . md5($this->email); }
+                public function getName() { return $this->name; }
+                public function getEmail() { return $this->email; }
                 public function getAvatar() { return 'https://lh3.googleusercontent.com/a/default-user-avatar=s96-c'; }
             };
         } else {

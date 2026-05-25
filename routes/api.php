@@ -49,6 +49,47 @@ Route::prefix('nguoi-dung')->group(function () {
     Route::post('/update', [NguoiDungController::class, 'update']);
     Route::post('/delete', [NguoiDungController::class, 'destroy']);
 });
+Route::middleware('auth:sanctum')->group(function () {
+    Route::prefix('onboarding')->group(function () {
+        Route::get('/search-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'searchClan']);
+        Route::post('/join-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'joinClan']);
+        Route::post('/create-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'createClan']);
+    });
+
+    Route::prefix('dong-ho')->group(function () {
+        Route::get('/list', [DongHoController::class, 'index']);
+        Route::post('/create', [DongHoController::class, 'store'])->middleware('check.permission:system_admin');
+        Route::post('/update', [DongHoController::class, 'update'])->middleware('check.permission:quan_ly');
+        Route::post('/delete', [DongHoController::class, 'destroy'])->middleware('check.permission:system_admin');
+    });
+
+    Route::prefix('nguoi')->group(function () {
+        Route::get('/list', [NguoiController::class, 'index']);
+        Route::get('/detail', [NguoiController::class, 'detail']);
+        Route::post('/create', [NguoiController::class, 'store'])->middleware('check.permission:quan_ly');
+        Route::post('/update', [NguoiController::class, 'update'])->middleware('check.permission:quan_ly');
+        Route::post('/delete', [NguoiController::class, 'destroy'])->middleware('check.permission:quan_ly');
+    });
+
+    Route::prefix('cho-duyet')->middleware('check.permission:quan_ly')->group(function () {
+        Route::get('/list', [\App\Http\Controllers\Api\DuyetThanhVienController::class, 'index']);
+        Route::post('/process', [\App\Http\Controllers\Api\DuyetThanhVienController::class, 'process']);
+    });
+
+    Route::prefix('nguoi-dung')->middleware('check.permission:quan_ly')->group(function () {
+
+        Route::get('/list', [NguoiDungController::class, 'index']);
+        Route::post('/create', [NguoiDungController::class, 'store']);
+        Route::post('/update', [NguoiDungController::class, 'update']);
+        Route::post('/delete', [NguoiDungController::class, 'destroy']);
+    });
+
+    Route::prefix('su-kien')->group(function () {
+        Route::get('/list', [SuKienController::class, 'index']);
+        Route::post('/create', [SuKienController::class, 'store'])->middleware('check.permission:quan_ly');
+        Route::post('/update', [SuKienController::class, 'update'])->middleware('check.permission:quan_ly');
+        Route::post('/delete', [SuKienController::class, 'destroy'])->middleware('check.permission:quan_ly');
+    });
 
 Route::prefix('su-kien')->group(function () {
     Route::get('/list', [SuKienController::class, 'index']);

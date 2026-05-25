@@ -965,7 +965,6 @@ const YearHeatmap: React.FC<YearHeatmapProps> = ({ events, currentMonth, onMonth
                                     color: c === 0 ? 'var(--ink-faint)' : 'var(--brown)',
                                     fontSize: 14,
                                     fontWeight: 700,
-                                    fontFamily: 'Cormorant Garamond, serif',
                                 }}
                             >
                                 {c || '—'}
@@ -1312,6 +1311,14 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, onClose, onSucc
 // ============================================================
 // Main page — kết nối API thực
 // ============================================================
+export const EventsPage: React.FC<EventsPageProps> = ({ onNav, today = new Date().toISOString().slice(0, 10) }) => {
+    const { user } = useAuth();
+
+    const [rawEvents,    setRawEvents]    = React.useState<FamilyEvent[]>([]);
+    const [loading,      setLoading]      = React.useState(true);
+    const [showAddModal, setShowAddModal] = React.useState(false);
+    const [filter,       setFilter]       = useState<FilterValue>('all');
+    const [viewMonth,    setViewMonth]    = useState<{ y: number; m: number }>({
 export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEvents, today = new Date().toISOString().slice(0, 10) }) => {
     const { user } = useAuth();
     const [rawEvents,    setRawEvents]    = React.useState<FamilyEvent[]>(initialEvents || []);
@@ -1325,6 +1332,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
         m: parseISO(today).m,
     });
     const [selectedDate, setSelectedDate] = useState<string | null>(today);
+
 
     const loadEvents = React.useCallback(async () => {
         setLoading(true);

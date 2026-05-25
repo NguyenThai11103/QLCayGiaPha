@@ -63,6 +63,10 @@ Route::get('/gia-pha/thanh-vien', function () {
     return Inertia::render('client/thanh-vien/index');
 });
 
+Route::get('/gia-pha/cho-duyet', function () {
+    return Inertia::render('client/cho-duyet/index');
+});
+
 Route::get('/gia-pha/cay-gia-pha', function () {
     return Inertia::render('client/gia-pha/index');
 });

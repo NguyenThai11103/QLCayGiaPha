@@ -451,12 +451,12 @@ export default function AdminDanhSachThanhVien() {
 
     return (
         <AuthenticatedLayout>
-            <Head title="Quản lý thành viên (Admin)" />
+            <Head title={user?.is_master === 1 ? "Quản lý thành viên (Admin)" : "Quản lý thành viên"} />
             <div className="mx-auto max-w-7xl">
                 {/* Header */}
                 <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900">Quản lý thành viên (Admin)</h2>
+                        <h2 className="text-2xl font-bold text-gray-900">{user?.is_master === 1 ? "Quản lý thành viên (Admin)" : "Quản lý thành viên"}</h2>
                         <div className="mt-2 flex flex-wrap gap-3">
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                                 👨 {statsNam} Nam

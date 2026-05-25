@@ -123,6 +123,7 @@ export default function GoogleCallback() {
         setIsSubmitting(true);
         try {
             const response = await apiClient.post('/auth/google/callback', { code, email });
+            const response = await apiClient.post('/auth/google/callback', { code });
             if (response.data.success && response.data.need_otp) {
                 toast.success('Mã OTP mới đã được gửi về hòm thư của bạn.');
                 setOtpCode('');

@@ -13,3 +13,6 @@ Schedule::command('task:remind-deadline')->dailyAt('08:00');
 
 // Báo cáo lịch làm việc hằng ngày lúc 7:00 sáng
 Schedule::command('lich-lam-viec:send-report')->dailyAt('07:00');
+
+// Tự động quét và nhắc nhở ngày Giỗ trước 3 ngày lúc 7:30 sáng hàng ngày
+Schedule::command('giapha:remind-death-anniversary')->dailyAt('07:30');

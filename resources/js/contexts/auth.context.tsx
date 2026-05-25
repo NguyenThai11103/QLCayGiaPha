@@ -38,9 +38,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         try {
             setToken(savedToken);
-            const response = await apiClient.get('/auth/me');
+            const isAdminPath = window.location.pathname.startsWith('/admin');
+            const endpoint = isAdminPath ? '/admin/auth/me' : '/auth/me';
+            
+            const response = await apiClient.get(endpoint);
             if (response.data.success) {
-                // API /auth/me returns user data directly in data field
+                // API returns user data directly in data field
                 setUser(response.data.data);
             }
         } catch (error) {
@@ -58,7 +61,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
      */
     const login = async (credentials: LoginCredentials) => {
         try {
-            const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
+            const isAdminPath = window.location.pathname.startsWith('/admin');
+            const endpoint = isAdminPath ? '/admin/auth/login' : '/auth/login';
+            const response = await apiClient.post<AuthResponse>(endpoint, credentials);
             
             console.log('🔐 Login response:', response.data);
 
@@ -94,7 +99,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
      */
     const logout = async () => {
         try {
-            await apiClient.post('/auth/logout');
+            const isAdminPath = window.location.pathname.startsWith('/admin');
+            const endpoint = isAdminPath ? '/admin/auth/logout' : '/auth/logout';
+            await apiClient.post(endpoint);
         } catch (error) {
             console.error('Logout error:', error);
         } finally {
@@ -106,7 +113,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
             
             setToken(null);
             setUser(null);
-            window.location.href = '/login';
+            
+            const isAdminPath = window.location.pathname.startsWith('/admin');
+            window.location.href = isAdminPath ? '/admin/login' : '/login';
         }
     };
 

@@ -55,6 +55,11 @@ class ThanhVien extends Model
         return $this->hasMany(TaiLieu::class, 'thanh_vien_id');
     }
 
+    public function moPhan()
+    {
+        return $this->hasOne(MoPhan::class, 'thanh_vien_id');
+    }
+
     /** Quan hệ mà thành viên này là node_1 */
     public function quanHesNguon()
     {
@@ -93,6 +98,6 @@ class ThanhVien extends Model
 
     public function daMat(): bool
     {
-        return (int) $this->tinh_trang_song === 0;
+        return in_array($this->tinh_trang_song, [0, '0', 'mat'], true);
     }
 }

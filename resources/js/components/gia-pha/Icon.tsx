@@ -32,7 +32,14 @@ type IconProps = SVGProps<SVGSVGElement> & {
         | 'lotus'
         | 'logout'
         | 'menu'
-        | 'x';
+        | 'x'
+        | 'camera'
+        | 'check'
+        | 'map'
+        | 'copy'
+        | 'trash'
+        | 'crosshair'
+        | 'clock';
     size?: number;
 };
 
@@ -112,5 +119,19 @@ export default function Icon({ name, size = 18, strokeWidth = 1.75, ...props }: 
             return <svg {...common}><path d="M4 6h16M4 12h16M4 18h16" /></svg>;
         case 'x':
             return <svg {...common}><path d="M18 6L6 18M6 6l12 12" /></svg>;
+        case 'camera':
+            return <svg {...common}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>;
+        case 'check':
+            return <svg {...common}><path d="M20 6L9 17l-5-5" /></svg>;
+        case 'map':
+            return <svg {...common}><path d="M9 18l-6 3V6l6-3 6 3 6-3v15l-6 3z" /><path d="M9 3v15M15 6v15" /></svg>;
+        case 'copy':
+            return <svg {...common}><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M4 16V6a2 2 0 012-2h10" /></svg>;
+        case 'trash':
+            return <svg {...common}><path d="M4 7h16" /><path d="M10 11v6M14 11v6" /><path d="M6 7l1 14h10l1-14" /><path d="M9 7V4h6v3" /></svg>;
+        case 'crosshair':
+            return <svg {...common}><circle cx="12" cy="12" r="7" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /><circle cx="12" cy="12" r="1" /></svg>;
+        case 'clock':
+            return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
     }
 }

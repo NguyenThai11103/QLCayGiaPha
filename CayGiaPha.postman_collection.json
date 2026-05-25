@@ -354,6 +354,95 @@
                     "response": []
                 }
             ]
+        },
+        {
+            "name" : "QR & Tra cứu Một chạm",
+            "item" : [
+                {
+                    "name"    : "1. Lấy thông tin tài khoản hiện tại (Me)",
+                    "request" : {
+                        "method" : "GET",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/me",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "me"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"    : "2. Tra cứu chi tiết thành viên cùng dòng họ",
+                    "request" : {
+                        "method" : "GET",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "url"    : {
+                            "raw"   : "{{base_url}}/api/nguoi/detail?id=1",
+                            "host"  : [
+                                "{{base_url}}"
+                            ],
+                            "path"  : [
+                                "api",
+                                "nguoi",
+                                "detail"
+                            ],
+                            "query" : [
+                                {
+                                    "key"   : "id",
+                                    "value" : "1"
+                                }
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"    : "3. Tra cứu thành viên khác dòng họ (Bảo mật chéo)",
+                    "request" : {
+                        "method" : "GET",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "url"    : {
+                            "raw"   : "{{base_url}}/api/nguoi/detail?id=99",
+                            "host"  : [
+                                "{{base_url}}"
+                            ],
+                            "path"  : [
+                                "api",
+                                "nguoi",
+                                "detail"
+                            ],
+                            "query" : [
+                                {
+                                    "key"   : "id",
+                                    "value" : "99"
+                                }
+                            ]
+                        }
+                    },
+                    "response" : []
+                }
+            ]
         }
     ],
     "variable": [

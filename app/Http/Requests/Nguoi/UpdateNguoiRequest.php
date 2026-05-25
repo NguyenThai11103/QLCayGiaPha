@@ -282,6 +282,27 @@ class UpdateNguoiRequest extends FormRequest
                     }
                 }
             }
+
+            // 4. Kiểm tra ràng buộc hai người trong họ (trực hệ) không thể là vợ chồng của nhau
+            if (!empty($voChongList)) {
+                $map = $this->getThanhVienMap();
+                
+                // Thành viên hiện tại có phải là trực hệ không?
+                $hienTaiLaTrucHie = ($idCha || $idMe);
+                
+                if ($hienTaiLaTrucHie) {
+                    foreach ($voChongList as $idVoChongIt) {
+                        if (isset($map[$idVoChongIt])) {
+                            $nguoiVoChong = $map[$idVoChongIt];
+                            $voChongLaTrucHie = ($nguoiVoChong['id_cha'] !== null || $nguoiVoChong['id_me'] !== null);
+                            
+                            if ($voChongLaTrucHie) {
+                                $validator->errors()->add('id_vo_chong_list', "Hai người thuộc huyết thống trực hệ của dòng họ (trong họ) không thể là vợ chồng của nhau (Thành viên hiện tại và {$nguoiVoChong['ten_day_du']} đều có cha/mẹ trong dòng họ).");
+                            }
+                        }
+                    }
+                }
+            }
         });
     }
 

@@ -77,7 +77,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/delete', [NguoiController::class, 'destroy'])->middleware('check.permission:quan_ly');
     });
 
+    Route::prefix('cho-duyet')->middleware('check.permission:quan_ly')->group(function () {
+        Route::get('/list', [\App\Http\Controllers\Api\DuyetThanhVienController::class, 'index']);
+        Route::post('/process', [\App\Http\Controllers\Api\DuyetThanhVienController::class, 'process']);
+    });
+
     Route::prefix('nguoi-dung')->middleware('check.permission:quan_ly')->group(function () {
+
         Route::get('/list', [NguoiDungController::class, 'index']);
         Route::post('/create', [NguoiDungController::class, 'store']);
         Route::post('/update', [NguoiDungController::class, 'update']);

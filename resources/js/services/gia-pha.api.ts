@@ -49,6 +49,24 @@ export const dongHoApi = {
     },
 };
 
+export const nguoiDungApi = {
+    list: (params?: Record<string, any>) => apiClient.get('/nguoi-dung/list', { params }),
+    create: (data: Partial<NguoiDung>) => apiClient.post('/nguoi-dung/create', data),
+    update: (data: Partial<NguoiDung>) => apiClient.post('/nguoi-dung/update', data),
+    delete: (id: number) => apiClient.post('/nguoi-dung/delete', { id }),
+};
+
+export const choDuyetApi = {
+    async list() {
+        const response = await apiClient.get('/cho-duyet/list');
+        return response.data;
+    },
+    async process(userId: number, action: 'approve' | 'reject') {
+        const response = await apiClient.post('/cho-duyet/process', { user_id: userId, action });
+        return response.data;
+    }
+};
+
 export const nguoiApi = {
     async list(idDongHo?: number | string) {
         const response = await apiClient.get<ApiResponse<Nguoi[]>>('/nguoi/list', {

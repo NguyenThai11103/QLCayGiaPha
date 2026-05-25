@@ -25,19 +25,6 @@ function initials(name: string): string {
     const parts = name.trim().split(' ');
     return parts[parts.length - 1]?.charAt(0)?.toUpperCase() ?? name.charAt(0).toUpperCase();
 }
-    if (user?.quyen_han === 'quan_ly') {
-        return <AdminDanhSachThanhVien />;
-    }
-    const [members, setMembers] = useState<Nguoi[]>([]);
-    const [dongHos, setDongHos] = useState<DongHo[]>([]);
-    const [selectedDongHo, setSelectedDongHo] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-
-    const filteredMembers = useMemo(() => {
-        if (!selectedDongHo) {
-            return members;
-        }
 
 export default function ClientDanhSachThanhVien() {
     const { user } = useAuth();
@@ -61,10 +48,10 @@ export default function ClientDanhSachThanhVien() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { 
-        if (user?.is_master !== 1) {
+        if (user?.is_master !== 1 && user?.quyen_han !== 'quan_ly') {
             void loadData(); 
         }
-    }, [selectedDH, user?.is_master]);
+    }, [selectedDH, user?.is_master, user?.quyen_han]);
 
     const filtered = useMemo(() => {
         let list = selectedDH ? members.filter(m => String(m.id_dong_ho) === selectedDH) : members;
@@ -75,8 +62,8 @@ export default function ClientDanhSachThanhVien() {
         return list;
     }, [members, selectedDH, searchTerm]);
 
-    // Phân nhánh admin sau khi khai báo hooks
-    if (user?.is_master === 1) {
+    // Phân nhánh admin hoặc quản lý (trưởng tộc)
+    if (user?.is_master === 1 || user?.quyen_han === 'quan_ly') {
         return <AdminDanhSachThanhVien />;
     }
 
@@ -188,47 +175,50 @@ export default function ClientDanhSachThanhVien() {
                             return (
                                 <Link key={member.id} href={`/gia-pha/thanh-vien/${member.id}`} style={{ textDecoration: 'none', display: 'block' }}>
                                     <div
-                                        style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', overflow: 'hidden', transition: 'all 0.2s', boxShadow: 'var(--shadow-sm)', cursor: 'pointer' }}
+                                        style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', overflow: 'hidden', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', cursor: 'pointer', position: 'relative' }}
                                         onMouseEnter={e => {
                                             (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--gold-soft)';
-                                            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
-                                            (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-md)';
+                                            (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)';
+                                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 12px 24px rgba(184, 144, 44, 0.08)';
                                         }}
                                         onMouseLeave={e => {
                                             (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--line)';
                                             (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
-                                            (e.currentTarget as HTMLDivElement).style.boxShadow = 'var(--shadow-sm)';
+                                            (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.03)';
                                         }}
                                     >
                                         {/* Banner */}
-                                        <div style={{ height: 52, background: avatarGrad(member.ten_day_du), position: 'relative' }}>
+                                        <div style={{ height: 60, background: avatarGrad(member.ten_day_du), position: 'relative', opacity: 0.9 }}>
+                                            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at right top, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at left bottom, rgba(0,0,0,0.15) 0%, transparent 50%)' }} />
                                             {member.da_mat && (
-                                                <div style={{ position: 'absolute', top: 8, right: 10, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(0,0,0,0.35)', color: 'rgba(255,255,255,0.9)' }}>✝ Đã mất</div>
+                                                <div style={{ position: 'absolute', top: 12, right: 12, fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: 'rgba(0,0,0,0.4)', color: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <Icon name="moon" size={10} /> Đã mất
+                                                </div>
                                             )}
                                         </div>
 
-                                        <div style={{ padding: '0 16px 16px', marginTop: -20 }}>
+                                        <div style={{ padding: '0 20px 20px', marginTop: -24, position: 'relative', zIndex: 2 }}>
                                             {/* Avatar */}
-                                            <div style={{ width: 48, height: 48, borderRadius: '50%', border: '3px solid var(--bg-elev)', background: avatarGrad(member.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 18, fontWeight: 700, color: 'white', marginBottom: 10, boxShadow: 'var(--shadow-sm)' }}>
+                                            <div style={{ width: 56, height: 56, borderRadius: '50%', border: '4px solid var(--bg-elev)', background: avatarGrad(member.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 12, boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
                                                 {initials(member.ten_day_du)}
                                             </div>
 
-                                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', marginBottom: 4, fontFamily: 'Cormorant Garamond, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.ten_day_du}</div>
+                                            <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)', marginBottom: 6, fontFamily: 'Cormorant Garamond, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.ten_day_du}</div>
 
-                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-                                                <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 12%, transparent)' : 'color-mix(in srgb, var(--terracotta) 12%, transparent)', color: member.gioi_tinh === 'nam' ? 'var(--gold)' : 'var(--terracotta)', border: `1px solid ${member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 25%, transparent)' : 'color-mix(in srgb, var(--terracotta) 25%, transparent)'}` }}>
-                                                    {member.gioi_tinh === 'nam' ? '♂ Nam' : '♀ Nữ'}
+                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                                                <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 8%, transparent)' : 'color-mix(in srgb, var(--terracotta) 8%, transparent)', color: member.gioi_tinh === 'nam' ? 'var(--gold-dark)' : 'var(--terracotta)', border: `1px solid ${member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 20%, transparent)' : 'color-mix(in srgb, var(--terracotta) 20%, transparent)'}`, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <Icon name={member.gioi_tinh === 'nam' ? 'users' : 'heart'} size={11} /> {member.gioi_tinh === 'nam' ? 'Nam' : 'Nữ'}
                                                 </span>
                                                 {dongHo && (
-                                                    <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: 'var(--card-soft)', color: 'var(--ink-mute)', border: '1px solid var(--line)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
-                                                        {dongHo.ten_dong_ho}
+                                                    <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: 'var(--bg-base)', color: 'var(--ink-soft)', border: '1px solid var(--line)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                        <Icon name="scroll" size={11} /> {dongHo.ten_dong_ho}
                                                     </span>
                                                 )}
                                             </div>
 
-                                            <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                                {member.ngay_sinh && <div>📅 {member.ngay_sinh}</div>}
-                                                {spouseNames && <div>💑 {spouseNames}</div>}
+                                            <div style={{ fontSize: 12, color: 'var(--ink-soft)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                                {member.ngay_sinh && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="lotus" size={12} color="var(--ink-mute)" /> Sinh: <strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{member.ngay_sinh}</strong></div>}
+                                                {spouseNames && <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="heart" size={12} color="var(--ink-mute)" /> Vợ/Chồng: <strong style={{ color: 'var(--ink)', fontWeight: 500 }}>{spouseNames}</strong></div>}
                                             </div>
                                         </div>
                                     </div>

@@ -196,13 +196,13 @@ export default function ClientDanhSachThanhVien() {
                                             )}
                                         </div>
 
-                                        <div style={{ padding: '0 20px 20px', marginTop: -24, position: 'relative', zIndex: 2 }}>
+                                        <div style={{ padding: '0 20px 0', marginTop: -24, position: 'relative', zIndex: 2 }}>
                                             <div style={{ width: 56, height: 56, borderRadius: '50%', border: '4px solid var(--bg-elev)', background: avatarGrad(member.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 20, fontWeight: 700, color: 'white', marginBottom: 12, boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }}>
                                                 {initials(member.ten_day_du)}
                                             </div>
                                         </div>
 
-                                        <div style={{ padding: '0 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                        <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                                             <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)', marginBottom: 6, fontFamily: 'Cormorant Garamond, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.ten_day_du}</div>
 
                                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>

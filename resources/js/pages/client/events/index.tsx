@@ -654,8 +654,8 @@ const CalendarView: React.FC<CalendarViewProps> = ({ year, month, events, select
                                 background: isSelected
                                     ? 'var(--gold-glow)'
                                     : isToday
-                                      ? 'color-mix(in srgb, var(--gold) 6%, transparent)'
-                                      : 'transparent',
+                                        ? 'color-mix(in srgb, var(--gold) 6%, transparent)'
+                                        : 'transparent',
                                 border: isSelected ? '1.5px solid var(--gold)' : isToday ? '1.5px solid var(--gold-soft)' : '1px solid transparent',
                                 borderRadius: 10,
                                 padding: 6,
@@ -881,9 +881,8 @@ const FilterBar: React.FC<FilterBarProps> = ({ active, onChange, counts }) => {
                                     : 'var(--gold-glow)'
                                 : 'var(--card)',
                             color: isActive ? (meta ? `var(--${meta.color})` : 'var(--brown)') : 'var(--ink-soft)',
-                            border: `1px solid ${
-                                isActive ? (meta ? `color-mix(in srgb, var(--${meta.color}) 30%, transparent)` : 'var(--gold-soft)') : 'var(--line)'
-                            }`,
+                            border: `1px solid ${isActive ? (meta ? `color-mix(in srgb, var(--${meta.color}) 30%, transparent)` : 'var(--gold-soft)') : 'var(--line)'
+                                }`,
                             fontSize: 12.5,
                             fontWeight: 600,
                             cursor: 'pointer',
@@ -1156,29 +1155,29 @@ const DetailItem: React.FC<{ label: string; value: string }> = ({ label, value }
 // Map SuKien DB → FamilyEvent UI
 // ============================================================
 const LOAI_MAP: Record<string, EventType> = {
-    gio_to          : 'anniversary',
-    le_cuoi         : 'wedding',
-    le_truyen_thong : 'ceremony',
-    mung_tho        : 'longevity',
-    sinh_nhat       : 'birthday',
-    anniversary     : 'anniversary',
-    wedding         : 'wedding',
-    ceremony        : 'ceremony',
-    longevity       : 'longevity',
-    birthday        : 'birthday',
+    gio_to: 'anniversary',
+    le_cuoi: 'wedding',
+    le_truyen_thong: 'ceremony',
+    mung_tho: 'longevity',
+    sinh_nhat: 'birthday',
+    anniversary: 'anniversary',
+    wedding: 'wedding',
+    ceremony: 'ceremony',
+    longevity: 'longevity',
+    birthday: 'birthday',
 };
 
 function mapSuKienToFamilyEvent(sk: import('../../../services/gia-pha.api').SuKien): FamilyEvent {
     return {
-        id          : String(sk.id),
-        date        : sk.ngay_duong || sk.ngay_am || new Date().toISOString().slice(0, 10),
-        lunarDate   : sk.ngay_am ? sk.ngay_am.split('-').reverse().join('/') + ' ÂL' : undefined,
-        title       : sk.ten_su_kien,
-        type        : LOAI_MAP[sk.loai_su_kien || ''] ?? 'ceremony',
-        location    : sk.dia_diem || 'Chưa cập nhật địa điểm',
-        attendees   : 0,
-        description : sk.mo_ta ?? undefined,
-        pinned      : false,
+        id: String(sk.id),
+        date: sk.ngay_duong || sk.ngay_am || new Date().toISOString().slice(0, 10),
+        lunarDate: sk.ngay_am ? sk.ngay_am.split('-').reverse().join('/') + ' ÂL' : undefined,
+        title: sk.ten_su_kien,
+        type: LOAI_MAP[sk.loai_su_kien || ''] ?? 'ceremony',
+        location: sk.dia_diem || 'Chưa cập nhật địa điểm',
+        attendees: 0,
+        description: sk.mo_ta ?? undefined,
+        pinned: false,
     };
 }
 
@@ -1186,31 +1185,31 @@ function mapSuKienToFamilyEvent(sk: import('../../../services/gia-pha.api').SuKi
 // Màn hình thêm sự kiện (admin)
 // ============================================================
 interface AddEventModalProps {
-    dongHoId  : number;
-    onClose   : () => void;
-    onSuccess : () => void;
+    dongHoId: number;
+    onClose: () => void;
+    onSuccess: () => void;
 }
 
 const LOAI_OPTIONS: { value: string; label: string }[] = [
-    { value: 'gio_to',          label: 'Lễ giỗ' },
-    { value: 'le_cuoi',         label: 'Lễ cưới' },
+    { value: 'gio_to', label: 'Lễ giỗ' },
+    { value: 'le_cuoi', label: 'Lễ cưới' },
     { value: 'le_truyen_thong', label: 'Lễ truyền thống' },
-    { value: 'mung_tho',        label: 'Mừng thọ' },
-    { value: 'sinh_nhat',       label: 'Sinh nhật / Đầy tháng' },
+    { value: 'mung_tho', label: 'Mừng thọ' },
+    { value: 'sinh_nhat', label: 'Sinh nhật / Đầy tháng' },
 ];
 
 const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, onClose, onSuccess }) => {
     const [form, setForm] = React.useState({
-        ten_su_kien      : '',
-        loai_su_kien     : 'gio_to',
-        ngay_duong       : '',
-        ngay_am          : '',
-        lap_lai_hang_nam : false,
-        dia_diem         : '',
-        mo_ta            : '',
+        ten_su_kien: '',
+        loai_su_kien: 'gio_to',
+        ngay_duong: '',
+        ngay_am: '',
+        lap_lai_hang_nam: false,
+        dia_diem: '',
+        mo_ta: '',
     });
     const [saving, setSaving] = React.useState(false);
-    const [error,  setError]  = React.useState('');
+    const [error, setError] = React.useState('');
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -1222,14 +1221,14 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, onClose, onSucc
         try {
             const { suKienApi } = await import('../../../services/gia-pha.api');
             const res = await suKienApi.create({
-                dong_ho_id       : dongHoId,
-                ten_su_kien      : form.ten_su_kien.trim(),
-                loai_su_kien     : form.loai_su_kien,
-                ngay_duong       : form.ngay_duong   || null,
-                ngay_am          : form.ngay_am       || null,
-                lap_lai_hang_nam : form.lap_lai_hang_nam,
-                dia_diem         : form.dia_diem.trim()  || null,
-                mo_ta            : form.mo_ta.trim()      || null,
+                dong_ho_id: dongHoId,
+                ten_su_kien: form.ten_su_kien.trim(),
+                loai_su_kien: form.loai_su_kien,
+                ngay_duong: form.ngay_duong || null,
+                ngay_am: form.ngay_am || null,
+                lap_lai_hang_nam: form.lap_lai_hang_nam,
+                dia_diem: form.dia_diem.trim() || null,
+                mo_ta: form.mo_ta.trim() || null,
             });
             if (res.success) { onSuccess(); onClose(); }
             else setError(res.message || 'Không thể tạo sự kiện.');
@@ -1324,178 +1323,178 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
     const [selectedDate, setSelectedDate] = useState<string | null>(today);
 
 
-    const loadEvents = React.useCallback(async () => {
-        setLoading(true);
-        try {
-            const { suKienApi } = await import('../../../services/gia-pha.api');
-            const dongHoId = user?.dong_ho?.id;
-            const res = await suKienApi.list(dongHoId);
-            if (res.success && res.data) {
-                setRawEvents(res.data.map(mapSuKienToFamilyEvent));
+            const loadEvents = React.useCallback(async () => {
+                setLoading(true);
+                try {
+                    const { suKienApi } = await import('../../../services/gia-pha.api');
+                    const dongHoId = user?.dong_ho?.id;
+                    const res = await suKienApi.list(dongHoId);
+                    if (res.success && res.data) {
+                        setRawEvents(res.data.map(mapSuKienToFamilyEvent));
+                    }
+                } catch {
+                    // network error — giữ mảng rỗng
+                } finally {
+                    setLoading(false);
+                }
+            }, [user?.dong_ho?.id]);
+
+            React.useEffect(() => { void loadEvents(); }, [loadEvents]);
+
+            // Nếu API chưa có dữ liệu, dùng fallback mẫu để không blank hoàn toàn
+            const events = rawEvents.length > 0 ? rawEvents : (loading ? [] : EVENTS_2026);
+
+            const filtered = useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
+
+            const counts = useMemo<Record<FilterValue, number>>(() => {
+                const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0 };
+                for (const e of events) c[e.type]++;
+                return c;
+            }, [events]);
+
+            const nextEvent = useMemo<FamilyEvent | null>(() => {
+                const upcoming = filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date));
+                return upcoming[0] ?? null;
+            }, [filtered, today]);
+
+            const upcoming = useMemo<FamilyEvent[]>(
+                () => filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date)).slice(0, 8),
+                [filtered, today],
+            );
+
+            const selectedEvent = useMemo<FamilyEvent | null>(() => {
+                if (!selectedDate) return null;
+                return events.find((e) => e.date === selectedDate) ?? null;
+            }, [events, selectedDate]);
+
+            const monthEvents = useMemo<FamilyEvent[]>(
+                () => filtered.filter((e) => { const { y, m } = parseISO(e.date); return y === viewMonth.y && m === viewMonth.m; }),
+                [filtered, viewMonth],
+            );
+
+            function changeMonth(direction: -1 | 1): void {
+                setViewMonth((prev) => {
+                    let m = prev.m + direction;
+                    let y = prev.y;
+                    if (m < 1) { m = 12; y--; }
+                    if (m > 12) { m = 1; y++; }
+                    return { y, m };
+                });
             }
-        } catch {
-            // network error — giữ mảng rỗng
-        } finally {
-            setLoading(false);
-        }
-    }, [user?.dong_ho?.id]);
 
-    React.useEffect(() => { void loadEvents(); }, [loadEvents]);
+            const navigate = onNav ?? ((page: string) => {
+                const href = page === 'dashboard' ? '/gia-pha/dashboard' : page === 'tree' ? '/gia-pha/cay-gia-pha' : '/';
+                router.visit(href);
+            });
 
-    // Nếu API chưa có dữ liệu, dùng fallback mẫu để không blank hoàn toàn
-    const events = rawEvents.length > 0 ? rawEvents : (loading ? [] : EVENTS_2026);
+            const isMaster = user?.is_master === 1;
 
-    const filtered = useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
-
-    const counts = useMemo<Record<FilterValue, number>>(() => {
-        const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0 };
-        for (const e of events) c[e.type]++;
-        return c;
-    }, [events]);
-
-    const nextEvent = useMemo<FamilyEvent | null>(() => {
-        const upcoming = filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date));
-        return upcoming[0] ?? null;
-    }, [filtered, today]);
-
-    const upcoming = useMemo<FamilyEvent[]>(
-        () => filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date)).slice(0, 8),
-        [filtered, today],
-    );
-
-    const selectedEvent = useMemo<FamilyEvent | null>(() => {
-        if (!selectedDate) return null;
-        return events.find((e) => e.date === selectedDate) ?? null;
-    }, [events, selectedDate]);
-
-    const monthEvents = useMemo<FamilyEvent[]>(
-        () => filtered.filter((e) => { const { y, m } = parseISO(e.date); return y === viewMonth.y && m === viewMonth.m; }),
-        [filtered, viewMonth],
-    );
-
-    function changeMonth(direction: -1 | 1): void {
-        setViewMonth((prev) => {
-            let m = prev.m + direction;
-            let y = prev.y;
-            if (m < 1)  { m = 12; y--; }
-            if (m > 12) { m = 1;  y++; }
-            return { y, m };
-        });
-    }
-
-    const navigate = onNav ?? ((page: string) => {
-        const href = page === 'dashboard' ? '/gia-pha/dashboard' : page === 'tree' ? '/gia-pha/cay-gia-pha' : '/';
-        router.visit(href);
-    });
-
-    const isMaster = user?.is_master === 1;
-
-    return (
-        <AuthenticatedLayout>
-            <Head title="Sự kiện & Lễ giỗ" />
-            <div className="fade-in" style={{ maxWidth: 1320, margin: '0 auto' }}>
-                <header className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-                    <div>
-                        <div className="row gap-2" style={{ marginBottom: 6 }}>
-                            <span style={{ fontSize: 11, letterSpacing: 2, color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase' }}>Sự kiện & Lễ giỗ</span>
-                            <span style={{ color: 'var(--ink-faint)' }}>·</span>
-                            <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Lịch âm tự động · {events.length} sự kiện</span>
-                        </div>
-                        <h1 className="page-title">Lịch dòng họ</h1>
-                        <div className="page-sub">Lễ giỗ, lễ cưới, lễ truyền thống và mọi cột mốc quan trọng của dòng họ — được tính toán theo cả dương lịch và âm lịch.</div>
-                    </div>
-                    <div className="row gap-2">
-                        <button className="btn btn-ghost" onClick={() => navigate('dashboard')}>
-                            <Icon name="dashboard" size={14} />
-                            Bảng điều khiển
-                        </button>
-                        {isMaster && (
-                            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
-                                <Icon name="plus" size={14} />
-                                Tạo sự kiện
-                            </button>
-                        )}
-                    </div>
-                </header>
-
-                {loading ? (
-                    <div style={{ display: 'grid', placeItems: 'center', height: 300 }}>
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ width: 40, height: 40, border: '4px solid var(--gold-pale)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
-                            <div style={{ fontSize: 13, color: 'var(--ink-mute)' }}>Đang tải lịch sự kiện...</div>
-                        </div>
-                    </div>
-                ) : (
-                    <>
-                        {nextEvent && (
-                            <NextEventHero event={nextEvent} honoree={nextEvent.honoreeId ? (BY_ID[nextEvent.honoreeId] ?? null) : null} today={today} />
-                        )}
-
-                        <FilterBar active={filter} onChange={setFilter} counts={counts} />
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 24, marginBottom: 24 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                                <CalendarView
-                                    year={viewMonth.y}
-                                    month={viewMonth.m}
-                                    events={monthEvents}
-                                    selected={selectedDate}
-                                    today={today}
-                                    onSelect={setSelectedDate}
-                                    onMonthChange={changeMonth}
-                                />
-                                <YearHeatmap events={events} currentMonth={viewMonth.m} onMonthClick={(m) => setViewMonth((v) => ({ ...v, m }))} />
+            return (
+                <AuthenticatedLayout>
+                    <Head title="Sự kiện & Lễ giỗ" />
+                    <div className="fade-in" style={{ maxWidth: 1320, margin: '0 auto' }}>
+                        <header className="row" style={{ justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+                            <div>
+                                <div className="row gap-2" style={{ marginBottom: 6 }}>
+                                    <span style={{ fontSize: 11, letterSpacing: 2, color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase' }}>Sự kiện & Lễ giỗ</span>
+                                    <span style={{ color: 'var(--ink-faint)' }}>·</span>
+                                    <span style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Lịch âm tự động · {events.length} sự kiện</span>
+                                </div>
+                                <h1 className="page-title">Lịch dòng họ</h1>
+                                <div className="page-sub">Lễ giỗ, lễ cưới, lễ truyền thống và mọi cột mốc quan trọng của dòng họ — được tính toán theo cả dương lịch và âm lịch.</div>
                             </div>
+                            <div className="row gap-2">
+                                <button className="btn btn-ghost" onClick={() => navigate('dashboard')}>
+                                    <Icon name="dashboard" size={14} />
+                                    Bảng điều khiển
+                                </button>
+                                {isMaster && (
+                                    <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+                                        <Icon name="plus" size={14} />
+                                        Tạo sự kiện
+                                    </button>
+                                )}
+                            </div>
+                        </header>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                                <EventDetail event={selectedEvent} honoree={selectedEvent?.honoreeId ? (BY_ID[selectedEvent.honoreeId] ?? null) : null} />
-
-                                <div className="card card-pad">
-                                    <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
-                                        <div>
-                                            <div className="section-title">Sắp diễn ra</div>
-                                            <div className="section-meta">{upcoming.length} sự kiện gần nhất</div>
-                                        </div>
-                                    </div>
-                                    {upcoming.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink-mute)', fontSize: 13 }}>
-                                            <Icon name="calendar" size={28} color="var(--ink-faint)" />
-                                            <div style={{ marginTop: 8 }}>Không có sự kiện sắp tới</div>
-                                            {isMaster && (
-                                                <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setShowAddModal(true)}>
-                                                    <Icon name="plus" size={13} /> Thêm sự kiện
-                                                </button>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            {upcoming.map((e, i) => (
-                                                <UpcomingItem
-                                                    key={e.id}
-                                                    event={e}
-                                                    honoree={e.honoreeId ? (BY_ID[e.honoreeId] ?? null) : null}
-                                                    isLast={i === upcoming.length - 1}
-                                                    today={today}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
+                        {loading ? (
+                            <div style={{ display: 'grid', placeItems: 'center', height: 300 }}>
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{ width: 40, height: 40, border: '4px solid var(--gold-pale)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+                                    <div style={{ fontSize: 13, color: 'var(--ink-mute)' }}>Đang tải lịch sự kiện...</div>
                                 </div>
                             </div>
-                        </div>
-                    </>
-                )}
-            </div>
+                        ) : (
+                            <>
+                                {nextEvent && (
+                                    <NextEventHero event={nextEvent} honoree={nextEvent.honoreeId ? (BY_ID[nextEvent.honoreeId] ?? null) : null} today={today} />
+                                )}
 
-            {showAddModal && user?.dong_ho?.id && (
-                <AddEventModal
-                    dongHoId={user.dong_ho.id}
-                    onClose={() => setShowAddModal(false)}
-                    onSuccess={() => void loadEvents()}
-                />
-            )}
-        </AuthenticatedLayout>
-    );
-};
+                                <FilterBar active={filter} onChange={setFilter} counts={counts} />
 
-export default EventsPage;
+                                <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 24, marginBottom: 24 }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                        <CalendarView
+                                            year={viewMonth.y}
+                                            month={viewMonth.m}
+                                            events={monthEvents}
+                                            selected={selectedDate}
+                                            today={today}
+                                            onSelect={setSelectedDate}
+                                            onMonthChange={changeMonth}
+                                        />
+                                        <YearHeatmap events={events} currentMonth={viewMonth.m} onMonthClick={(m) => setViewMonth((v) => ({ ...v, m }))} />
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                                        <EventDetail event={selectedEvent} honoree={selectedEvent?.honoreeId ? (BY_ID[selectedEvent.honoreeId] ?? null) : null} />
+
+                                        <div className="card card-pad">
+                                            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
+                                                <div>
+                                                    <div className="section-title">Sắp diễn ra</div>
+                                                    <div className="section-meta">{upcoming.length} sự kiện gần nhất</div>
+                                                </div>
+                                            </div>
+                                            {upcoming.length === 0 ? (
+                                                <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink-mute)', fontSize: 13 }}>
+                                                    <Icon name="calendar" size={28} color="var(--ink-faint)" />
+                                                    <div style={{ marginTop: 8 }}>Không có sự kiện sắp tới</div>
+                                                    {isMaster && (
+                                                        <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setShowAddModal(true)}>
+                                                            <Icon name="plus" size={13} /> Thêm sự kiện
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                    {upcoming.map((e, i) => (
+                                                        <UpcomingItem
+                                                            key={e.id}
+                                                            event={e}
+                                                            honoree={e.honoreeId ? (BY_ID[e.honoreeId] ?? null) : null}
+                                                            isLast={i === upcoming.length - 1}
+                                                            today={today}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    {showAddModal && user?.dong_ho?.id && (
+                        <AddEventModal
+                            dongHoId={user.dong_ho.id}
+                            onClose={() => setShowAddModal(false)}
+                            onSuccess={() => void loadEvents()}
+                        />
+                    )}
+                </AuthenticatedLayout>
+            );
+        };
+
+        export default EventsPage;

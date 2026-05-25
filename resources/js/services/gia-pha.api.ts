@@ -49,6 +49,24 @@ export const dongHoApi = {
     },
 };
 
+export const nguoiDungApi = {
+    list: (params?: Record<string, any>) => apiClient.get('/nguoi-dung/list', { params }),
+    create: (data: Partial<NguoiDung>) => apiClient.post('/nguoi-dung/create', data),
+    update: (data: Partial<NguoiDung>) => apiClient.post('/nguoi-dung/update', data),
+    delete: (id: number) => apiClient.post('/nguoi-dung/delete', { id }),
+};
+
+export const choDuyetApi = {
+    async list() {
+        const response = await apiClient.get('/cho-duyet/list');
+        return response.data;
+    },
+    async process(userId: number, action: 'approve' | 'reject') {
+        const response = await apiClient.post('/cho-duyet/process', { user_id: userId, action });
+        return response.data;
+    }
+};
+
 export const nguoiApi = {
     async list(idDongHo?: number | string) {
         const response = await apiClient.get<ApiResponse<Nguoi[]>>('/nguoi/list', {
@@ -154,3 +172,55 @@ export const taiLieuApi = {
     },
 };
 
+// Mo Phan
+
+export interface MoPhan {
+    id: number;
+    dong_ho_id: number;
+    thanh_vien_id: number;
+    vi_do: number;
+    kinh_do: number;
+    ghi_chu: string | null;
+    nguoi_cap_nhat_id: number | null;
+    ten_thanh_vien?: string | null;
+    tinh_trang_song?: number | null;
+    ten_nguoi_cap_nhat?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface MoPhanPayload {
+    thanh_vien_id: number;
+    vi_do: number;
+    kinh_do: number;
+    ghi_chu?: string | null;
+}
+
+export type MoPhanUpdatePayload = Partial<Omit<MoPhanPayload, 'thanh_vien_id'>> & { id: number };
+
+export const moPhanApi = {
+    async list(params?: { dong_ho_id?: number | string; thanh_vien_id?: number | string }) {
+        const response = await apiClient.get<ApiResponse<MoPhan[]>>('/mo-phan/list', { params });
+        return response.data;
+    },
+
+    async detail(params: { id?: number | string; thanh_vien_id?: number | string }) {
+        const response = await apiClient.get<ApiResponse<MoPhan>>('/mo-phan/detail', { params });
+        return response.data;
+    },
+
+    async create(payload: MoPhanPayload) {
+        const response = await apiClient.post<ApiResponse>('/mo-phan/create', payload);
+        return response.data;
+    },
+
+    async update(payload: MoPhanUpdatePayload) {
+        const response = await apiClient.post<ApiResponse>('/mo-phan/update', payload);
+        return response.data;
+    },
+
+    async delete(id: number) {
+        const response = await apiClient.post<ApiResponse>('/mo-phan/delete', { id });
+        return response.data;
+    },
+};

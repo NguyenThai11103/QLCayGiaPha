@@ -88,13 +88,27 @@ class AuthController extends Controller
     public function googleCallback(GoogleLoginRequest $request)
     {
         $data = $request->validated();
- 
+
         if (config('services.google.client_id') === 'mock_client_id_for_testing' || $data['code'] === 'mock_authorization_code') {
-            // Giả lập thông tin người dùng Google của Nguyễn Văn Kỳ để chạy thử không lỗi
-            $googleUser = new class {
-                public function getId() { return '102938475647382910'; }
-                public function getName() { return 'Nguyễn Văn Kỳ'; }
-                public function getEmail() { return 'nguyenvanky20005@gmail.com'; }
+            // Giả lập thông tin người dùng Google động từ email truyền lên hoặc email mặc định
+            $mockEmail = $data['email'] ?? 'nguyenvanky20005@gmail.com';
+            // Tách phần tên từ email để làm ho_ten giả lập
+            $namePart = explode('@', $mockEmail)[0];
+            $mockName = ucwords(str_replace(['.', '_', '-'], ' ', $namePart));
+
+            $googleUser = new class($mockEmail, $mockName) {
+                private $email;
+                private $name;
+
+                public function __construct($email, $name)
+                {
+                    $this->email = $email;
+                    $this->name  = $name;
+                }
+
+                public function getId() { return 'mock_google_id_' . md5($this->email); }
+                public function getName() { return $this->name; }
+                public function getEmail() { return $this->email; }
                 public function getAvatar() { return 'https://lh3.googleusercontent.com/a/default-user-avatar=s96-c'; }
             };
         } else {
@@ -108,20 +122,20 @@ class AuthController extends Controller
                 ], 400);
             }
         }
- 
+
         if (!$googleUser || !$googleUser->getEmail()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không thể lấy thông tin email từ tài khoản Google.'
             ], 400);
         }
- 
+
         // 1. Tìm hoặc tạo/liên kết tài khoản người dùng ngay lập tức
         $user = NguoiDung::where('google_id', $googleUser->getId())->first();
- 
+
         if (!$user) {
             $user = NguoiDung::where('email', $googleUser->getEmail())->first();
- 
+
             if ($user) {
                 $user->update([
                     'google_id' => $googleUser->getId(),
@@ -142,10 +156,10 @@ class AuthController extends Controller
                 'avatar' => $googleUser->getAvatar(),
             ]);
         }
- 
+
         // 2. Sinh mã xác nhận OTP 6 số để gửi qua email yêu cầu xác minh
         $otpCode = (string) rand(100000, 999999);
- 
+
         // Lưu OTP vào bảng tạm password_reset_tokens
         DB::table('password_reset_tokens')->updateOrInsert(
             ['email' => $user->email],
@@ -154,7 +168,7 @@ class AuthController extends Controller
                 'created_at' => now()
             ]
         );
- 
+
         // 3. Gửi Email OTP Đăng nhập Google thật
         try {
             Mail::to($user->email)->send(new GoogleLoginOtpEmail($otpCode));
@@ -164,7 +178,7 @@ class AuthController extends Controller
                 'message' => 'Không thể gửi mã OTP xác nhận về email của bạn. Vui lòng thử lại sau.'
             ], 500);
         }
- 
+
         return response()->json([
             'success'  => true,
             'need_otp' => true,
@@ -172,22 +186,22 @@ class AuthController extends Controller
             'message'  => 'Mã xác minh (OTP) đã được gửi về email của bạn để hoàn tất đăng nhập.'
         ]);
     }
- 
+
     public function googleVerifyOtp(GoogleVerifyOtpRequest $request)
     {
         $data = $request->validated();
         $email = $data['email'];
         $token = $data['token']; // Mã OTP 6 số xác minh đăng nhập Google
- 
+
         $resetRow = DB::table('password_reset_tokens')->where('email', $email)->first();
- 
+
         if (!$resetRow) {
             return response()->json([
                 'success' => false,
                 'message' => 'Mã xác nhận đăng nhập không hợp lệ hoặc đã hết hạn.'
             ], 400);
         }
- 
+
         // Mã OTP có hiệu lực trong 15 phút
         if (now()->subMinutes(15)->gt($resetRow->created_at)) {
             DB::table('password_reset_tokens')->where('email', $email)->delete();
@@ -196,29 +210,29 @@ class AuthController extends Controller
                 'message' => 'Mã xác nhận (OTP) đã hết hạn. Vui lòng thử đăng nhập lại từ đầu.'
             ], 400);
         }
- 
+
         if (!Hash::check($token, $resetRow->token)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Mã xác nhận (OTP) nhập vào không chính xác.'
             ], 400);
         }
- 
+
         $user = NguoiDung::where('email', $email)->first();
- 
+
         if (!$user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy tài khoản người dùng.'
             ], 404);
         }
- 
+
         // Tạo Sanctum Token chính thức cho phiên đăng nhập thành công
         $authToken = $user->createToken('auth_token')->plainTextToken;
- 
+
         // Xóa OTP khỏi bảng tạm sau khi đăng nhập thành công
         DB::table('password_reset_tokens')->where('email', $email)->delete();
- 
+
         // Gửi Welcome Email nếu đây là tài khoản mới được tạo gần đây (trong vòng 5 phút)
         if ($user->created_at->gt(now()->subMinutes(5))) {
             try {
@@ -227,7 +241,7 @@ class AuthController extends Controller
                 logger()->error('Lỗi gửi email chào mừng: ' . $e->getMessage());
             }
         }
- 
+
         return response()->json([
             'success' => true,
             'message' => 'Đăng nhập Google thành công',
@@ -242,10 +256,10 @@ class AuthController extends Controller
     {
         $data = $request->validated();
         $email = $data['email'];
- 
+
         // Tạo mã xác nhận OTP gồm 6 chữ số ngẫu nhiên
         $otpCode = (string) rand(100000, 999999);
- 
+
         // Lưu mã OTP đã được mã hóa vào bảng password_reset_tokens
         DB::table('password_reset_tokens')->updateOrInsert(
             ['email' => $email],
@@ -254,7 +268,7 @@ class AuthController extends Controller
                 'created_at' => now()
             ]
         );
- 
+
         try {
             Mail::to($email)->send(new ResetPasswordEmail($otpCode));
         } catch (\Exception $e) {
@@ -263,29 +277,29 @@ class AuthController extends Controller
                 'message' => 'Không thể gửi mã xác nhận qua email. Vui lòng thử lại sau.'
             ], 500);
         }
- 
+
         return response()->json([
             'success' => true,
             'message' => 'Mã xác nhận (OTP) khôi phục mật khẩu đã được gửi qua email của bạn.'
         ]);
     }
- 
+
     public function resetPassword(ResetPasswordRequest $request)
     {
         $data = $request->validated();
         $email = $data['email'];
         $token = $data['token']; // Đây chính là mã OTP 6 chữ số
         $password = $data['password'];
- 
+
         $resetRow = DB::table('password_reset_tokens')->where('email', $email)->first();
- 
+
         if (!$resetRow) {
             return response()->json([
                 'success' => false,
                 'message' => 'Mã xác nhận khôi phục mật khẩu không hợp lệ hoặc đã hết hạn.'
             ], 400);
         }
- 
+
         // Kiểm tra thời hạn mã OTP (15 phút)
         if (now()->subMinutes(15)->gt($resetRow->created_at)) {
             DB::table('password_reset_tokens')->where('email', $email)->delete();
@@ -294,24 +308,24 @@ class AuthController extends Controller
                 'message' => 'Mã xác nhận (OTP) đã hết hạn. Vui lòng yêu cầu mã mới.'
             ], 400);
         }
- 
+
         if (!Hash::check($token, $resetRow->token)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Mã xác nhận (OTP) nhập vào không chính xác.'
             ], 400);
         }
- 
+
         $user = NguoiDung::where('email', $email)->first();
         if ($user) {
             $user->update([
                 'password' => Hash::make($password)
             ]);
         }
- 
+
         // Xóa mã OTP khỏi DB sau khi đặt lại mật khẩu thành công
         DB::table('password_reset_tokens')->where('email', $email)->delete();
- 
+
         return response()->json([
             'success' => true,
             'message' => 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại với mật khẩu mới.'

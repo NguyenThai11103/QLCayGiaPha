@@ -60,7 +60,14 @@ class UpdateNguoiRequest extends FormRequest
 
             $idCha = $this->has('id_cha') ? $this->input('id_cha') : $idChaHienTai;
             $idMe = $this->has('id_me') ? $this->input('id_me') : $idMeHienTai;
-            $idVoChong = $this->has('id_vo_chong') ? $this->input('id_vo_chong') : $this->layVoChongHienTai($idNguoi);
+            
+            $idVoChong = null;
+            if ($this->has('id_vo_chong')) {
+                $idVoChong = $this->input('id_vo_chong');
+            } elseif (!$this->has('id_vo_chong_list')) {
+                // Nếu frontend không gửi danh sách cập nhật mới thì mới lấy từ DB
+                $idVoChong = $this->layVoChongHienTai($idNguoi);
+            }
 
             $ngaySinh = $this->has('ngay_sinh') ? $this->input('ngay_sinh') : $nguoi->ngay_sinh_duong;
             $namSinh = $ngaySinh ? (int) date('Y', strtotime($ngaySinh)) : null;

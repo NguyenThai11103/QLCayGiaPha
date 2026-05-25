@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\TaiLieuController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\QuanHeController;
 use App\Http\Controllers\Api\CacheXungHoController;
+use App\Http\Controllers\Api\MoPhanController;
 use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
 
 Route::get('/user', function (Request $request) {
@@ -77,7 +78,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/delete', [NguoiController::class, 'destroy'])->middleware('check.permission:quan_ly');
     });
 
+    Route::prefix('cho-duyet')->middleware('check.permission:quan_ly')->group(function () {
+        Route::get('/list', [\App\Http\Controllers\Api\DuyetThanhVienController::class, 'index']);
+        Route::post('/process', [\App\Http\Controllers\Api\DuyetThanhVienController::class, 'process']);
+    });
+
     Route::prefix('nguoi-dung')->middleware('check.permission:quan_ly')->group(function () {
+
         Route::get('/list', [NguoiDungController::class, 'index']);
         Route::post('/create', [NguoiDungController::class, 'store']);
         Route::post('/update', [NguoiDungController::class, 'update']);
@@ -110,5 +117,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/create', [CacheXungHoController::class, 'store'])->middleware('check.permission:quan_ly');
         Route::post('/update', [CacheXungHoController::class, 'update'])->middleware('check.permission:quan_ly');
         Route::post('/delete', [CacheXungHoController::class, 'destroy'])->middleware('check.permission:quan_ly');
+    });
+
+    Route::prefix('mo-phan')->group(function () {
+        Route::get('/list', [MoPhanController::class, 'index']);
+        Route::get('/detail', [MoPhanController::class, 'detail']);
+        Route::post('/create', [MoPhanController::class, 'store']);
+        Route::post('/update', [MoPhanController::class, 'update']);
+        Route::post('/delete', [MoPhanController::class, 'destroy'])->middleware('check.permission:quan_ly');
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\ThongBaoController::class, 'index']);
+        Route::post('/read', [\App\Http\Controllers\Api\ThongBaoController::class, 'read']);
+        Route::post('/read-all', [\App\Http\Controllers\Api\ThongBaoController::class, 'readAll']);
     });
 });

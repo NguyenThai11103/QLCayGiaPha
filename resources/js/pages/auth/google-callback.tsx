@@ -8,6 +8,8 @@ import toast from '../../lib/toast.util';
 export default function GoogleCallback() {
     const { checkAuth } = useAuth();
     const [showOtpForm, setShowOtpForm] = useState(false);
+    const [showMockEmailForm, setShowMockEmailForm] = useState(false);
+    const [mockEmail, setMockEmail] = useState('');
     const [email, setEmail] = useState('');
     const [otpCode, setOtpCode] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,6 +23,13 @@ export default function GoogleCallback() {
             if (!code) {
                 toast.error('Không tìm thấy mã xác thực Google.');
                 router.visit('/login');
+                return;
+            }
+
+            // Nếu đang trong chế độ giả lập (mock login), hiển thị form cho phép nhập email tùy ý
+            if (code === 'mock_authorization_code') {
+                setShowMockEmailForm(true);
+                setStatusMessage('Chế độ đăng nhập thử nghiệm Google');
                 return;
             }
 
@@ -113,6 +122,7 @@ export default function GoogleCallback() {
 
         setIsSubmitting(true);
         try {
+            const response = await apiClient.post('/auth/google/callback', { code, email });
             const response = await apiClient.post('/auth/google/callback', { code });
             if (response.data.success && response.data.need_otp) {
                 toast.success('Mã OTP mới đã được gửi về hòm thư của bạn.');
@@ -126,6 +136,123 @@ export default function GoogleCallback() {
             setIsSubmitting(false);
         }
     };
+
+    if (showMockEmailForm) {
+        const handleMockSubmit = async (e: React.FormEvent) => {
+            e.preventDefault();
+            if (!mockEmail.trim()) {
+                toast.error('Vui lòng nhập địa chỉ email thử nghiệm.');
+                return;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mockEmail)) {
+                toast.error('Email không đúng định dạng.');
+                return;
+            }
+
+            setIsSubmitting(true);
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const code = params.get('code') || 'mock_authorization_code';
+
+                const response = await apiClient.post('/auth/google/callback', {
+                    code,
+                    email: mockEmail,
+                });
+
+                if (response.data.success) {
+                    if (response.data.need_otp) {
+                        setEmail(response.data.email);
+                        setShowOtpForm(true);
+                        setShowMockEmailForm(false);
+                        return;
+                    }
+
+                    const { token: newToken } = response.data.data;
+                    tokenStorage.setToken(newToken);
+                    const isHttps = window.location.protocol === 'https:';
+                    const secureFlag = isHttps ? '; secure' : '';
+                    document.cookie = `auth_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax${secureFlag}`;
+                    await checkAuth();
+
+                    toast.success('Đăng nhập thử nghiệm thành công!');
+                    router.visit('/gia-pha/dashboard');
+                } else {
+                    toast.error(response.data.message || 'Đăng nhập thử nghiệm thất bại.');
+                }
+            } catch (error) {
+                console.error('Lỗi đăng nhập thử nghiệm:', error);
+                toast.error('Có lỗi xảy ra khi giả lập Google Login.');
+            } finally {
+                setIsSubmitting(false);
+            }
+        };
+
+        return (
+            <>
+                <Head title="Đăng nhập thử nghiệm Google" />
+                <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] px-4 text-[var(--ink)]">
+                    <div className="w-full max-w-[440px] rounded-[20px] border border-[var(--card-border)] bg-[var(--card)] p-8 shadow-[var(--shadow-xl)] transition-all">
+                        <div className="text-center">
+                            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--gold-glow)] text-[var(--gold)]">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                                    <polyline points="22,6 12,13 2,6" />
+                                </svg>
+                            </div>
+
+                            <h2 className="mt-6 font-serif text-[24px] font-semibold tracking-[0.5px]">Đăng nhập Thử nghiệm (Google)</h2>
+                            <p className="mt-3 text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
+                                Bạn đang đăng nhập bằng Google ở môi trường thử nghiệm (mock).
+                                <br />
+                                Vui lòng nhập email của bạn để hệ thống gửi mã xác thực OTP thật.
+                            </p>
+                        </div>
+
+                        <form onSubmit={handleMockSubmit} className="mt-8 space-y-6">
+                            <div>
+                                <label className="mb-2 block text-[12.5px] font-semibold uppercase tracking-[1px] text-[var(--ink-mute)]">
+                                    Địa chỉ Email Google muốn giả lập
+                                </label>
+                                <div className="relative flex items-center rounded-[12px] border border-[var(--card-border)] bg-[var(--card-soft)] px-4 py-3 transition-all focus-within:border-[var(--gold)] focus-within:bg-[var(--card)] focus-within:shadow-[0_0_0_3px_var(--gold-glow)]">
+                                    <svg className="mr-3 text-[var(--ink-mute)]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                                        <polyline points="22,6 12,13 2,6" />
+                                    </svg>
+                                    <input
+                                        type="email"
+                                        value={mockEmail}
+                                        onChange={(e) => setMockEmail(e.target.value)}
+                                        placeholder="email-cua-ban@gmail.com"
+                                        className="w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-mute)]"
+                                        autoFocus
+                                        required
+                                    />
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isSubmitting || !mockEmail.trim()}
+                                className="gp-btn gp-btn-primary min-h-12 w-full text-[15px] font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {isSubmitting ? 'Đang gửi yêu cầu...' : 'Nhận mã OTP & Tiếp tục'}
+                            </button>
+
+                            <div className="flex items-center justify-center border-t border-[var(--line)] pt-5 text-[13px]">
+                                <button
+                                    type="button"
+                                    onClick={() => router.visit('/login')}
+                                    className="font-medium text-[var(--ink-soft)] transition hover:text-[var(--ink)]"
+                                >
+                                    Quay lại trang đăng nhập
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </>
+        );
+    }
 
     if (showOtpForm) {
         return (

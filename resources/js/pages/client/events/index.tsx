@@ -1312,57 +1312,12 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, onClose, onSucc
 // ============================================================
 // Main page — kết nối API thực
 // ============================================================
-export const EventsPage: React.FC<EventsPageProps> = ({ onNav, today = new Date().toISOString().slice(0, 10) }) => {
-    const { user } = useAuth();
-
-    const [rawEvents,    setRawEvents]    = React.useState<FamilyEvent[]>([]);
-    const [loading,      setLoading]      = React.useState(true);
-    const [showAddModal, setShowAddModal] = React.useState(false);
-    const [filter,       setFilter]       = useState<FilterValue>('all');
-    const [viewMonth,    setViewMonth]    = useState<{ y: number; m: number }>({
-import apiClient from '../../../lib/api.client';
-import { useAuth } from '../../../contexts/auth.context';
-
 export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEvents, today = new Date().toISOString().slice(0, 10) }) => {
     const { user } = useAuth();
-    const [events, setEvents] = useState<FamilyEvent[]>([]);
-    const [isLoading, setIsLoading] = useState(!initialEvents);
+    const [rawEvents,    setRawEvents]    = React.useState<FamilyEvent[]>(initialEvents || []);
+    const [loading,      setLoading]      = React.useState(!initialEvents);
+    const [showAddModal, setShowAddModal] = React.useState(false);
 
-    useEffect(() => {
-        if (initialEvents) {
-            setEvents(initialEvents);
-            return;
-        }
-
-        if (!user?.dong_ho_id) return;
-
-        apiClient.get('/su-kien/list', { params: { dong_ho_id: user.dong_ho_id } })
-            .then(res => {
-                if (res.data.success) {
-                    const typeMap: Record<string, EventType> = {
-                        'le_gio': 'anniversary',
-                        'le_mung_tho': 'longevity',
-                        'hop_dong_ho': 'ceremony',
-                        'khuyen_hoc': 'ceremony',
-                        'khac': 'ceremony',
-                    };
-                    const formatted = res.data.data.map((sk: any) => ({
-                        id: 'e' + sk.id,
-                        date: sk.ngay_duong ? sk.ngay_duong.split(' ')[0] : new Date().toISOString().slice(0, 10),
-                        lunarDate: sk.ngay_am ? new Date(sk.ngay_am).toLocaleDateString('vi-VN') + ' ÂL' : undefined,
-                        title: sk.ten_su_kien,
-                        type: typeMap[sk.loai_su_kien] || 'ceremony',
-                        location: sk.dia_diem || 'Chưa cập nhật',
-                        attendees: Math.floor(Math.random() * 50) + 10,
-                        rsvpStatus: 'pending',
-                        description: sk.mo_ta
-                    }));
-                    setEvents(formatted);
-                }
-            })
-            .catch(console.error)
-            .finally(() => setIsLoading(false));
-    }, [user?.dong_ho_id, initialEvents]);
 
     const [filter, setFilter] = useState<FilterValue>('all');
     const [viewMonth, setViewMonth] = useState<{ y: number; m: number }>({

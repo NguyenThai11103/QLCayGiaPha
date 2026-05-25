@@ -25,19 +25,6 @@ function initials(name: string): string {
     const parts = name.trim().split(' ');
     return parts[parts.length - 1]?.charAt(0)?.toUpperCase() ?? name.charAt(0).toUpperCase();
 }
-    if (user?.quyen_han === 'quan_ly') {
-        return <AdminDanhSachThanhVien />;
-    }
-    const [members, setMembers] = useState<Nguoi[]>([]);
-    const [dongHos, setDongHos] = useState<DongHo[]>([]);
-    const [selectedDongHo, setSelectedDongHo] = useState('');
-    const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
-
-    const filteredMembers = useMemo(() => {
-        if (!selectedDongHo) {
-            return members;
-        }
 
 export default function ClientDanhSachThanhVien() {
     const { user } = useAuth();

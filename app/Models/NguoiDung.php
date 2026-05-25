@@ -75,4 +75,9 @@ class NguoiDung extends Authenticatable
     {
         return $this->hasMany(DongHo::class, 'nguoi_tao');
     }
+
+    public function moPhansDaCapNhat()
+    {
+        return $this->hasMany(MoPhan::class, 'nguoi_cap_nhat_id');
+    }
 }

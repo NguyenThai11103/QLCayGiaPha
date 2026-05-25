@@ -55,6 +55,11 @@ class ThanhVien extends Model
         return $this->hasMany(TaiLieu::class, 'thanh_vien_id');
     }
 
+    public function moPhan()
+    {
+        return $this->hasOne(MoPhan::class, 'thanh_vien_id');
+    }
+
     /** Quan hệ mà thành viên này là node_1 */
     public function quanHesNguon()
     {

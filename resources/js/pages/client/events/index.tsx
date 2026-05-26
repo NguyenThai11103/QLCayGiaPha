@@ -1413,74 +1413,23 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
     const [showAddModal, setShowAddModal] = React.useState(false);
     const [addModalInitialDate, setAddModalInitialDate] = React.useState<string | undefined>();
 
+    const [filter, setFilter] = React.useState<FilterValue>('all');
+    const [viewMonth, setViewMonth] = React.useState<{ y: number; m: number }>({
+        y: parseISO(today).y,
+        m: parseISO(today).m,
+    });
+    const [selectedDate, setSelectedDate] = React.useState<string | null>(today);
 
-            const [filter, setFilter] = useState<FilterValue>('all');
-            const [viewMonth, setViewMonth] = useState<{ y: number; m: number }>({
-                y: parseISO(today).y,
-                m: parseISO(today).m,
-            });
-            const [selectedDate, setSelectedDate] = useState<string | null>(today);
-
-
-            const loadEvents = React.useCallback(async () => {
-                setLoading(true);
-                try {
-                    const { suKienApi } = await import('../../../services/gia-pha.api');
-                    const dongHoId = user?.dong_ho?.id;
-                    const res = await suKienApi.list(dongHoId);
-                    if (res.success && res.data) {
-                        setRawEvents(res.data.map(mapSuKienToFamilyEvent));
-                    }
-                } catch {
-                    // network error — giữ mảng rỗng
-                } finally {
-                    setLoading(false);
-                }
-            }, [user?.dong_ho?.id]);
-
-            React.useEffect(() => { void loadEvents(); }, [loadEvents]);
-
-            // Nếu API chưa có dữ liệu, dùng fallback mẫu để không blank hoàn toàn
-            const events = rawEvents.length > 0 ? rawEvents : (loading ? [] : EVENTS_2026);
-
-            const filtered = useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
-
-            const counts = useMemo<Record<FilterValue, number>>(() => {
-                const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0 };
-                for (const e of events) c[e.type]++;
-                return c;
-            }, [events]);
-
-            const nextEvent = useMemo<FamilyEvent | null>(() => {
-                const upcoming = filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date));
-                return upcoming[0] ?? null;
-            }, [filtered, today]);
-
-            const upcoming = useMemo<FamilyEvent[]>(
-                () => filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date)).slice(0, 8),
-                [filtered, today],
-            );
-
-            const selectedEvent = useMemo<FamilyEvent | null>(() => {
-                if (!selectedDate) return null;
-                return events.find((e) => e.date === selectedDate) ?? null;
-            }, [events, selectedDate]);
-
-            const monthEvents = useMemo<FamilyEvent[]>(
-                () => filtered.filter((e) => { const { y, m } = parseISO(e.date); return y === viewMonth.y && m === viewMonth.m; }),
-                [filtered, viewMonth],
-            );
-
-            function changeMonth(direction: -1 | 1): void {
-                setViewMonth((prev) => {
-                    let m = prev.m + direction;
-                    let y = prev.y;
-                    if (m < 1) { m = 12; y--; }
-                    if (m > 12) { m = 1; y++; }
-                    return { y, m };
-                });
+    const loadEvents = React.useCallback(async () => {
+        setLoading(true);
+        try {
+            const { suKienApi } = await import('../../../services/gia-pha.api');
+            const dongHoId = user?.dong_ho?.id;
+            const res = await suKienApi.list(dongHoId);
+            if (res.success && res.data) {
+                setRawEvents(res.data.map(mapSuKienToFamilyEvent));
             }
-        } catch {
+        } catch (error) {
             // network error — giữ mảng rỗng
         } finally {
             setLoading(false);
@@ -1492,30 +1441,34 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
     // Xoá mockup EVENTS_2026
     const events = rawEvents;
 
-    const filtered = useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
+    const filtered = React.useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
 
-    const counts = useMemo<Record<FilterValue, number>>(() => {
-        const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0, housewarming: 0, other: 0 };
-        for (const e of events) c[e.type]++;
+    const counts = React.useMemo<Record<FilterValue, number>>(() => {
+        const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0 };
+        for (const e of events) {
+            if (c[e.type] !== undefined) {
+                c[e.type]++;
+            }
+        }
         return c;
     }, [events]);
 
-    const nextEvent = useMemo<FamilyEvent | null>(() => {
+    const nextEvent = React.useMemo<FamilyEvent | null>(() => {
         const upcoming = filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date));
         return upcoming[0] ?? null;
     }, [filtered, today]);
 
-    const upcoming = useMemo<FamilyEvent[]>(
+    const upcoming = React.useMemo<FamilyEvent[]>(
         () => filtered.filter((e) => daysBetween(today, e.date) >= 0).sort((a, b) => daysBetween(today, a.date) - daysBetween(today, b.date)).slice(0, 8),
         [filtered, today],
     );
 
-    const selectedEvent = useMemo<FamilyEvent | null>(() => {
+    const selectedEvent = React.useMemo<FamilyEvent | null>(() => {
         if (!selectedDate) return null;
         return events.find((e) => e.date === selectedDate) ?? null;
     }, [events, selectedDate]);
 
-    const monthEvents = useMemo<FamilyEvent[]>(
+    const monthEvents = React.useMemo<FamilyEvent[]>(
         () => filtered.filter((e) => { const { y, m } = parseISO(e.date); return y === viewMonth.y && m === viewMonth.m; }),
         [filtered, viewMonth],
     );
@@ -1532,7 +1485,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
 
     const navigate = onNav ?? ((page: string) => {
         const href = page === 'dashboard' ? '/gia-pha/dashboard' : page === 'tree' ? '/gia-pha/cay-gia-pha' : '/';
-        router.visit(href);
+        import('@inertiajs/react').then(({ router }) => router.visit(href));
     });
 
     const isMaster = user?.is_master === 1 || user?.quyen_han === 'quan_ly';
@@ -1601,56 +1554,40 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
                                 />
                                 <YearHeatmap events={events} currentMonth={viewMonth.m} onMonthClick={(m) => setViewMonth((v) => ({ ...v, m }))} />
                             </div>
-                        </header>
-
+                            
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                                 <EventDetail event={selectedEvent} honoree={selectedEvent?.honoree ?? null} onReload={loadEvents} />
-
-                                <FilterBar active={filter} onChange={setFilter} counts={counts} />
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1.55fr 1fr', gap: 24, marginBottom: 24 }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                                        <CalendarView
-                                            year={viewMonth.y}
-                                            month={viewMonth.m}
-                                            events={monthEvents}
-                                            selected={selectedDate}
-                                            today={today}
-                                            onSelect={setSelectedDate}
-                                            onMonthChange={changeMonth}
-                                        />
-                                        <YearHeatmap events={events} currentMonth={viewMonth.m} onMonthClick={(m) => setViewMonth((v) => ({ ...v, m }))} />
+                                {upcoming.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink-mute)', fontSize: 13 }}>
+                                        <Icon name="calendar" size={28} color="var(--ink-faint)" />
+                                        <div style={{ marginTop: 8 }}>Không có sự kiện sắp tới</div>
+                                        {isMaster && (
+                                            <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => {
+                                                setAddModalInitialDate(undefined);
+                                                setShowAddModal(true);
+                                            }}>
+                                                <Icon name="plus" size={13} /> Thêm sự kiện
+                                            </button>
+                                        )}
                                     </div>
-                                    {upcoming.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink-mute)', fontSize: 13 }}>
-                                            <Icon name="calendar" size={28} color="var(--ink-faint)" />
-                                            <div style={{ marginTop: 8 }}>Không có sự kiện sắp tới</div>
-                                            {isMaster && (
-                                                <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => {
-                                                    setAddModalInitialDate(undefined);
-                                                    setShowAddModal(true);
-                                                }}>
-                                                    <Icon name="plus" size={13} /> Thêm sự kiện
-                                                </button>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            {upcoming.map((e, i) => (
-                                                <UpcomingItem
-                                                    key={e.id}
-                                                    event={e}
-                                                    honoree={e.honoree ?? null}
-                                                    isLast={i === upcoming.length - 1}
-                                                    today={today}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </>
-                        )}
-                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        {upcoming.map((e, i) => (
+                                            <UpcomingItem
+                                                key={e.id}
+                                                event={e}
+                                                honoree={e.honoree ?? null}
+                                                isLast={i === upcoming.length - 1}
+                                                today={today}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
 
             {showAddModal && user?.dong_ho?.id && (
                 <AddEventModal

@@ -11,6 +11,8 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\QuanHeController;
 use App\Http\Controllers\Api\CacheXungHoController;
 use App\Http\Controllers\Api\MoPhanController;
+use App\Http\Controllers\Api\DuyetThanhVienController;
+use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
 
 Route::get('/user', function (Request $request) {

@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('thanh_viens', function (Blueprint $table) {
             $table->id();
+            $table->string('ma_thanh_vien')->unique()->nullable();
             $table->foreignId('dong_ho_id')->constrained('dong_hos')->cascadeOnDelete();
             $table->string('ho_ten');
             $table->string('ten_thuong_goi')->nullable();

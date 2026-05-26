@@ -14,7 +14,7 @@ class LunarSolarConverter
     public static function solarToLunar(string|Carbon $solarDate): array
     {
         $dateStr = $solarDate instanceof Carbon ? $solarDate->format('Y-m-d') : $solarDate;
-        
+
         try {
             $lunar = LunarDateTime::fromGregorian($dateStr . ' +0700');
             return [

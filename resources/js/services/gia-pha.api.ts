@@ -43,6 +43,18 @@ export type NguoiPayload = Omit<Nguoi, 'id' | 'vo_chong_ids'> & {
 };
 export type NguoiUpdatePayload = Partial<NguoiPayload> & { id: number };
 
+export interface NguoiDung {
+    id: number;
+    ho_ten: string;
+    email: string;
+    avatar?: string | null;
+    quyen_han: string;
+    trang_thai: number;
+    dong_ho_id?: number | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
 export const dongHoApi = {
     async list() {
         const response = await apiClient.get<ApiResponse<DongHo[]>>('/dong-ho/list');

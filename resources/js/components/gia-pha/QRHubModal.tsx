@@ -45,8 +45,9 @@ export default function QRHubModal({ isOpen, onClose, initialTab = 'my-qr' }: QR
 
     // Tính toán URL để mã hóa vào QR
     const qrUrl = activeThanhVienId
-        ? `${window.location.origin}/gia-pha/tra-cuu-danh-xung?target_id=${activeThanhVienId}`
+        ? `${window.location.origin}/scan/tv-${activeThanhVienId}`
         : '';
+
 
     // URL ảnh sinh mã QR sắc nét cao
     const qrCodeImageUrl = qrUrl
@@ -159,15 +160,20 @@ export default function QRHubModal({ isOpen, onClose, initialTab = 'my-qr' }: QR
         stopCamera();
         setScanResult(url);
 
-        // Kiểm tra xem URL có đúng định dạng tra cứu gia phả không
-        if (url.includes('/gia-pha/tra-cuu-danh-xung')) {
-            // Điều hướng nhanh
+        // Kiểm tra xem URL có đúng định dạng tra cứu gia phả hoặc scan mới không
+        if (url.includes('/scan/tv-')) {
+            // Điều hướng nhanh sang trang scan chuyên biệt
+            const targetPath = url.substring(url.indexOf('/scan/tv-'));
+            window.location.href = targetPath;
+        } else if (url.includes('/gia-pha/tra-cuu-danh-xung')) {
+            // Tương thích ngược với URL cũ
             const targetPath = url.substring(url.indexOf('/gia-pha/tra-cuu-danh-xung'));
             window.location.href = targetPath;
         } else {
             setScanError('Mã QR này không thuộc hệ thống Gia Phả hoặc không hợp lệ.');
         }
     };
+
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];

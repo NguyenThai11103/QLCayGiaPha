@@ -275,10 +275,11 @@ export default function ClientDashboard() {
                                             title="Click để phóng to mã QR"
                                         >
                                             <img
-                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(`${window.location.origin}/gia-pha/tra-cuu-danh-xung?target_id=${activeThanhVienId}`)}&color=63462D&bgcolor=FFFFFF`}
+                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=${encodeURIComponent(`${window.location.origin}/scan/tv-${activeThanhVienId}`)}&color=63462D&bgcolor=FFFFFF`}
                                                 alt="Mã QR cá nhân"
                                                 className="h-[100px] w-[100px] object-contain"
                                             />
+
                                             <span className="absolute inset-0 m-auto grid h-6 w-6 place-items-center rounded-lg border border-[var(--gold-soft)] bg-white text-[var(--gold)] shadow-sm">
                                                 <Icon name="lotus" size={12} />
                                             </span>

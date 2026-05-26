@@ -113,6 +113,7 @@ export default function TraCuuDanhXung() {
     const [picker, setPicker] = useState<'a' | 'b' | null>(null);
     const [isScanningQR, setIsScanningQR] = useState(false);
     const [recents, setRecents] = useState<Array<{ a: number; b: number; time: string }>>([]);
+    const [isFromQR, setIsFromQR] = useState(false);
 
     useEffect(() => {
         nguoiApi
@@ -135,10 +136,16 @@ export default function TraCuuDanhXung() {
                 let defaultB = data.find((member) => member.id !== defaultA)?.id ?? null;
 
                 if (targetId && data.some((m) => m.id === targetId)) {
+                    const targetMember = data.find((m) => m.id === targetId);
+                    setIsFromQR(true);
                     // Nếu quét QR hợp lệ, đặt A là chính mình, B là target_id và tự động hiển thị mối quan hệ
                     setAId(defaultA);
                     setBId(targetId);
                     setRecents([{ a: defaultA, b: targetId, time: 'Vừa xong' }]);
+
+                    import('../../../lib/toast.util').then((module) => {
+                        module.default.success(`Đã nhận diện thành viên ${targetMember?.ten_day_du} qua mã QR thành công!`);
+                    });
                 } else {
                     setAId(defaultA);
                     setBId(defaultB);
@@ -240,6 +247,17 @@ export default function TraCuuDanhXung() {
                 ) : (
                     <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
                         <div className="space-y-4">
+                            {isFromQR && !user?.thanh_vien_id && (
+                                <div className="gp-card p-4 flex gap-3 items-start border-[var(--gold-soft)] bg-gradient-to-r from-[var(--gold-glow)] to-[var(--card)]" style={{ borderRadius: 16 }}>
+                                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--gold-pale)] text-[var(--gold)] shrink-0">
+                                        <Icon name="sparkle" size={14} />
+                                    </div>
+                                    <div className="text-[13px] leading-relaxed text-[var(--ink-soft)]">
+                                        <strong className="text-[var(--ink)] block mb-0.5">Chế độ xem QR giả định</strong>
+                                        Tài khoản của bạn chưa được liên kết với thành viên gia phả. Hệ thống đang lấy thành viên mặc định <strong>{a?.ten_day_du}</strong> làm mốc xưng hô với <strong>{b?.ten_day_du}</strong>.
+                                    </div>
+                                </div>
+                            )}
                             <ResultCard a={a} b={b} result={result} />
                             {result?.path && result.path.length >= 2 && <PathView result={result} byId={byId} />}
                             {result && result.kind !== 'self' && result.kind !== 'unrelated' && (
@@ -365,19 +383,19 @@ function ResultCard({ a, b, result }: { a: Nguoi | null; b: Nguoi | null; result
 
             <div className="relative">
                 <div className="mb-1 text-[13px] text-[var(--ink-soft)]">
-                    <span className="font-semibold text-[var(--ink)]">{lastB}</span> gọi <span className="font-semibold text-[var(--ink)]">{lastA}</span> là
+                    <span className="font-semibold text-[var(--ink)]">{lastA}</span> gọi <span className="font-semibold text-[var(--ink)]">{lastB}</span> là
                 </div>
                 <div className="font-serif text-[clamp(42px,7vw,68px)] font-semibold leading-none tracking-[-0.5px] text-[var(--gold)]">
-                    {result.bToA}
+                    {result.aToB}
                 </div>
 
                 <div className="mt-6 flex items-center gap-3 rounded-xl border border-[var(--line)] bg-[var(--card-soft)] px-4 py-3">
                     <Icon name="arrow-right" size={15} className="shrink-0 text-[var(--ink-mute)]" />
                     <div className="min-w-0">
                         <span className="text-[13px] text-[var(--ink-soft)]">
-                            <span className="font-semibold text-[var(--ink)]">{lastA}</span> gọi <span className="font-semibold text-[var(--ink)]">{lastB}</span> là{' '}
+                            <span className="font-semibold text-[var(--ink)]">{lastB}</span> gọi <span className="font-semibold text-[var(--ink)]">{lastA}</span> là{' '}
                         </span>
-                        <span className="font-serif text-[24px] font-semibold text-[var(--brown)]">{result.aToB}</span>
+                        <span className="font-serif text-[24px] font-semibold text-[var(--brown)]">{result.bToA}</span>
                     </div>
                 </div>
 

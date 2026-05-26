@@ -94,3 +94,8 @@ Route::get('/gia-pha/tai-lieu', function () {
 Route::get('/gia-pha/mo-phan', function () {
     return Inertia::render('client/mo-phan/index');
 });
+
+Route::get('/scan/tv-{id}', function ($id) {
+    return Inertia::render('client/scan-result/index', ['id' => $id]);
+});
+

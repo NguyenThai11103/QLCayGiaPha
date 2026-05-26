@@ -88,6 +88,8 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
     const [error,   setError]   = useState('');
     const [moPhan, setMoPhan] = useState<MoPhan | null>(null);
     const [moPhanLoading, setMoPhanLoading] = useState(false);
+    const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+
 
     useEffect(() => {
         apiClient.get(`/nguoi/detail?id=${id}`)
@@ -215,16 +217,72 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                             )}
 
                             {/* Actions */}
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <Link href="/gia-pha/thanh-vien" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'var(--card-soft)', color: 'var(--ink-soft)', fontWeight: 600, fontSize: 13, textDecoration: 'none', border: '1px solid var(--line)' }}>
-                                    <Icon name="chevron-down" size={14} style={{ transform: 'rotate(90deg)' }} />
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                                <Link
+                                    href="/gia-pha/thanh-vien"
+                                    style={{
+                                        flex            : '1 1 45%',
+                                        display         : 'flex',
+                                        alignItems      : 'center',
+                                        justifyContent  : 'center',
+                                        gap             : 6,
+                                        padding         : '9px 12px',
+                                        borderRadius    : 10,
+                                        background      : 'var(--card-soft)',
+                                        color           : 'var(--ink-soft)',
+                                        fontWeight      : 600,
+                                        fontSize        : 12.5,
+                                        textDecoration  : 'none',
+                                        border          : '1px solid var(--line)'
+                                    }}
+                                >
+                                    <Icon name="chevron-down" size={13} style={{ transform: 'rotate(90deg)' }} />
                                     Danh sách
                                 </Link>
-                                <Link href={`/gia-pha/cay-gia-pha`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'linear-gradient(135deg, var(--gold), var(--brown-soft))', color: 'white', fontWeight: 600, fontSize: 13, textDecoration: 'none' }}>
-                                    <Icon name="users" size={14} />
+                                <Link
+                                    href={`/gia-pha/cay-gia-pha`}
+                                    style={{
+                                        flex            : '1 1 45%',
+                                        display         : 'flex',
+                                        alignItems      : 'center',
+                                        justifyContent  : 'center',
+                                        gap             : 6,
+                                        padding         : '9px 12px',
+                                        borderRadius    : 10,
+                                        background      : 'linear-gradient(135deg, var(--gold), var(--brown-soft))',
+                                        color           : 'white',
+                                        fontWeight      : 600,
+                                        fontSize        : 12.5,
+                                        textDecoration  : 'none'
+                                    }}
+                                >
+                                    <Icon name="tree" size={13} />
                                     Xem cây
                                 </Link>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsQRModalOpen(true)}
+                                    style={{
+                                        flex            : '1 1 100%',
+                                        display         : 'flex',
+                                        alignItems      : 'center',
+                                        justifyContent  : 'center',
+                                        gap             : 6,
+                                        padding         : '9px 12px',
+                                        borderRadius    : 10,
+                                        background      : 'var(--card-soft)',
+                                        color           : 'var(--ink-soft)',
+                                        fontWeight      : 600,
+                                        fontSize        : 12.5,
+                                        border          : '1px solid var(--line)',
+                                        cursor          : 'pointer'
+                                    }}
+                                >
+                                    <Icon name="camera" size={13} />
+                                    Mã QR định danh
+                                </button>
                             </div>
+
                         </div>
 
                         {/* ─── Cột phải: Quan hệ ──────────────────────────────────── */}
@@ -282,6 +340,133 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                                     })}
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal QR Định danh Thành viên */}
+                {isQRModalOpen && tv && (
+                    <div
+                        onClick={() => setIsQRModalOpen(false)}
+                        style={{
+                            position        : 'fixed',
+                            inset           : 0,
+                            background      : 'rgba(0, 0, 0, 0.45)',
+                            backdropFilter  : 'blur(6px)',
+                            zIndex          : 9999,
+                            display         : 'grid',
+                            placeItems      : 'center',
+                            padding         : 16
+                        }}
+                    >
+                        <div
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                                position        : 'relative',
+                                background      : 'var(--bg-elev)',
+                                border          : '1px solid var(--line)',
+                                borderRadius    : 20,
+                                width           : '100%',
+                                maxWidth        : 400,
+                                overflow        : 'hidden',
+                                boxShadow       : 'var(--shadow-lg)'
+                            }}
+                        >
+                            {/* Header Gradient Nhũ Vàng Hoàng Gia */}
+                            <div
+                                style={{
+                                    display         : 'flex',
+                                    alignItems      : 'center',
+                                    justifyContent  : 'space-between',
+                                    background      : 'linear-gradient(135deg, var(--gold), var(--brown-soft))',
+                                    padding         : '16px 20px',
+                                    color           : '#fffef9'
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <span style={{ display: 'grid', placeItems: 'center', height: 28, width: 28, borderRadius: 8, background: 'rgba(255, 255, 255, 0.15)' }}>
+                                        <Icon name="lotus" size={14} />
+                                    </span>
+                                    <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 18, fontWeight: 700 }}>Định danh QR Thành viên</span>
+                                </div>
+                                <button
+                                    onClick={() => setIsQRModalOpen(false)}
+                                    style={{
+                                        border          : 'none',
+                                        background      : 'rgba(255, 255, 255, 0.15)',
+                                        color           : 'white',
+                                        width           : 28,
+                                        height          : 28,
+                                        borderRadius    : '50%',
+                                        display         : 'grid',
+                                        placeItems      : 'center',
+                                        cursor          : 'pointer',
+                                        transition      : '0.2s'
+                                    }}
+                                >
+                                    <Icon name="x" size={14} />
+                                </button>
+                            </div>
+
+                            {/* Body Modal */}
+                            <div style={{ padding: '24px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                                {/* Profile ngắn gọn */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, border: '1px solid var(--line-soft)', background: 'var(--card-soft)', width: '100%', textAlign: 'left', marginBottom: 20 }}>
+                                    {tv.anh_dai_dien ? (
+                                        <img src={tv.anh_dai_dien} alt={tv.ten_day_du} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} />
+                                    ) : (
+                                        <div style={{ width: 40, height: 40, borderRadius: '50%', background: avatarGrad(tv.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 16, fontWeight: 700, color: 'white' }}>
+                                            {initials(tv.ten_day_du)}
+                                        </div>
+                                    )}
+                                    <div style={{ minWidth: 0, flex: 1 }}>
+                                        <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{tv.ten_day_du}</h4>
+                                        <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--ink-mute)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Mã thành viên: {tv.ma_thanh_vien || `TV-${tv.id}`}</p>
+                                    </div>
+                                </div>
+
+                                {/* Khung mã QR */}
+                                <div style={{ padding: 12, border: '1px solid var(--gold-soft)', background: '#fdfaf3', borderRadius: 16, boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', position: 'relative' }}>
+                                    <img
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/scan/tv-${tv.id}`)}&color=63462D&bgcolor=FCF9F2`}
+                                        alt="Mã QR định danh"
+                                        style={{ display: 'block', width: 180, height: 180 }}
+                                    />
+                                    {/* Cánh sen nhỏ giữa mã QR */}
+                                    <div style={{ position: 'absolute', inset: 0, margin: 'auto', display: 'grid', placeItems: 'center', width: 34, height: 34, background: '#fdfaf3', border: '1px solid var(--gold-soft)', borderRadius: 8, color: 'var(--gold)', boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+                                        <Icon name="lotus" size={14} />
+                                    </div>
+                                </div>
+
+                                <p style={{ fontSize: 12, color: 'var(--ink-soft)', lineHeight: 1.6, margin: '16px 0 24px', maxWidth: 280 }}>
+                                    Quét mã QR này bằng camera điện thoại để đối chiếu danh xưng và xem sơ đồ đường đi huyết thống trên cây gia phả.
+                                </p>
+
+                                {/* Nút thao tác */}
+                                <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            navigator.clipboard.writeText(`${window.location.origin}/scan/tv-${tv.id}`);
+                                            toast.success('Đã sao chép liên kết định danh QR!');
+                                        }}
+                                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, background: 'var(--card-soft)', color: 'var(--ink-soft)', fontWeight: 600, fontSize: 13, border: '1px solid var(--line)', cursor: 'pointer' }}
+                                    >
+                                        <Icon name="copy" size={14} />
+                                        Copy Link
+                                    </button>
+                                    <a
+                                        href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${window.location.origin}/scan/tv-${tv.id}`)}&color=63462D&bgcolor=FCF9F2`}
+                                        download={`qr_tv_${tv.id}.png`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 16px', borderRadius: 10, background: 'linear-gradient(135deg, var(--gold), var(--brown-soft))', color: 'white', fontWeight: 600, fontSize: 13, textDecoration: 'none', textAlign: 'center' }}
+                                    >
+                                        <Icon name="photo" size={14} />
+                                        Tải ảnh QR
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 )}

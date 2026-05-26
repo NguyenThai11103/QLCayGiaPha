@@ -25,6 +25,7 @@ Route::prefix('auth')->group(function () {
     Route::post('/google/verify-otp', [AuthController::class, 'googleVerifyOtp']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+    
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -57,10 +58,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.admin.system'])->grou
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    
     Route::prefix('onboarding')->group(function () {
-        Route::get('/search-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'searchClan']);
-        Route::post('/join-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'joinClan']);
-        Route::post('/create-clan', [\App\Http\Controllers\Api\OnboardingController::class, 'createClan']);
+        Route::get('/search-clan', [OnboardingController::class, 'searchClan']);
+        Route::post('/join-clan', [OnboardingController::class, 'joinClan']);
+        Route::post('/create-clan', [OnboardingController::class, 'createClan']);
     });
 
     Route::prefix('dong-ho')->group(function () {
@@ -79,8 +81,8 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::prefix('cho-duyet')->middleware('check.permission:quan_ly')->group(function () {
-        Route::get('/list', [\App\Http\Controllers\Api\DuyetThanhVienController::class, 'index']);
-        Route::post('/process', [\App\Http\Controllers\Api\DuyetThanhVienController::class, 'process']);
+        Route::get('/list', [DuyetThanhVienController::class, 'index']);
+        Route::post('/process', [DuyetThanhVienController::class, 'process']);
     });
 
     Route::prefix('nguoi-dung')->middleware('check.permission:quan_ly')->group(function () {
@@ -134,3 +136,4 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/read-all', [\App\Http\Controllers\Api\ThongBaoController::class, 'readAll']);
     });
 });
+

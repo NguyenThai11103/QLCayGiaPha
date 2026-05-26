@@ -31,6 +31,8 @@ const QUICK_ACTIONS = [
   { id: 'media',   icon: 'images'         as const, label: 'Hình Ảnh',    color: '#EC4899', bg: 'rgba(236,72,153,0.15)'  },
   { id: 'docs',    icon: 'document-text'  as const, label: 'Tài Liệu',    color: '#3B82F6', bg: 'rgba(59,130,246,0.15)'  },
   { id: 'search',  icon: 'search'         as const, label: 'Tìm Kiếm',    color: '#A78BFA', bg: 'rgba(167,139,250,0.15)' },
+  { id: 'trail-sign',  icon: 'bookmark'   as const, label: 'Mộ Phần',    color: '#A78BFA', bg: 'rgba(167,139,250,0.15)' },
+  { id: 'calendar',  icon: 'calendar'     as const, label: 'Lịch Âm Tự Động',    color: '#A78BFA', bg: 'rgba(167,139,250,0.15)' },
 ];
 
 // ── Stats
@@ -177,7 +179,11 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <Text style={[styles.sectionTitle, { color: mutedColor }]}>Tính năng</Text>
           <View style={styles.actionsGrid}>
             {QUICK_ACTIONS.map(a => (
-              <TouchableOpacity key={a.id} style={styles.actionItem} activeOpacity={0.75}>
+              <TouchableOpacity key={a.id} style={styles.actionItem} activeOpacity={0.75}
+                onPress={() => {
+                  if (a.id === 'trail-sign') navigation.navigate('MoPhan');
+                  else if (a.id === 'calendar') navigation.navigate('LichAm');
+                }}>
                 <View style={[styles.actionIcon, { backgroundColor: a.bg, borderColor: a.color + '40' }]}>
                   <Ionicons name={a.icon} size={24} color={a.color} />
                 </View>

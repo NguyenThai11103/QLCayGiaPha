@@ -7,6 +7,8 @@ export type RootStackParamList = {
   Home           : undefined;
   QRScan         : undefined;
   Notifications  : undefined;
+  MoPhan         : undefined;
+  LichAm         : undefined;
   ForgotPassword : undefined;
   Settings       : undefined;
   Help           : undefined;

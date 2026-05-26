@@ -12,6 +12,7 @@ import Ionicons from '@react-native-vector-icons/ionicons/static';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from '../genaral/api';
 import { STORAGE_TOKEN_KEY } from '../genaral/authService';
+import { getDualDateDisplay } from '../utils/lunarDate';
 import { colors, borderRadius, fontSize, spacing } from '../config/theme';
 import { useTheme } from '../context/ThemeContext';
 
@@ -222,11 +223,24 @@ const NodeDetail: React.FC<{ m: TreeMember | null; onClose: () => void; theme: R
   const mutedColor = theme.dark ? 'rgba(255,255,255,0.4)' : colors.gray[500];
   const cardBg = theme.dark ? 'rgba(20,20,40,0.95)' : colors.white;
 
+  const birthDisplay = getDualDateDisplay(m.ngay_sinh);
+  const deathDisplay = getDualDateDisplay(m.ngay_mat);
+
   const rows = [
-    { icon: 'calendar-outline',     label: 'Ngày sinh', value: m.ngay_sinh ?? 'Chưa rõ' },
-    { icon: 'heart-dislike-outline', label: 'Ngày mất', value: m.ngay_mat  ?? (m.da_mat ? 'Đã mất' : 'Còn sống') },
-    { icon: 'person-outline',       label: 'Giới tính', value: m.gioi_tinh === 'nam' ? 'Nam' : m.gioi_tinh === 'nu' ? 'Nữ' : 'Chưa rõ' },
-    { icon: 'reader-outline',       label: 'Tiểu sử',   value: m.tieu_su  ?? 'Chưa rõ' },
+    {
+      icon: 'calendar-outline',
+      label: 'Ngày sinh',
+      solar: birthDisplay?.solar ?? 'Chưa rõ',
+      lunar: birthDisplay?.lunar ?? null,
+    },
+    {
+      icon: 'heart-dislike-outline',
+      label: 'Ngày mất',
+      solar: m.da_mat ? (deathDisplay?.solar ?? 'Chưa rõ') : 'Còn sống',
+      lunar: m.da_mat ? (deathDisplay?.lunar ?? null) : null,
+    },
+    { icon: 'person-outline', label: 'Giới tính', solar: m.gioi_tinh === 'nam' ? 'Nam' : m.gioi_tinh === 'nu' ? 'Nữ' : 'Chưa rõ', lunar: null },
+    { icon: 'reader-outline', label: 'Tiểu sử',   solar: m.tieu_su  ?? 'Chưa rõ', lunar: null },
   ];
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
@@ -253,7 +267,10 @@ const NodeDetail: React.FC<{ m: TreeMember | null; onClose: () => void; theme: R
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[nd2.rowLabel, { color: mutedColor }]}>{r.label}</Text>
-                  <Text style={[nd2.rowValue, { color: textColor }]}>{r.value}</Text>
+                  <Text style={[nd2.rowValue, { color: textColor }]}>{r.solar}</Text>
+                  {r.lunar && (
+                    <Text style={[nd2.rowLunar, { color: '#F59E0B' }]}>{r.lunar}</Text>
+                  )}
                 </View>
               </View>
             ))}
@@ -430,6 +447,7 @@ const nd2 = StyleSheet.create({
   rowIcon  : { width: 32, height: 32, borderRadius: 9, backgroundColor: 'rgba(245,158,11,0.12)', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
   rowLabel : { fontSize: 10, color: 'rgba(255,255,255,0.35)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
   rowValue : { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.85)', fontWeight: '500', marginTop: 2 },
+  rowLunar : { fontSize: fontSize.xs, color: '#F59E0B', fontWeight: '500', marginTop: 3, fontStyle: 'italic' },
   closeBtn : { paddingVertical: spacing.md, alignItems: 'center', borderRadius: borderRadius.xl },
   closeTxt : { fontSize: fontSize.md, fontWeight: '700', color: '#fff' },
 });

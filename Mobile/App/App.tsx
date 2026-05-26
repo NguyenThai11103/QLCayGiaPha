@@ -18,9 +18,11 @@ import RegisterScreen from './src/pages/RegisterScreen';
 import MainNavigator from './src/navigation/MainNavigator';
 import QRScanScreen from './src/pages/QRScanScreen';
 import NotificationsScreen from './src/pages/NotificationsScreen';
+import MoPhanScreen from './src/pages/MoPhanScreen';
 import ForgotPasswordScreen from './src/pages/ForgotPasswordScreen';
 import SettingsScreen from './src/pages/SettingsScreen';
 import HelpScreen from './src/pages/HelpScreen';
+import LichAmScreen from './src/pages/LichAmScreen';
 import { RootStackParamList } from './src/config/navigation';
 import { STORAGE_TOKEN_KEY } from './src/genaral/authService';
 import { colors } from './src/config/theme';
@@ -111,6 +113,16 @@ function App(): React.JSX.Element {
             <Stack.Screen
               name="Notifications"
               component={NotificationsScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="MoPhan"
+              component={MoPhanScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="LichAm"
+              component={LichAmScreen}
               options={{ animation: 'slide_from_right' }}
             />
             <Stack.Screen

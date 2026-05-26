@@ -145,7 +145,7 @@ export default function MoPhanPage() {
                         </p>
                     </div>
 
-                    <button
+                    {/* <button
                         type="button"
                         onClick={() => openCreate()}
                         className="gp-btn gp-btn-primary"
@@ -153,7 +153,7 @@ export default function MoPhanPage() {
                     >
                         <Icon name="plus" size={14} />
                         Thêm mộ phần
-                    </button>
+                    </button> */}
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginBottom: 20 }}>

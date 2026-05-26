@@ -284,6 +284,454 @@ const getDepth = (nodes: FamilyNode[]): number => {
     return Math.max(...nodes.map((node) => 1 + getDepth(node.children)));
 };
 
+type ExportLayoutNode = {
+    family: FamilyNode;
+    width: number;
+    x: number;
+    y: number;
+    children: ExportLayoutNode[];
+};
+
+const EXPORT_PAGE_WIDTH = 4961;
+const EXPORT_PAGE_HEIGHT = 3508;
+const EXPORT_CARD_WIDTH = 220;
+const EXPORT_CARD_HEIGHT = 104;
+const EXPORT_SPOUSE_GAP = 34;
+const EXPORT_NODE_GAP = 80;
+const EXPORT_LEVEL_GAP = 158;
+
+const getNodeOwnWidth = (family: FamilyNode) => {
+    const cardCount = 1 + family.spouses.length;
+    return cardCount * EXPORT_CARD_WIDTH + (cardCount - 1) * EXPORT_SPOUSE_GAP;
+};
+
+const measureExportNode = (family: FamilyNode): ExportLayoutNode => {
+    const children = family.children.map(measureExportNode);
+    const ownWidth = getNodeOwnWidth(family);
+    const childrenWidth = children.reduce((total, child) => total + child.width, 0) + Math.max(children.length - 1, 0) * EXPORT_NODE_GAP;
+
+    return {
+        family,
+        width: Math.max(ownWidth, childrenWidth),
+        x: 0,
+        y: 0,
+        children,
+    };
+};
+
+const positionExportNode = (node: ExportLayoutNode, left: number, top: number) => {
+    node.x = left + node.width / 2;
+    node.y = top;
+
+    const childrenWidth = node.children.reduce((total, child) => total + child.width, 0) + Math.max(node.children.length - 1, 0) * EXPORT_NODE_GAP;
+    let childLeft = left + (node.width - childrenWidth) / 2;
+
+    node.children.forEach((child) => {
+        positionExportNode(child, childLeft, top + EXPORT_CARD_HEIGHT + EXPORT_LEVEL_GAP);
+        childLeft += child.width + EXPORT_NODE_GAP;
+    });
+};
+
+const walkExportLayout = (nodes: ExportLayoutNode[], callback: (node: ExportLayoutNode) => void) => {
+    nodes.forEach((node) => {
+        callback(node);
+        walkExportLayout(node.children, callback);
+    });
+};
+
+const getExportLayoutBounds = (nodes: ExportLayoutNode[]) => {
+    let maxRight = 0;
+    let maxBottom = 0;
+
+    walkExportLayout(nodes, (node) => {
+        maxRight = Math.max(maxRight, node.x + node.width / 2);
+        maxBottom = Math.max(maxBottom, node.y + EXPORT_CARD_HEIGHT);
+    });
+
+    return { width: maxRight, height: maxBottom };
+};
+
+const drawRoundRect = (ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) => {
+    const r = Math.min(radius, width / 2, height / 2);
+
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+};
+
+const drawWrappedText = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    x: number,
+    y: number,
+    maxWidth: number,
+    lineHeight: number,
+    maxLines: number,
+) => {
+    const words = text.split(/\s+/).filter(Boolean);
+    let line = '';
+    let lineIndex = 0;
+
+    for (const word of words) {
+        const nextLine = line ? `${line} ${word}` : word;
+
+        if (ctx.measureText(nextLine).width <= maxWidth) {
+            line = nextLine;
+            continue;
+        }
+
+        if (lineIndex === maxLines - 1) {
+            let clipped = line || word;
+            while (ctx.measureText(`${clipped}...`).width > maxWidth && clipped.length > 1) {
+                clipped = clipped.slice(0, -1);
+            }
+            ctx.fillText(`${clipped}...`, x, y + lineIndex * lineHeight);
+            return;
+        }
+
+        ctx.fillText(line, x, y + lineIndex * lineHeight);
+        line = word;
+        lineIndex += 1;
+    }
+
+    if (line && lineIndex < maxLines) {
+        ctx.fillText(line, x, y + lineIndex * lineHeight);
+    }
+};
+
+const drawExportPersonCard = (
+    ctx: CanvasRenderingContext2D,
+    person: Nguoi,
+    x: number,
+    y: number,
+    role: 'member' | 'spouse',
+) => {
+    const isMale = person.gioi_tinh === 'nam';
+    const isDead = Boolean(person.da_mat);
+    const accent = role === 'spouse' ? '#c9775b' : isMale ? '#1f7a5b' : '#a84f68';
+    const fill = isDead ? '#f3eee4' : role === 'spouse' ? '#fff6f1' : '#fffaf0';
+    const birthYear = formatYear(person.ngay_sinh);
+    const deathYear = formatYear(person.ngay_mat);
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(55, 41, 24, 0.16)';
+    ctx.shadowBlur = 12;
+    ctx.shadowOffsetY = 5;
+    drawRoundRect(ctx, x, y, EXPORT_CARD_WIDTH, EXPORT_CARD_HEIGHT, 18);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.restore();
+
+    drawRoundRect(ctx, x, y, EXPORT_CARD_WIDTH, EXPORT_CARD_HEIGHT, 18);
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = role === 'member' ? 2.2 : 1.6;
+    ctx.stroke();
+
+    ctx.fillStyle = accent;
+    drawRoundRect(ctx, x, y, 9, EXPORT_CARD_HEIGHT, 18);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x + 46, y + 42, 27, 0, Math.PI * 2);
+    ctx.fillStyle = accent;
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 27px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(person.ten_day_du.charAt(0).toUpperCase(), x + 46, y + 42);
+
+    if (isDead) {
+        ctx.beginPath();
+        ctx.arc(x + 66, y + 22, 10, 0, Math.PI * 2);
+        ctx.fillStyle = '#7b6a58';
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '700 14px Arial, sans-serif';
+        ctx.fillText('†', x + 66, y + 22);
+    }
+
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#2f2418';
+    ctx.font = '700 20px Arial, sans-serif';
+    drawWrappedText(ctx, person.ten_day_du, x + 84, y + 34, EXPORT_CARD_WIDTH - 104, 23, 2);
+
+    ctx.fillStyle = '#766653';
+    ctx.font = '600 14px Arial, sans-serif';
+    const genderLabel = isMale ? 'Nam' : 'Nữ';
+    const statusLabel = isDead ? 'Đã mất' : 'Còn sống';
+    ctx.fillText(`${genderLabel} · ${statusLabel}`, x + 84, y + 78);
+
+    if (birthYear || deathYear) {
+        ctx.fillStyle = '#9a815f';
+        ctx.font = '600 13px Arial, sans-serif';
+        ctx.fillText(`${birthYear || '?'}${isDead ? ` - ${deathYear || '?'}` : ''}`, x + 84, y + 96);
+    }
+};
+
+const drawExportConnections = (ctx: CanvasRenderingContext2D, node: ExportLayoutNode, bloodlineOnly: boolean) => {
+    const ownWidth = getNodeOwnWidth(node.family);
+    const groupLeft = node.x - ownWidth / 2;
+    const mainCenterX = groupLeft + EXPORT_CARD_WIDTH / 2;
+    const groupBottomY = node.y + EXPORT_CARD_HEIGHT;
+
+    if (node.family.spouses.length > 0) {
+        ctx.strokeStyle = '#c49a50';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(mainCenterX + EXPORT_CARD_WIDTH / 2, node.y + EXPORT_CARD_HEIGHT / 2);
+        ctx.lineTo(groupLeft + ownWidth - EXPORT_CARD_WIDTH / 2, node.y + EXPORT_CARD_HEIGHT / 2);
+        ctx.stroke();
+    }
+
+    if (node.children.length > 0) {
+        const connectorY = groupBottomY + EXPORT_LEVEL_GAP * 0.46;
+        const childCenters = node.children.map((child) => child.x);
+
+        ctx.strokeStyle = bloodlineOnly ? '#b98929' : '#b8aa96';
+        ctx.lineWidth = bloodlineOnly ? 2.4 : 1.8;
+        ctx.beginPath();
+        ctx.moveTo(node.x, groupBottomY);
+        ctx.lineTo(node.x, connectorY);
+        ctx.moveTo(Math.min(...childCenters), connectorY);
+        ctx.lineTo(Math.max(...childCenters), connectorY);
+        node.children.forEach((child) => {
+            ctx.moveTo(child.x, connectorY);
+            ctx.lineTo(child.x, child.y);
+        });
+        ctx.stroke();
+    }
+
+    node.children.forEach((child) => drawExportConnections(ctx, child, bloodlineOnly));
+};
+
+const drawExportNodeCards = (ctx: CanvasRenderingContext2D, node: ExportLayoutNode) => {
+    const ownWidth = getNodeOwnWidth(node.family);
+    const startX = node.x - ownWidth / 2;
+
+    drawExportPersonCard(ctx, node.family.member, startX, node.y, 'member');
+    node.family.spouses.forEach((spouse, index) => {
+        const x = startX + (index + 1) * (EXPORT_CARD_WIDTH + EXPORT_SPOUSE_GAP);
+        drawExportPersonCard(ctx, spouse, x, node.y, 'spouse');
+    });
+
+    node.children.forEach((child) => drawExportNodeCards(ctx, child));
+};
+
+const exportTreeToCanvas = ({
+    roots,
+    familyName,
+    depth,
+    peopleCount,
+    deceasedCount,
+    bloodlineOnly,
+}: {
+    roots: FamilyNode[];
+    familyName: string;
+    depth: number;
+    peopleCount: number;
+    deceasedCount: number;
+    bloodlineOnly: boolean;
+}) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = EXPORT_PAGE_WIDTH;
+    canvas.height = EXPORT_PAGE_HEIGHT;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+        throw new Error('Canvas is not supported.');
+    }
+
+    const layouts = roots.map(measureExportNode);
+    const rootGap = 140;
+    const layoutWidth = layouts.reduce((total, layout) => total + layout.width, 0) + Math.max(layouts.length - 1, 0) * rootGap;
+    let currentLeft = 0;
+
+    layouts.forEach((layout) => {
+        positionExportNode(layout, currentLeft, 0);
+        currentLeft += layout.width + rootGap;
+    });
+
+    const bounds = getExportLayoutBounds(layouts);
+    const contentArea = {
+        x: 180,
+        y: 430,
+        width: EXPORT_PAGE_WIDTH - 360,
+        height: EXPORT_PAGE_HEIGHT - 620,
+    };
+    const scale = Math.min(contentArea.width / Math.max(layoutWidth, bounds.width), contentArea.height / bounds.height, 1.9);
+    const offsetX = contentArea.x + (contentArea.width - Math.max(layoutWidth, bounds.width) * scale) / 2;
+    const offsetY = contentArea.y + (contentArea.height - bounds.height * scale) / 2;
+
+    ctx.fillStyle = '#f8f2e7';
+    ctx.fillRect(0, 0, EXPORT_PAGE_WIDTH, EXPORT_PAGE_HEIGHT);
+
+    ctx.strokeStyle = 'rgba(184, 154, 97, 0.25)';
+    ctx.lineWidth = 1;
+    for (let x = 120; x < EXPORT_PAGE_WIDTH; x += 90) {
+        ctx.beginPath();
+        ctx.moveTo(x, 360);
+        ctx.lineTo(x, EXPORT_PAGE_HEIGHT - 160);
+        ctx.stroke();
+    }
+    for (let y = 360; y < EXPORT_PAGE_HEIGHT - 160; y += 90) {
+        ctx.beginPath();
+        ctx.moveTo(120, y);
+        ctx.lineTo(EXPORT_PAGE_WIDTH - 120, y);
+        ctx.stroke();
+    }
+
+    ctx.fillStyle = '#2f2418';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.font = '700 92px "Times New Roman", serif';
+    ctx.fillText('Sơ đồ Cây Gia Phả', 180, 178);
+
+    ctx.font = '700 42px Arial, sans-serif';
+    ctx.fillStyle = '#8b642b';
+    ctx.fillText(familyName, 184, 248);
+
+    ctx.font = '600 27px Arial, sans-serif';
+    ctx.fillStyle = '#6f5d48';
+    ctx.fillText(`${depth || 1} đời · ${peopleCount} thành viên · ${peopleCount - deceasedCount} còn sống · ${deceasedCount} đã mất`, 184, 304);
+
+    ctx.textAlign = 'right';
+    ctx.font = '600 24px Arial, sans-serif';
+    ctx.fillStyle = '#8d7b66';
+    ctx.fillText(`Xuất ngày ${new Date().toLocaleDateString('vi-VN')}`, EXPORT_PAGE_WIDTH - 184, 304);
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+    layouts.forEach((layout) => drawExportConnections(ctx, layout, bloodlineOnly));
+    layouts.forEach((layout) => drawExportNodeCards(ctx, layout));
+    ctx.restore();
+
+    ctx.strokeStyle = '#c8a65a';
+    ctx.lineWidth = 5;
+    drawRoundRect(ctx, 76, 76, EXPORT_PAGE_WIDTH - 152, EXPORT_PAGE_HEIGHT - 152, 34);
+    ctx.stroke();
+
+    ctx.fillStyle = '#7b6a58';
+    ctx.font = '600 21px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Bản in khổ A3 ngang - xuất từ hệ thống Quản lý Cây Gia Phả', EXPORT_PAGE_WIDTH / 2, EXPORT_PAGE_HEIGHT - 118);
+
+    return canvas.toDataURL('image/png', 1);
+};
+
+const escapeHtml = (value: string) => value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+const openPrintWindow = (imageDataUrl: string, title: string) => {
+    const printWindow = window.open('', '_blank', 'width=1280,height=900');
+
+    if (!printWindow) {
+        return false;
+    }
+
+    const safeTitle = escapeHtml(title);
+    const safeFileName = title
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'cay-gia-pha';
+
+    printWindow.document.write(`
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <title>${safeTitle}</title>
+    <style>
+        @page { size: A3 landscape; margin: 10mm; }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: #efe5d2;
+            color: #2f2418;
+            font-family: Arial, sans-serif;
+        }
+        .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 18px;
+            background: #2f2418;
+            color: #fffaf0;
+        }
+        .toolbar strong { font-size: 15px; }
+        .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        button, a {
+            border: 0;
+            border-radius: 8px;
+            padding: 9px 13px;
+            background: #c8a65a;
+            color: #22180f;
+            cursor: pointer;
+            font-weight: 700;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        main {
+            min-height: calc(100vh - 58px);
+            display: grid;
+            place-items: center;
+            padding: 18px;
+        }
+        img {
+            display: block;
+            width: min(100%, 1560px);
+            height: auto;
+            background: #f8f2e7;
+            box-shadow: 0 18px 60px rgba(47, 36, 24, 0.18);
+        }
+        @media print {
+            body { background: #fff; }
+            .toolbar { display: none; }
+            main { min-height: auto; padding: 0; }
+            img { width: 100%; box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <strong>${safeTitle}</strong>
+        <div class="actions">
+            <button type="button" onclick="window.print()">In / lưu PDF</button>
+            <a download="${safeFileName}.png" href="${imageDataUrl}">Tải ảnh Canvas PNG</a>
+        </div>
+    </div>
+    <main>
+        <img src="${imageDataUrl}" alt="${safeTitle}" onload="setTimeout(() => window.print(), 350)" />
+    </main>
+</body>
+</html>`);
+    printWindow.document.close();
+    printWindow.focus();
+
+    return true;
+};
+
 export default function CayGiaPha() {
     const { user } = useAuth();
     const [people, setPeople] = useState<Nguoi[]>([]);
@@ -294,6 +742,7 @@ export default function CayGiaPha() {
     const [searchTerm, setSearchTerm] = useState('');
     const [bloodlineOnly, setBloodlineOnly] = useState(true);
     const [selectedPerson, setSelectedPerson] = useState<Nguoi | null>(null);
+    const [exporting, setExporting] = useState(false);
     const treeViewportRef = useRef<HTMLElement | null>(null);
     const dragStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
     const [isDraggingTree, setIsDraggingTree] = useState(false);
@@ -503,6 +952,42 @@ export default function CayGiaPha() {
     const zoomOut = () => setZoom((value) => Math.max(value - 0.08, 0.4));
     const zoomIn = () => setZoom((value) => Math.min(value + 0.08, 1.6));
     const fit = () => setZoom(0.85);
+    const handleExportPdf = () => {
+        if (loading) {
+            toast.error('Vui lòng đợi dữ liệu cây gia phả tải xong.');
+            return;
+        }
+
+        if (treeData.length === 0) {
+            toast.error('Chưa có dữ liệu cây gia phả để xuất.');
+            return;
+        }
+
+        setExporting(true);
+
+        try {
+            const familyName = selectedDongHoName || 'Toàn bộ dòng họ';
+            const imageDataUrl = exportTreeToCanvas({
+                roots: treeData,
+                familyName,
+                depth,
+                peopleCount: people.length,
+                deceasedCount: deceased,
+                bloodlineOnly,
+            });
+            const opened = openPrintWindow(imageDataUrl, `Sơ đồ Cây Gia Phả - ${familyName}`);
+
+            if (opened) {
+                toast.success('Đã tạo bản in PDF khổ A3. Chọn "Lưu thành PDF" trong hộp thoại in.');
+            } else {
+                toast.error('Trình duyệt đang chặn cửa sổ in. Vui lòng cho phép pop-up và thử lại.');
+            }
+        } catch (error) {
+            toast.error('Không thể xuất sơ đồ cây gia phả. Vui lòng thử lại.');
+        } finally {
+            setExporting(false);
+        }
+    };
 
     return (
         <AuthenticatedLayout fullBleed>
@@ -562,6 +1047,16 @@ export default function CayGiaPha() {
                         <button type="button" onClick={() => setBloodlineOnly((value) => !value)} className={`gp-btn ${bloodlineOnly ? 'gp-btn-jade' : 'gp-btn-ghost'}`}>
                             <Icon name="branch" size={16} />
                             Huyết thống
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleExportPdf}
+                            disabled={loading || exporting || treeData.length === 0}
+                            className="gp-btn gp-btn-ghost"
+                            title="Xuất sơ đồ cây gia phả ra bản in PDF khổ A3 ngang"
+                        >
+                            <Icon name="scroll" size={16} />
+                            {exporting ? 'Đang xuất...' : 'Xuất PDF'}
                         </button>
                         {user?.quyen_han === 'quan_ly' && (
                             <button type="button" onClick={() => router.visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary">

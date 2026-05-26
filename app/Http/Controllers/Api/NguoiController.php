@@ -25,7 +25,23 @@ class NguoiController extends Controller
         AccessControl::scopeFamilyQuery($query, $request->user());
 
         if ($idDongHo) {
-            $query->where('dong_ho_id', $idDongHo);
+            $query->where(function ($q) use ($idDongHo) {
+                $q->where('thanh_viens.dong_ho_id', $idDongHo)
+                  ->orWhereExists(function ($sub) use ($idDongHo) {
+                      $sub->select(DB::raw(1))
+                          ->from('quan_hes')
+                          ->where(function($qh) {
+                              $qh->whereColumn('quan_hes.thanh_vien_id_1', 'thanh_viens.id')
+                                 ->orWhereColumn('quan_hes.thanh_vien_id_2', 'thanh_viens.id');
+                          })
+                          ->whereExists(function ($inClan) use ($idDongHo) {
+                              $inClan->select(DB::raw(1))
+                                     ->from('thanh_viens as tv2')
+                                     ->where('tv2.dong_ho_id', $idDongHo)
+                                     ->whereRaw('(quan_hes.thanh_vien_id_1 = tv2.id OR quan_hes.thanh_vien_id_2 = tv2.id)');
+                          });
+                  });
+            });
         }
 
         $thanhViens = $query->get();
@@ -53,7 +69,26 @@ class NguoiController extends Controller
             return AccessControl::forbidden();
         }
 
-        $tatCa = DB::table('thanh_viens')->where('dong_ho_id', $nguoiDb->dong_ho_id)->get();
+        $query = DB::table('thanh_viens');
+        $idDongHo = $nguoiDb->dong_ho_id;
+        $query->where(function ($q) use ($idDongHo) {
+            $q->where('thanh_viens.dong_ho_id', $idDongHo)
+              ->orWhereExists(function ($sub) use ($idDongHo) {
+                  $sub->select(DB::raw(1))
+                      ->from('quan_hes')
+                      ->where(function($qh) {
+                          $qh->whereColumn('quan_hes.thanh_vien_id_1', 'thanh_viens.id')
+                             ->orWhereColumn('quan_hes.thanh_vien_id_2', 'thanh_viens.id');
+                      })
+                      ->whereExists(function ($inClan) use ($idDongHo) {
+                          $inClan->select(DB::raw(1))
+                                 ->from('thanh_viens as tv2')
+                                 ->where('tv2.dong_ho_id', $idDongHo)
+                                 ->whereRaw('(quan_hes.thanh_vien_id_1 = tv2.id OR quan_hes.thanh_vien_id_2 = tv2.id)');
+                      });
+              });
+        });
+        $tatCa = $query->get();
         $tatCaNguoi = $this->mapThanhVienToNguoi($tatCa);
 
         $map = [];

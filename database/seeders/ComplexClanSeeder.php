@@ -73,14 +73,38 @@ class ComplexClanSeeder extends Seeder
         ]);
 
         // Trưởng tộc (Quản lý)
+        $hoTenTruongToc = 'Võ Quốc Trưởng';
+        $hoTenS = 'Võ Quốc Sơn';
+        $hoTenV = 'Trần Kim Vy';
+        
         DB::table('nguoi_dungs')->insert([
-            'dong_ho_id' => $this->dongHoId,
-            'ho_ten' => $this->ho . ' Trưởng Tộc',
-            'email' => 'quanlyvoquoc@gmail.com',
-            'password' => Hash::make('111111'),
-            'quyen_han' => 'quan_ly',
-            'created_at' => now(),
-            'updated_at' => now(),
+            [
+                'dong_ho_id' => $this->dongHoId,
+                'ho_ten' => $hoTenTruongToc,
+                'email' => Str::slug($hoTenTruongToc, '') . '@gmail.com',
+                'password' => Hash::make('111111'),
+                'quyen_han' => 'quan_ly',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'dong_ho_id' => $this->dongHoId,
+                'ho_ten' => $hoTenS,
+                'email' => Str::slug($hoTenS, '') . '1980@gmail.com',
+                'password' => Hash::make('111111'),
+                'quyen_han' => 'thanh_vien',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'dong_ho_id' => $this->dongHoId,
+                'ho_ten' => $hoTenV,
+                'email' => Str::slug($hoTenV, '') . '@gmail.com',
+                'password' => Hash::make('111111'),
+                'quyen_han' => 'thanh_vien',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
         ]);
 
         // Cụ thủy tổ (Đời 1)
@@ -90,8 +114,41 @@ class ComplexClanSeeder extends Seeder
         
         $this->linkVoChong($cuTo['id'], $voCuTo['id']);
 
-        // Bắt đầu đẻ nhánh (Sinh con)
+        // Bắt đầu đẻ nhánh (Sinh con ngẫu nhiên)
         $this->generateBranch($cuTo, $voCuTo, 2);
+
+        // KỊCH BẢN ĐẶC BIỆT: Trưởng nam đời 2 có 3 vợ (Để biểu diễn tính năng xếp chồng và chia nhánh theo mẹ)
+        $namSinhTruongNam = $namSinhCuto + 25;
+        $truongNam = $this->createThanhVien('Võ Quốc Sơn', 'nam', 2, 1, $namSinhTruongNam);
+        $this->linkChaCon($cuTo['id'], $truongNam['id']);
+        $this->linkMeCon($voCuTo['id'], $truongNam['id']);
+
+        // Vợ 1: Trần Kim Vy (2 con)
+        $vo1 = $this->createThanhVien('Trần Kim Vy', 'nu', 2, 1, $namSinhTruongNam - 2);
+        $this->linkVoChong($truongNam['id'], $vo1['id']);
+        for ($i = 1; $i <= 2; $i++) {
+            $conV1 = $this->createThanhVien($this->generateTenChinhHuyet('nam'), 'nam', 3, $i, $namSinhTruongNam + 20 + $i*2);
+            $this->linkChaCon($truongNam['id'], $conV1['id']);
+            $this->linkMeCon($vo1['id'], $conV1['id']);
+            $this->generateBranch($truongNam, $vo1, 4); // Sinh cháu
+        }
+
+        // Vợ 2: Nguyễn Văn Q (3 con)
+        $vo2 = $this->createThanhVien('Nguyễn Văn Q', 'nu', 2, 1, $namSinhTruongNam + 3);
+        $this->linkVoChong($truongNam['id'], $vo2['id']);
+        for ($i = 3; $i <= 5; $i++) {
+            $conV2 = $this->createThanhVien($this->generateTenChinhHuyet('nu'), 'nu', 3, $i, $namSinhTruongNam + 25 + $i*2);
+            $this->linkChaCon($truongNam['id'], $conV2['id']);
+            $this->linkMeCon($vo2['id'], $conV2['id']);
+            $this->generateBranch($truongNam, $vo2, 4); // Sinh cháu
+        }
+
+        // Vợ 3: Lê Thị Hoa (1 con)
+        $vo3 = $this->createThanhVien('Lê Thị Hoa', 'nu', 2, 1, $namSinhTruongNam + 10);
+        $this->linkVoChong($truongNam['id'], $vo3['id']);
+        $conV3 = $this->createThanhVien($this->generateTenChinhHuyet('nam'), 'nam', 3, 6, $namSinhTruongNam + 35);
+        $this->linkChaCon($truongNam['id'], $conV3['id']);
+        $this->linkMeCon($vo3['id'], $conV3['id']);
 
         // Tạo sự kiện & tài liệu
         $this->createSuKienTaiLieu();

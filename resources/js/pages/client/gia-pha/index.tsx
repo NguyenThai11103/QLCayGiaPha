@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { FormEvent, MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, MouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../../components/gia-pha/Icon';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import toast from '../../../lib/toast.util';
@@ -106,6 +106,22 @@ const canSelectAsParent = (members: Nguoi[], candidate: Nguoi, form: FormState, 
         return false;
     }
 
+    if (candidate.ngay_sinh && form.ngay_sinh) {
+        if (new Date(candidate.ngay_sinh) >= new Date(form.ngay_sinh)) {
+            return false;
+        }
+    }
+
+    if (otherParentId) {
+        const otherParent = members.find(m => String(m.id) === otherParentId);
+        if (otherParent) {
+            const spouseIds = otherParent.vo_chong_ids || [];
+            if (!spouseIds.includes(candidate.id)) {
+                return false;
+            }
+        }
+    }
+
     return canBeParentPair(members, String(candidate.id), otherParentId);
 };
 
@@ -160,6 +176,18 @@ interface FamilyNode {
     spouses: Nguoi[];
     children: FamilyNode[];
 }
+
+const getAncestorPath = (person: Nguoi, people: Nguoi[]): Nguoi[] => {
+    const path: Nguoi[] = [];
+    let current: Nguoi | undefined = person;
+    const visited = new Set<number>();
+    while (current && !visited.has(current.id)) {
+        visited.add(current.id);
+        path.unshift(current);
+        current = current.id_cha ? people.find(p => p.id === current!.id_cha) : undefined;
+    }
+    return path;
+};
 
 const buildFamilyTree = (people: Nguoi[], selectedDongHo: string) => {
     const peopleById = new Map(people.map((person) => [person.id, person]));
@@ -291,9 +319,13 @@ export default function CayGiaPha() {
     const [searchTerm, setSearchTerm] = useState('');
     const [bloodlineOnly, setBloodlineOnly] = useState(true);
     const [selectedPerson, setSelectedPerson] = useState<Nguoi | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
     const treeViewportRef = useRef<HTMLElement | null>(null);
+    const treeScaleRef = useRef<HTMLDivElement | null>(null);
     const dragStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
     const [isDraggingTree, setIsDraggingTree] = useState(false);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [genPositions, setGenPositions] = useState<{ level: number; top: number; left: number }[]>([]);
 
     useEffect(() => {
         dongHoApi.list().then((res) => setDongHos(res.data || []));
@@ -426,6 +458,107 @@ export default function CayGiaPha() {
         setSelectedParentId('');
     };
 
+    const handleEditQuick = (person: Nguoi) => {
+        const isSpouse = !person.id_cha && !person.id_me && (person.vo_chong_ids && person.vo_chong_ids.length > 0);
+        setIsDauRe(isSpouse);
+        setQuickAddMode('none');
+        setSelectedParentId('');
+        setForm({
+            id: person.id,
+            id_dong_ho: String(person.id_dong_ho),
+            ten_day_du: person.ten_day_du,
+            gioi_tinh: person.gioi_tinh,
+            ngay_sinh: person.ngay_sinh || '',
+            ngay_mat: person.ngay_mat || '',
+            da_mat: Boolean(person.da_mat),
+            id_cha: person.id_cha ? String(person.id_cha) : '',
+            id_me: person.id_me ? String(person.id_me) : '',
+            id_vo_chong_list: (person.vo_chong_ids || []).map(String),
+            tieu_su: person.tieu_su || '',
+            anh_dai_dien: person.anh_dai_dien || '',
+            thu_tu_sinh: person.thu_tu_sinh ? String(person.thu_tu_sinh) : '',
+        });
+        setFormOpen(true);
+    };
+
+    const handleDeleteQuick = async (person: Nguoi) => {
+        const isConfirmed = window.confirm(`Bạn có chắc chắn muốn xóa thành viên "${person.ten_day_du}" khỏi gia phả không?\nLưu ý: Hành động này không thể hoàn tác!`);
+        if (!isConfirmed) return;
+
+        try {
+            setLoading(true);
+            const result = await nguoiApi.delete(person.id);
+            if (result.success) {
+                toast.success(result.message || 'Xóa thành viên thành công.');
+                setSelectedPerson(null);
+                loadData();
+            } else {
+                toast.error(result.message || 'Không thể xóa thành viên.');
+            }
+        } catch (error) {
+            toast.error('Đã xảy ra lỗi khi xóa thành viên.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const updateGenPositions = useCallback(() => {
+        const scaleEl = treeScaleRef.current;
+        if (!scaleEl) return;
+
+        const cards = scaleEl.querySelectorAll('[data-generation-level]');
+        const levelsMap = new Map<number, HTMLElement[]>();
+        cards.forEach((card) => {
+            const lvl = Number(card.getAttribute('data-generation-level'));
+            if (!levelsMap.has(lvl)) levelsMap.set(lvl, []);
+            levelsMap.get(lvl)!.push(card as HTMLElement);
+        });
+
+        const scaleRect = scaleEl.getBoundingClientRect();
+        const positions: { level: number; top: number; left: number }[] = [];
+
+        levelsMap.forEach((elements, lvl) => {
+            let minLeft = Infinity;
+            let sumTop = 0;
+            let count = 0;
+
+            elements.forEach((el) => {
+                const rect = el.getBoundingClientRect();
+                if (rect.left < minLeft) minLeft = rect.left;
+                sumTop += rect.top + rect.height / 2;
+                count++;
+            });
+
+            if (count > 0) {
+                const avgTop = sumTop / count;
+                const topOffset = (avgTop - scaleRect.top) / zoom;
+                const leftOffset = (minLeft - scaleRect.left) / zoom - 100;
+                positions.push({ level: lvl, top: topOffset, left: leftOffset });
+            }
+        });
+
+        setGenPositions(positions.sort((a, b) => a.level - b.level));
+    }, [zoom]);
+
+    useEffect(() => {
+        const scaleEl = treeScaleRef.current;
+        if (!scaleEl) return;
+
+        const observer = new MutationObserver(() => {
+            updateGenPositions();
+        });
+
+        observer.observe(scaleEl, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+        });
+
+        updateGenPositions();
+
+        return () => observer.disconnect();
+    }, [updateGenPositions, people, selectedDongHo, bloodlineOnly]);
+
     const handleParentChange = (field: 'id_cha' | 'id_me', value: string) => {
         setForm((currentForm) => {
             if (field === 'id_cha') {
@@ -504,6 +637,36 @@ export default function CayGiaPha() {
     };
 
     const treeData = useMemo(() => buildFamilyTree(people, selectedDongHo), [people, selectedDongHo]);
+
+    useEffect(() => {
+        if (treeData.length > 0 && treeViewportRef.current) {
+            setTimeout(() => {
+                if (treeViewportRef.current) {
+                    const viewport = treeViewportRef.current;
+                    const rootNodeId = treeData[0].id;
+                    const rootEl = document.getElementById(`family-node-${rootNodeId}`);
+                    
+                    if (rootEl) {
+                        const viewportRect = viewport.getBoundingClientRect();
+                        const rootRect = rootEl.getBoundingClientRect();
+                        
+                        // Tính toán khoảng cách từ thẻ root đến viền trái
+                        const absoluteLeft = viewport.scrollLeft + (rootRect.left - viewportRect.left);
+                        
+                        // Đưa thẻ root vào chính giữa
+                        viewport.scrollLeft = absoluteLeft - (viewportRect.width / 2) + (rootRect.width / 2);
+                        viewport.scrollTop = 0;
+                    } else {
+                        const scrollWidth = viewport.scrollWidth;
+                        const clientWidth = viewport.clientWidth;
+                        if (scrollWidth > clientWidth) {
+                            viewport.scrollLeft = (scrollWidth - clientWidth) / 2;
+                        }
+                    }
+                }
+            }, 100);
+        }
+    }, [treeData]);
     const selectedDongHoName = dongHos.find((d) => String(d.id) === selectedDongHo)?.ten_dong_ho;
     const depth = getDepth(treeData);
     const deceased = people.filter((person) => Boolean(person.da_mat)).length;
@@ -512,16 +675,109 @@ export default function CayGiaPha() {
     const zoomIn = () => setZoom((value) => Math.min(value + 0.08, 1.6));
     const fit = () => setZoom(0.85);
 
+    const toggleFullscreen = useCallback(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        if (!document.fullscreenElement) {
+            el.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+        } else {
+            document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
+        }
+    }, []);
+
+    useEffect(() => {
+        const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handleFsChange);
+        return () => document.removeEventListener('fullscreenchange', handleFsChange);
+    }, []);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+            const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+            if (e.key === 'Escape') {
+                if (formOpen) { closeForm(); e.preventDefault(); return; }
+                if (selectedPerson) { setSelectedPerson(null); e.preventDefault(); return; }
+            }
+
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+                const searchInput = document.getElementById('search-member-input');
+                if (searchInput) {
+                    searchInput.focus();
+                    (searchInput as HTMLInputElement).select();
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            if (isTyping) return;
+
+            if (e.key === '+' || e.key === '=') { zoomIn(); e.preventDefault(); }
+            else if (e.key === '-') { zoomOut(); e.preventDefault(); }
+            else if (e.key === '0') { fit(); e.preventDefault(); }
+            else if (e.key === 'f' || e.key === 'F') { toggleFullscreen(); e.preventDefault(); }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [formOpen, selectedPerson, toggleFullscreen]);
+
+    useEffect(() => {
+        if (!searchTerm) return;
+        const delaySearch = setTimeout(() => {
+            const matchedPerson = people.find(p => p.ten_day_du.toLowerCase().includes(searchTerm.toLowerCase()));
+            if (matchedPerson && treeViewportRef.current) {
+                const viewport = treeViewportRef.current;
+                const el = document.getElementById(`person-card-${matchedPerson.id}`);
+                if (el) {
+                    const viewportRect = viewport.getBoundingClientRect();
+                    const elRect = el.getBoundingClientRect();
+                    
+                    const absoluteLeft = viewport.scrollLeft + (elRect.left - viewportRect.left);
+                    const absoluteTop = viewport.scrollTop + (elRect.top - viewportRect.top);
+                    
+                    viewport.scrollTo({
+                        left: absoluteLeft - (viewportRect.width / 2) + (elRect.width / 2),
+                        top: absoluteTop - (viewportRect.height / 2) + (elRect.height / 2),
+                        behavior: 'smooth'
+                    });
+                }
+            }
+        }, 500);
+        return () => clearTimeout(delaySearch);
+    }, [searchTerm, people]);
+
     return (
         <AuthenticatedLayout fullBleed>
             <Head title="Cây Gia Phả" />
-            <div className="flex min-h-[calc(100vh-64px)] flex-col bg-[var(--bg)]">
+            <div ref={containerRef} className="flex min-h-[calc(100vh-64px)] flex-col bg-[var(--bg)]">
                 <div className="flex min-h-16 flex-col gap-3 border-b border-[var(--line)] bg-[var(--bg-elev)] px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-7">
                     <div className="min-w-0">
                         <div className="gp-eyebrow">{selectedDongHoName || 'Toàn bộ dòng họ'}</div>
-                        <h1 className="font-serif text-[clamp(28px,4vw,36px)] font-semibold leading-tight">
+                        <h1 className="mt-1 font-serif text-[clamp(28px,4vw,36px)] font-semibold leading-tight text-[var(--ink)]">
                             Toàn cây · {depth || 1} đời · {people.length} thành viên
                         </h1>
+                        <div className="mt-2.5 flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/50 px-3 py-1 text-[13px] font-medium text-emerald-700 shadow-sm">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                                </span>
+                                <span className="whitespace-nowrap">Còn sống: <span className="font-bold">{people.length - deceased}</span></span>
+                            </div>
+                            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/50 px-3 py-1 text-[13px] font-medium text-slate-600 shadow-sm">
+                                <span className="h-2 w-2 rounded-full bg-slate-400"></span>
+                                <span className="whitespace-nowrap">Đã mất: <span className="font-bold">{deceased}</span></span>
+                            </div>
+                            <div className="flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/50 px-3 py-1 text-[13px] font-medium text-blue-700 shadow-sm">
+                                <span className="h-2 w-2 rounded-full bg-blue-400"></span>
+                                <span className="whitespace-nowrap">Nam: <span className="font-bold">{people.filter(p => p.gioi_tinh === 'nam').length}</span> · Nữ: <span className="font-bold">{people.filter(p => p.gioi_tinh !== 'nam').length}</span></span>
+                            </div>
+                            <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/50 px-3 py-1 text-[13px] font-medium text-amber-700 shadow-sm">
+                                <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+                                <span className="whitespace-nowrap">Thế hệ: <span className="font-bold">{depth}</span> đời</span>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
@@ -544,10 +800,11 @@ export default function CayGiaPha() {
                         <label className="relative">
                             <Icon name="search" size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink-mute)]" />
                             <input
+                                id="search-member-input"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="gp-input w-[220px] py-2 pl-9 text-[13px]"
-                                placeholder="Tìm thành viên..."
+                                placeholder="Tìm thành viên... (Ctrl+F)"
                             />
                         </label>
 
@@ -562,8 +819,11 @@ export default function CayGiaPha() {
                                 <Icon name="plus" size={15} />
                             </button>
                             <span className="mx-1 h-5 w-px bg-[var(--line)]" />
-                            <button type="button" onClick={fit} className="grid h-8 w-8 place-items-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--card)]">
+                            <button type="button" onClick={fit} className="grid h-8 w-8 place-items-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--card)]" title="Khớp màn hình">
                                 <Icon name="fit" size={15} />
+                            </button>
+                            <button type="button" onClick={toggleFullscreen} className="grid h-8 w-8 place-items-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--card)]" title="Toàn màn hình">
+                                <Icon name={isFullscreen ? 'minus' : 'fit'} size={15} />
                             </button>
                         </div>
 
@@ -580,14 +840,14 @@ export default function CayGiaPha() {
                     </div>
                 </div>
 
-                <div className="grid min-h-0 flex-1 lg:grid-cols-[1fr_360px]">
+                <div className="relative flex min-h-0 flex-1 overflow-hidden bg-[var(--bg)]">
                     <section
                         ref={treeViewportRef}
                         onMouseDown={handleMouseDown}
                         onMouseMove={handleMouseMove}
                         onMouseUp={handleMouseUp}
                         onMouseLeave={handleMouseUp}
-                        className="dot-grid relative min-h-[680px] overflow-auto bg-[var(--bg)]"
+                        className="dot-grid relative flex-1 min-h-[680px] overflow-auto"
                         style={{ cursor: isDraggingTree ? 'grabbing' : 'grab', userSelect: isDraggingTree ? 'none' : undefined }}
                     >
                         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(250,241,212,0.8),transparent_48%)]" />
@@ -611,53 +871,63 @@ export default function CayGiaPha() {
                             </div>
                         ) : (
                             <div className="relative flex w-max min-w-full justify-center p-10">
-                                <div className="origin-top transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
+                                <div ref={treeScaleRef} className="relative origin-top transition-transform duration-200" style={{ transform: `scale(${zoom})` }}>
+                                    {/* Nhãn thế hệ dọc bên trái */}
+                                    {genPositions.map(({ level, top, left }) => (
+                                        <div
+                                            key={level}
+                                            className="absolute z-30 flex items-center gap-2 rounded-lg border border-[var(--gold-pale)] bg-[var(--card)] px-3 py-1.5 text-xs font-bold text-[var(--gold)] shadow-sm select-none transition-all duration-200"
+                                            style={{ 
+                                                top: `${top}px`, 
+                                                left: `${left}px`,
+                                                transform: 'translateY(-50%)'
+                                            }}
+                                        >
+                                            <span className="h-2 w-2 rounded-full bg-[var(--gold)]"></span>
+                                            Đời {level}
+                                        </div>
+                                    ))}
+
                                     <RootCard roots={treeData.length} />
                                     <div className="flex justify-center gap-12">
                                         {treeData.map((rootNode) => (
-                                            <FamilyCard
-                                                key={rootNode.id}
-                                                family={rootNode}
-                                                level={1}
-                                                searchTerm={searchTerm}
-                                                bloodlineOnly={bloodlineOnly}
-                                                selectedPerson={selectedPerson}
-                                                onSelect={setSelectedPerson}
-                                            />
+                                            <div key={rootNode.id} id={`family-node-${rootNode.id}`}>
+                                                <FamilyCard
+                                                    family={rootNode}
+                                                    level={1}
+                                                    searchTerm={searchTerm}
+                                                    bloodlineOnly={bloodlineOnly}
+                                                    selectedPerson={selectedPerson}
+                                                    onSelect={setSelectedPerson}
+                                                />
+                                            </div>
                                         ))}
                                     </div>
                                 </div>
                             </div>
                         )}
                     </section>
+                    
+                    {treeData.length > 0 && <Minimap viewportRef={treeViewportRef} />}
 
-                    <aside className="border-l border-[var(--line)] bg-[var(--bg-elev)] p-5">
-                        <div className="mb-5 grid grid-cols-3 gap-2">
-                            <Metric label="Thành viên" value={people.length} />
-                            <Metric label="Còn sống" value={people.length - deceased} />
-                            <Metric label="Đã mất" value={deceased} />
-                        </div>
-
-                        {selectedPerson ? (
-                            <PersonPanel
-                                person={selectedPerson}
-                                people={people}
-                                isMaster={user?.quyen_han === 'quan_ly'}
-                                onClose={() => setSelectedPerson(null)}
-                                onAddChild={handleAddChildQuick}
-                                onAddSpouse={handleAddSpouseQuick}
-                                onAddParent={handleAddParentQuick}
-                            />
-                        ) : (
-                            <div className="gp-card bg-[linear-gradient(145deg,var(--card),var(--gold-glow)_180%)] p-5">
-                                <span className="gp-chip gp-chip-gold"><Icon name="tree" size={12} />Chi tiết</span>
-                                <h2 className="mt-4 font-serif text-[28px] font-semibold leading-tight">Chọn một thành viên trên cây</h2>
-                                <p className="mt-2 text-[13px] leading-6 text-[var(--ink-soft)]">
-                                    Panel này hiển thị quan hệ cha mẹ, phối ngẫu, năm sinh mất và thao tác xem hồ sơ chi tiết.
-                                </p>
-                            </div>
-                        )}
-                    </aside>
+                    {selectedPerson && (
+                        <>
+                            <div className="absolute inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity" onClick={() => setSelectedPerson(null)} />
+                            <aside className="absolute bottom-0 right-0 top-0 z-50 w-[420px] max-w-[90vw] animate-in slide-in-from-right-8 duration-300 shadow-2xl border-l border-[var(--line)]">
+                                <PersonPanel
+                                    person={selectedPerson}
+                                    people={people}
+                                    isMaster={user?.quyen_han === 'quan_ly'}
+                                    onClose={() => setSelectedPerson(null)}
+                                    onAddChild={handleAddChildQuick}
+                                    onAddSpouse={handleAddSpouseQuick}
+                                    onAddParent={handleAddParentQuick}
+                                    onEditQuick={handleEditQuick}
+                                    onDeleteQuick={handleDeleteQuick}
+                                />
+                        </aside>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -830,7 +1100,7 @@ export default function CayGiaPha() {
                                     </label>
                                 )}
 
-                                {!isDauRe && (
+                                {!isDauRe && quickAddMode !== 'parent' && (
                                     <>
                                         <label>
                                             <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Cha</span>
@@ -948,6 +1218,7 @@ function FamilyCard({
     bloodlineOnly,
     selectedPerson,
     onSelect,
+    parentLabel,
 }: {
     family: FamilyNode;
     level: number;
@@ -955,22 +1226,53 @@ function FamilyCard({
     bloodlineOnly: boolean;
     selectedPerson: Nguoi | null;
     onSelect: (person: Nguoi) => void;
+    parentLabel?: string;
 }) {
     const hasChildren = family.children.length > 0;
+    const [isExpanded, setIsExpanded] = useState(level <= 2);
+    const [hoveredSpouseId, setHoveredSpouseId] = useState<number | null>(null);
+    
+    const isSelectedSpouse = family.spouses.some(s => s.id === selectedPerson?.id);
+    const activeSpouseId = isSelectedSpouse ? selectedPerson?.id : hoveredSpouseId;
+
+    const leftSpouses = family.spouses.slice(0, Math.floor(family.spouses.length / 2));
+    const rightSpouses = family.spouses.slice(Math.floor(family.spouses.length / 2));
 
     return (
         <div className="flex flex-col items-center">
             <div
                 className="relative z-10 flex items-center justify-center gap-5 rounded-[20px] border border-[var(--card-border)] bg-[color-mix(in_srgb,var(--card)_88%,transparent)] p-5 shadow-[var(--shadow-md)] backdrop-blur"
+                data-generation-level={level}
             >
                 <div className="absolute -top-3.5 left-1/2 grid h-7 w-7 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-2 border-[var(--card)] bg-[var(--gold)] text-xs font-bold text-white shadow">
                     {level}
                 </div>
 
-                <PersonMiniCard person={family.member} searchTerm={searchTerm} selected={selectedPerson?.id === family.member.id} onSelect={onSelect} />
+                {leftSpouses.map((spouse) => (
+                    <div 
+                        key={spouse.id} 
+                        className="flex items-center gap-4 transition-transform hover:scale-105"
+                        onMouseEnter={() => setHoveredSpouseId(spouse.id)}
+                        onMouseLeave={() => setHoveredSpouseId(null)}
+                    >
+                        <PersonMiniCard person={spouse} searchTerm={searchTerm} selected={selectedPerson?.id === spouse.id} onSelect={onSelect} />
+                        <div className="relative h-[2px] w-8 bg-gradient-to-r from-[var(--gold)] to-[var(--gold)] opacity-70">
+                            <div className="absolute left-1/2 top-1/2 grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-pink-200 bg-pink-50 text-pink-500 shadow-sm">
+                                <Icon name="heart" size={11} />
+                            </div>
+                        </div>
+                    </div>
+                ))}
 
-                {family.spouses.map((spouse) => (
-                    <div key={spouse.id} className="flex items-center gap-4">
+                <PersonMiniCard person={family.member} searchTerm={searchTerm} selected={selectedPerson?.id === family.member.id} onSelect={onSelect} parentLabel={parentLabel} isRoot={level === 1} />
+
+                {rightSpouses.map((spouse) => (
+                    <div 
+                        key={spouse.id} 
+                        className="flex items-center gap-4 transition-transform hover:scale-105"
+                        onMouseEnter={() => setHoveredSpouseId(spouse.id)}
+                        onMouseLeave={() => setHoveredSpouseId(null)}
+                    >
                         <div className="relative h-[2px] w-8 bg-gradient-to-r from-[var(--gold)] to-[var(--gold)] opacity-70">
                             <div className="absolute left-1/2 top-1/2 grid h-6 w-6 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-pink-200 bg-pink-50 text-pink-500 shadow-sm">
                                 <Icon name="heart" size={11} />
@@ -981,66 +1283,237 @@ function FamilyCard({
                 ))}
             </div>
 
-            <div className={`h-10 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
+            {hasChildren ? (
+                <>
+                    <div className="relative flex h-10 w-px items-center justify-center">
+                        <div className={`absolute inset-y-0 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
+                        <button
+                            type="button"
+                            onClick={() => setIsExpanded(!isExpanded)}
+                            className="z-20 grid h-6 w-6 cursor-pointer place-items-center rounded-full border border-[var(--gold)] bg-[#faf9f6] text-[var(--gold)] transition hover:bg-[var(--gold)] hover:text-white"
+                            title={isExpanded ? "Thu gọn nhánh" : "Mở rộng nhánh"}
+                        >
+                            <Icon name={isExpanded ? "minus" : "plus"} size={14} />
+                        </button>
+                    </div>
+                    
+                    {isExpanded && (
+                        <div className="flex justify-center">
+                            {family.children.map((child, index) => {
+                                const isOnly = family.children.length === 1;
+                                const isFirst = index === 0;
+                                const isLast = index === family.children.length - 1;
+                                
+                                const otherParentId = child.member.id_cha === family.member.id ? child.member.id_me : child.member.id_cha;
+                                const otherParent = otherParentId ? family.spouses.find(s => s.id === otherParentId) : undefined;
+                                const childParentLabel = otherParent 
+                                    ? (family.member.gioi_tinh === 'nam' ? 'Mẹ: ' : 'Cha: ') + otherParent.ten_day_du.split(' ').pop() 
+                                    : undefined;
+                                const childIsDimmed = activeSpouseId !== null && activeSpouseId !== undefined && otherParentId !== activeSpouseId;
 
-            {hasChildren && (
-                <div className="flex justify-center">
-                    {family.children.map((child, index) => {
-                        const isOnly = family.children.length === 1;
-                        const isFirst = index === 0;
-                        const isLast = index === family.children.length - 1;
-                        return (
-                            <div key={child.id} className="relative flex flex-col items-center px-6">
-                                {!isOnly && (
-                                    <>
-                                        {!isFirst && <div className={`absolute left-0 top-0 h-px w-1/2 ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />}
-                                        {!isLast && <div className={`absolute right-0 top-0 h-px w-1/2 ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />}
-                                    </>
-                                )}
-                                <div className={`h-10 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
-                                <FamilyCard family={child} level={level + 1} searchTerm={searchTerm} bloodlineOnly={bloodlineOnly} selectedPerson={selectedPerson} onSelect={onSelect} />
-                            </div>
-                        );
-                    })}
-                </div>
+                                return (
+                                    <div key={child.id} className={`relative flex flex-col items-center px-6 transition-all duration-300 ${childIsDimmed ? 'opacity-20 grayscale' : 'opacity-100 grayscale-0'}`}>
+                                        {!isOnly && (
+                                            <>
+                                                {!isFirst && <div className={`absolute left-0 top-0 h-px w-1/2 ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />}
+                                                {!isLast && <div className={`absolute right-0 top-0 h-px w-1/2 ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />}
+                                            </>
+                                        )}
+                                        <div className={`h-10 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
+                                        <FamilyCard family={child} level={level + 1} searchTerm={searchTerm} bloodlineOnly={bloodlineOnly} selectedPerson={selectedPerson} onSelect={onSelect} parentLabel={childParentLabel} />
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </>
+            ) : (
+                <div className={`h-10 w-px ${bloodlineOnly ? 'bg-[var(--gold)]' : 'bg-[var(--line)]'}`} />
             )}
         </div>
     );
 }
 
-function PersonMiniCard({ person, searchTerm, selected, onSelect }: { person: Nguoi; searchTerm: string; selected: boolean; onSelect: (person: Nguoi) => void }) {
+const calculateAge = (ngay_sinh?: string | null, ngay_mat?: string | null, da_mat?: boolean) => {
+    if (!ngay_sinh) return null;
+    const birthYear = parseInt(ngay_sinh.substring(0, 4));
+    if (isNaN(birthYear)) return null;
+    
+    if (da_mat) {
+        if (!ngay_mat) return null;
+        const deathYear = parseInt(ngay_mat.substring(0, 4));
+        if (isNaN(deathYear)) return null;
+        return deathYear - birthYear;
+    } else {
+        const currentYear = new Date().getFullYear();
+        return currentYear - birthYear;
+    }
+};
+
+function Minimap({ viewportRef }: { viewportRef: React.RefObject<HTMLElement> }) {
+    const [viewportProps, setViewportProps] = useState({ scrollLeft: 0, scrollTop: 0, scrollWidth: 1, scrollHeight: 1, clientWidth: 1, clientHeight: 1 });
+    
+    useEffect(() => {
+        const viewport = viewportRef.current;
+        if (!viewport) return;
+        
+        const update = () => {
+            setViewportProps({
+                scrollLeft: viewport.scrollLeft,
+                scrollTop: viewport.scrollTop,
+                scrollWidth: Math.max(viewport.scrollWidth, 1),
+                scrollHeight: Math.max(viewport.scrollHeight, 1),
+                clientWidth: Math.max(viewport.clientWidth, 1),
+                clientHeight: Math.max(viewport.clientHeight, 1)
+            });
+        };
+        
+        viewport.addEventListener('scroll', update);
+        window.addEventListener('resize', update);
+        const timeout = setTimeout(update, 500);
+        
+        const observer = new MutationObserver(update);
+        observer.observe(viewport, { childList: true, subtree: true });
+        
+        return () => {
+            viewport.removeEventListener('scroll', update);
+            window.removeEventListener('resize', update);
+            clearTimeout(timeout);
+            observer.disconnect();
+        };
+    }, [viewportRef]);
+
+    const { scrollLeft, scrollTop, scrollWidth, scrollHeight, clientWidth, clientHeight } = viewportProps;
+
+    // Ẩn minimap khi cây vừa khít viewport (không cần scroll)
+    const canScrollH = scrollWidth > clientWidth * 1.1;
+    const canScrollV = scrollHeight > clientHeight * 1.1;
+    if (!canScrollH && !canScrollV) return null;
+    
+    const MAX_WIDTH = 240;
+    const MAX_HEIGHT = 160;
+    
+    // Giữ nguyên tỷ lệ khung hình (Aspect Ratio) của sơ đồ cây gia phả
+    const scale = Math.min(MAX_WIDTH / scrollWidth, MAX_HEIGHT / scrollHeight);
+    
+    const mapWidth = Math.max(scrollWidth * scale, 60);
+    const mapHeight = Math.max(scrollHeight * scale, 40);
+    
+    const scaleX = mapWidth / scrollWidth;
+    const scaleY = mapHeight / scrollHeight;
+    
+    const viewWidth = Math.max(clientWidth * scaleX, 4);
+    const viewHeight = Math.max(clientHeight * scaleY, 4);
+    
+    // Clamp left/top to prevent the view box from going out of bounds
+    // due to the Math.max clamping above
+    const maxLeft = mapWidth - viewWidth;
+    const maxTop = mapHeight - viewHeight;
+    const viewLeft = Math.min(scrollLeft * scaleX, maxLeft);
+    const viewTop = Math.min(scrollTop * scaleY, maxTop);
+
+    const handleDrag = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (e.buttons !== 1) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = Math.max(0, Math.min(e.clientX - rect.left, mapWidth));
+        const y = Math.max(0, Math.min(e.clientY - rect.top, mapHeight));
+        
+        const targetScrollLeft = (x / scaleX) - (clientWidth / 2);
+        const targetScrollTop = (y / scaleY) - (clientHeight / 2);
+        
+        if (viewportRef.current) {
+            viewportRef.current.scrollTo({ left: targetScrollLeft, top: targetScrollTop });
+        }
+    };
+
+    return (
+        <div className="fixed bottom-6 right-6 z-30 overflow-hidden rounded-xl border border-white/20 bg-slate-900/60 shadow-xl backdrop-blur-md hover:bg-slate-900/80 hidden sm:block">
+            <div className="px-2 pt-1.5 pb-1 text-[10px] font-bold uppercase tracking-widest text-white/50">Bản đồ</div>
+            <div className="px-2 pb-2">
+                <div 
+                    className="relative cursor-crosshair bg-white/5 rounded-md border border-white/10"
+                    style={{ width: mapWidth, height: mapHeight }}
+                    onMouseMove={handleDrag}
+                    onMouseDown={handleDrag}
+                >
+                    <div 
+                        className="absolute rounded border border-[var(--gold)] bg-[var(--gold-glow)] pointer-events-none transition-all duration-75"
+                        style={{
+                            width: viewWidth,
+                            height: viewHeight,
+                            left: viewLeft,
+                            top: viewTop,
+                            boxShadow: '0 0 0 9999px rgba(0,0,0,0.3)'
+                        }}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function PersonMiniCard({ person, searchTerm, selected, onSelect, parentLabel, isRoot }: { person: Nguoi; searchTerm: string; selected: boolean; onSelect: (person: Nguoi) => void; parentLabel?: string; isRoot?: boolean }) {
     const isMale = person.gioi_tinh === 'nam';
     const isDead = Boolean(person.da_mat);
     const birthYear = formatYear(person.ngay_sinh);
     const deathYear = formatYear(person.ngay_mat);
     const isHighlighted = Boolean(searchTerm && person.ten_day_du.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const age = calculateAge(person.ngay_sinh, person.ngay_mat, isDead);
+    const lifespanPercent = age !== null ? Math.min(Math.max(age / 100, 0), 1) * 100 : 0;
 
     return (
         <button
+            id={`person-card-${person.id}`}
             type="button"
             onClick={() => onSelect(person)}
             className="group relative flex w-40 flex-col items-center gap-2 rounded-xl px-2 py-3 text-center transition hover:bg-[var(--card-soft)]"
             style={selected || isHighlighted ? { outline: `2px solid ${selected ? 'var(--gold)' : 'var(--jade)'}`, outlineOffset: '2px' } : undefined}
         >
-            <span
-                className="relative grid h-[72px] w-[72px] place-items-center overflow-hidden rounded-full text-2xl font-bold text-white shadow-md ring-2 ring-[var(--card)] transition group-hover:scale-105"
-                style={{
-                    background: isMale ? 'linear-gradient(135deg,var(--jade),var(--jade-soft))' : 'linear-gradient(135deg,var(--terracotta),var(--crimson))',
-                    opacity: isDead ? 0.78 : 1,
-                }}
-            >
-                {person.anh_dai_dien ? <img src={person.anh_dai_dien} alt={person.ten_day_du} className="h-full w-full object-cover" /> : person.ten_day_du.charAt(0).toUpperCase()}
-                {isDead && <span className="absolute -right-0.5 -top-0.5 grid h-5 w-5 place-items-center rounded-full bg-[var(--deceased)] text-[10px] ring-2 ring-[var(--card)]">†</span>}
+            {isRoot && (
+                <span className="absolute -left-2 -top-2 z-10 grid h-7 w-7 place-items-center rounded-full bg-[var(--gold)] text-[14px] text-white shadow-md ring-2 ring-[var(--card)]" title="Thủy Tổ">
+                    👑
+                </span>
+            )}
+            <div className="relative">
+                <span
+                    className={`grid h-[72px] w-[72px] place-items-center overflow-hidden rounded-full text-2xl font-bold text-white shadow-md transition group-hover:scale-105 ${isDead ? 'border-2 border-dashed border-amber-500/70' : 'ring-2 ring-[var(--card)]'}`}
+                    style={{
+                        background: isMale ? 'linear-gradient(135deg,var(--jade),var(--jade-soft))' : 'linear-gradient(135deg,var(--terracotta),var(--crimson))',
+                    }}
+                >
+                    {person.anh_dai_dien ? <img src={person.anh_dai_dien} alt={person.ten_day_du} className="h-full w-full object-cover" /> : person.ten_day_du.charAt(0).toUpperCase()}
+                </span>
+                {isDead && (
+                    <span className="absolute -right-1 -top-1 z-10 grid h-[22px] w-[22px] place-items-center rounded-full bg-amber-50 text-amber-600 ring-2 ring-amber-200 shadow-sm" title="Đã khuất">
+                        <Icon name="lotus" size={13} strokeWidth={1.5} />
+                    </span>
+                )}
                 {person.thu_tu_sinh && (
-                    <span className="absolute -left-0.5 -top-0.5 grid h-5 w-5 place-items-center rounded-full bg-[var(--gold)] text-[10px] font-bold text-white ring-2 ring-[var(--card)] shadow-sm">
+                    <span className="absolute -left-1 -top-1 z-10 grid h-5 w-5 place-items-center rounded-full bg-[var(--gold)] text-[10px] font-bold text-white ring-2 ring-[var(--card)] shadow-sm">
                         {person.thu_tu_sinh}
                     </span>
                 )}
-            </span>
-            <span className="line-clamp-2 min-h-9 w-full text-sm font-bold leading-tight text-[var(--ink)] group-hover:text-[var(--gold)]">{person.ten_day_du}</span>
-            {(birthYear || deathYear) && (
-                <span className="text-[11.5px] font-medium text-[var(--ink-mute)]">
-                    {birthYear || '?'}{isDead ? ` – ${deathYear || '?'}` : ''}
+            </div>
+            <div className="flex w-full flex-col items-center">
+                <span className="line-clamp-2 min-h-9 w-full text-sm font-bold leading-tight text-[var(--ink)] group-hover:text-[var(--gold)]">{person.ten_day_du}</span>
+                {(birthYear || deathYear) && (
+                    <span className="text-[11.5px] font-medium text-[var(--ink-mute)]">
+                        {birthYear || '?'}{isDead ? ` – ${deathYear || '?'}` : ''} {age !== null ? `(${age}t)` : ''}
+                    </span>
+                )}
+                {age !== null && (
+                    <div className="mt-1.5 h-1 w-16 overflow-hidden rounded-full bg-[var(--line)]">
+                        <div 
+                            className={`h-full rounded-full ${isDead ? 'bg-amber-400/80' : 'bg-emerald-400'}`} 
+                            style={{ width: `${lifespanPercent}%` }} 
+                        />
+                    </div>
+                )}
+            </div>
+            {parentLabel && (
+                <span className="mt-1 max-w-full truncate rounded-md bg-amber-50 px-2 py-0.5 text-[9.5px] font-bold text-amber-700 shadow-sm border border-amber-200">
+                    {parentLabel}
                 </span>
             )}
         </button>
@@ -1064,6 +1537,8 @@ function PersonPanel({
     onAddChild,
     onAddSpouse,
     onAddParent,
+    onEditQuick,
+    onDeleteQuick,
 }: {
     person: Nguoi;
     people: Nguoi[];
@@ -1072,79 +1547,144 @@ function PersonPanel({
     onAddChild: (parent: Nguoi) => void;
     onAddSpouse: (spouse: Nguoi) => void;
     onAddParent: (child: Nguoi) => void;
+    onEditQuick: (person: Nguoi) => void;
+    onDeleteQuick: (person: Nguoi) => void;
 }) {
     const father = person.id_cha ? people.find((item) => item.id === person.id_cha) : undefined;
     const mother = person.id_me ? people.find((item) => item.id === person.id_me) : undefined;
     const spouses = (person.vo_chong_ids || []).map((id) => people.find((item) => item.id === id)).filter(Boolean) as Nguoi[];
     const children = people.filter((item) => item.id_cha === person.id || item.id_me === person.id);
 
+    // Build timeline events
+    const events: { year: string; type: string; desc: string; icon: string; color: string }[] = [];
+    if (person.ngay_sinh) events.push({ year: person.ngay_sinh.substring(0,4), type: 'Sinh ra', desc: `Năm ${person.ngay_sinh.substring(0,4)}`, icon: 'sun', color: 'text-emerald-500' });
+    spouses.forEach(s => events.push({ year: 'N/A', type: 'Phối ngẫu', desc: `Kết hôn với ${s.ten_day_du}`, icon: 'heart', color: 'text-pink-500' }));
+    children.forEach(c => {
+        if (c.ngay_sinh) events.push({ year: c.ngay_sinh.substring(0,4), type: 'Sinh con', desc: `Sinh ${c.ten_day_du}`, icon: 'arrow-down', color: 'text-amber-500' });
+    });
+    if (person.da_mat) events.push({ year: person.ngay_mat ? person.ngay_mat.substring(0,4) : 'N/A', type: 'Qua đời', desc: `Hưởng thọ ${calculateAge(person.ngay_sinh, person.ngay_mat, true) || '?'} tuổi`, icon: 'moon', color: 'text-slate-500' });
+
+    events.sort((a, b) => {
+        if (a.year === 'N/A') return 0;
+        if (b.year === 'N/A') return 0;
+        return parseInt(a.year) - parseInt(b.year);
+    });
+
     return (
-        <div className="gp-card overflow-hidden">
-            <div className="bg-pattern bg-[var(--gold-glow)] p-5">
-                <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                        <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] font-serif text-2xl font-semibold text-white shadow-[var(--shadow-gold)]">
-                            {person.anh_dai_dien ? <img src={person.anh_dai_dien} alt={person.ten_day_du} className="h-full w-full object-cover" /> : person.ten_day_du.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                            <div className="gp-eyebrow">{person.gioi_tinh === 'nam' ? 'Nam' : 'Nữ'} · {Boolean(person.da_mat) ? 'Đã mất' : 'Còn sống'}</div>
-                            <h2 className="font-serif text-[27px] font-semibold leading-tight">{person.ten_day_du}</h2>
-                        </div>
+        <div className="flex h-full flex-col bg-[var(--bg-elev)]">
+            <div className="relative shrink-0 bg-pattern bg-[var(--gold-glow)] p-6 pt-8 shadow-sm">
+                <button type="button" onClick={onClose} className="absolute right-4 top-4 grid h-8 w-8 place-items-center rounded-lg bg-white/40 text-[var(--ink-soft)] shadow-sm hover:bg-white transition">
+                    <Icon name="x" size={17} />
+                </button>
+                <div className="flex flex-col items-center gap-3 text-center">
+                    <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-[linear-gradient(135deg,var(--gold),var(--brown-soft))] font-serif text-4xl font-semibold text-white shadow-[var(--shadow-gold)] ring-4 ring-white/50">
+                        {person.anh_dai_dien ? <img src={person.anh_dai_dien} alt={person.ten_day_du} className="h-full w-full object-cover" /> : person.ten_day_du.charAt(0).toUpperCase()}
                     </div>
-                    <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-soft)] hover:bg-[var(--card)]">
-                        <Icon name="x" size={17} />
-                    </button>
+                    <div>
+                        <div className="gp-eyebrow justify-center">{person.gioi_tinh === 'nam' ? 'Nam' : 'Nữ'} · {Boolean(person.da_mat) ? 'Đã mất' : 'Còn sống'}</div>
+                        <h2 className="mt-1 font-serif text-[28px] font-semibold leading-tight text-[var(--ink)]">{person.ten_day_du}</h2>
+                    </div>
                 </div>
             </div>
-            <div className="space-y-5 p-5">
-                <div className="grid grid-cols-2 gap-3">
-                    <Info label="Sinh" value={person.ngay_sinh || 'Chưa rõ'} />
-                    <Info label="Mất" value={person.ngay_mat || (Boolean(person.da_mat) ? 'Chưa rõ' : 'Còn sống')} />
-                </div>
-                <Info label="Cha" value={father?.ten_day_du || 'Chưa liên kết'} />
-                <Info label="Mẹ" value={mother?.ten_day_du || 'Chưa liên kết'} />
-                <Info label="Phối ngẫu" value={spouses.length ? spouses.map((item) => item.ten_day_du).join(', ') : 'Chưa liên kết'} />
-                <Info label="Con" value={children.length ? `${children.length} người con` : 'Chưa có dữ liệu'} />
-                {person.tieu_su && (
-                    <div>
-                        <div className="mb-1 text-[10.5px] font-bold uppercase tracking-[1.3px] text-[var(--ink-mute)]">Tiểu sử</div>
-                        <p className="text-[13px] leading-6 text-[var(--ink-soft)]">{person.tieu_su}</p>
+
+            {(() => {
+                const path = getAncestorPath(person, people);
+                if (path.length <= 1) return null;
+                return (
+                    <div className="shrink-0 border-b border-[var(--line)] bg-[var(--card-soft)] px-6 py-2">
+                        <div className="flex items-center gap-1 overflow-x-auto text-[11px] font-medium text-[var(--ink-mute)]">
+                            {path.map((p, i) => (
+                                <span key={p.id} className="flex items-center gap-1 whitespace-nowrap">
+                                    {i > 0 && <span className="text-[var(--ink-mute)]">→</span>}
+                                    <span className={p.id === person.id ? 'font-bold text-[var(--gold)]' : ''}>
+                                        {p.ten_day_du.split(' ').pop()}
+                                    </span>
+                                </span>
+                            ))}
+                        </div>
                     </div>
-                )}
-                
+                );
+            })()}
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {isMaster && (
-                    <div className="grid grid-cols-1 gap-2 pt-2 sm:grid-cols-3">
-                        <button
-                            type="button"
-                            onClick={() => onAddParent(person)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--jade)] bg-[color-mix(in_srgb,var(--jade)_10%,transparent)] py-2 text-center text-[11px] font-bold text-[var(--jade)] hover:bg-[color-mix(in_srgb,var(--jade)_15%,transparent)] transition"
-                        >
-                            <Icon name="arrow-up" size={12} />
-                            Thêm cha/mẹ
+                    <div className="grid grid-cols-3 gap-2">
+                        <button type="button" onClick={() => onAddParent(person)} className="flex flex-col items-center gap-1 rounded-xl bg-slate-50 border border-slate-200 p-2 text-center transition hover:bg-slate-100 hover:border-slate-300">
+                            <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200 text-slate-600"><Icon name="arrow-up" size={14} /></span>
+                            <span className="text-[10px] font-bold text-slate-600">Thêm cha/mẹ</span>
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => onAddChild(person)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--gold)] bg-[var(--gold-glow)] py-2 text-center text-[11px] font-bold text-[var(--gold)] hover:bg-[color-mix(in_srgb,var(--gold)_12%,transparent)] transition"
-                        >
-                            <Icon name="arrow-down" size={12} />
-                            Thêm con
+                        <button type="button" onClick={() => onAddSpouse(person)} className="flex flex-col items-center gap-1 rounded-xl bg-pink-50 border border-pink-200 p-2 text-center transition hover:bg-pink-100 hover:border-pink-300">
+                            <span className="grid h-7 w-7 place-items-center rounded-full bg-pink-200 text-pink-600"><Icon name="heart" size={14} /></span>
+                            <span className="text-[10px] font-bold text-pink-600">Thêm vợ/chồng</span>
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => onAddSpouse(person)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--terracotta)] bg-[color-mix(in_srgb,var(--terracotta)_10%,transparent)] py-2 text-center text-[11px] font-bold text-[var(--terracotta)] hover:bg-[color-mix(in_srgb,var(--terracotta)_15%,transparent)] transition"
-                        >
-                            <Icon name="heart" size={12} />
-                            Thêm vợ/chồng
+                        <button type="button" onClick={() => onAddChild(person)} className="flex flex-col items-center gap-1 rounded-xl bg-amber-50 border border-amber-200 p-2 text-center transition hover:bg-amber-100 hover:border-amber-300">
+                            <span className="grid h-7 w-7 place-items-center rounded-full bg-amber-200 text-amber-600"><Icon name="arrow-down" size={14} /></span>
+                            <span className="text-[10px] font-bold text-amber-600">Thêm con</span>
                         </button>
                     </div>
                 )}
 
-                <button type="button" onClick={() => router.visit(`/gia-pha/thanh-vien/${person.id}`)} className="gp-btn gp-btn-primary w-full">
-                    Xem hồ sơ chi tiết
+                <div>
+                    <h3 className="mb-3 text-[12px] font-bold uppercase tracking-wider text-[var(--ink-mute)]">Thông tin cơ bản</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                        <Info label="Cha" value={father?.ten_day_du || 'Không rõ'} />
+                        <Info label="Mẹ" value={mother?.ten_day_du || 'Không rõ'} />
+                        <Info label="Con cái" value={children.length ? `${children.length} người con` : 'Chưa có'} />
+                        <Info label="Hôn nhân" value={spouses.length ? `${spouses.length} người` : 'Chưa có'} />
+                    </div>
+                </div>
+                
+                {events.length > 0 && (
+                    <div>
+                        <h3 className="mb-4 text-[12px] font-bold uppercase tracking-wider text-[var(--ink-mute)]">Dấu ấn thời gian</h3>
+                        <div className="relative border-l-2 border-slate-200 ml-4 space-y-5">
+                            {events.map((ev, idx) => (
+                                <div key={idx} className="relative pl-6">
+                                    <span className={`absolute -left-[13px] top-1 grid h-6 w-6 place-items-center rounded-full bg-white border-2 border-slate-200 ${ev.color} shadow-sm`}>
+                                        <Icon name={ev.icon} size={11} />
+                                    </span>
+                                    <div className="font-bold text-[14px] text-[var(--ink)]">{ev.type} <span className="text-slate-400 font-normal ml-1">({ev.year})</span></div>
+                                    <div className="text-[13px] text-[var(--ink-soft)] mt-0.5">{ev.desc}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {person.tieu_su && (
+                    <div>
+                        <h3 className="mb-2 text-[12px] font-bold uppercase tracking-wider text-[var(--ink-mute)]">Tiểu sử</h3>
+                        <div className="rounded-xl bg-[var(--card-soft)] p-4 text-[13.5px] leading-relaxed text-[var(--ink)] shadow-inner">
+                            {person.tieu_su}
+                        </div>
+                    </div>
+                )}
+
+                <button type="button" onClick={() => router.visit(`/gia-pha/thanh-vien/${person.id}`)} className="gp-btn gp-btn-primary w-full mt-4">
+                    Quản lý hồ sơ
                     <Icon name="arrow-right" size={15} />
                 </button>
+
+                {isMaster && (
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                        <button
+                            type="button"
+                            onClick={() => onEditQuick(person)}
+                            className="gp-btn border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center gap-1.5 py-2 px-3 text-[13px] font-semibold rounded-lg transition animate-in fade-in duration-200"
+                        >
+                            <Icon name="edit" size={14} />
+                            Sửa nhanh
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onDeleteQuick(person)}
+                            className="gp-btn border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 flex items-center justify-center gap-1.5 py-2 px-3 text-[13px] font-semibold rounded-lg transition animate-in fade-in duration-200"
+                        >
+                            <Icon name="trash" size={14} />
+                            Xóa thành viên
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

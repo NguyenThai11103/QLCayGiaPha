@@ -1,12 +1,9 @@
 /**
  * QRScanScreen – Quét QR để xem thông tin thành viên gia tộc
  *
- * Dùng react-native-camera-kit (không cần NitroModules)
- * Flow:
- *   1. Xin quyền camera khi mount
- *   2. Camera stream với viewfinder đẹp (overlay)
- *   3. Quét được QR → gọi API lấy thông tin thành viên
- *   4. Hiện bottom sheet với thông tin chi tiết
+ * Hỗ trợ quét QR dạng chuỗi JSON hoặc mã thành viên để truy xuất thông tin lý lịch đầy đủ.
+ * Tích hợp chế độ "Tưởng Niệm & Vinh Danh" đặc biệt tôn kính dành cho Cố Hương Linh đã khuất.
+ * Bổ sung tính năng chọn ảnh QR từ Thư Viện ảnh và tự động giải mã thông minh.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -23,33 +20,63 @@ import {
   ActivityIndicator,
   Alert,
   PermissionsAndroid,
+  Dimensions,
 } from 'react-native';
 import { Camera } from 'react-native-camera-kit';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { launchImageLibrary } from 'react-native-image-picker';
 import { apiFetch } from '../genaral/api';
 import { STORAGE_TOKEN_KEY } from '../genaral/authService';
 import { borderRadius, fontSize, spacing } from '../config/theme';
+import { getDualDateDisplay } from '../utils/lunarDate';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ─────────────────────────────────────────────────────────
 //  Types
 // ─────────────────────────────────────────────────────────
-interface ThanhVien {
-  id         : number;
-  ho_ten     : string;
-  email      : string;
-  dong_ho    : string | null;
-  ngay_sinh  ?: string;
-  que_quan   ?: string;
-  chuc_danh  ?: string;
-  created_at : string;
+interface MappedMember {
+  id          : number;
+  id_dong_ho  : number;
+  ten_day_du  : string;
+  gioi_tinh   : string | null;
+  ngay_sinh   : string | null;
+  ngay_mat    : string | null;
+  da_mat      : boolean;
+  id_cha      : number | null;
+  id_me       : number | null;
+  vo_chong_ids: number[];
+  tieu_su     : string | null;
+  anh_dai_dien: string | null;
+  dong_ho     ?: string | null;
 }
 
-interface QRScanScreenProps { navigation: any; }
+interface QRScanScreenProps {
+  navigation: any;
+}
 
 // ─────────────────────────────────────────────────────────
-//  Animated scanner line (di chuyển lên xuống)
+//  Silhouette Avatar Component
+// ─────────────────────────────────────────────────────────
+const SilhouetteAvatar: React.FC<{ gender: string }> = ({ gender }) => {
+  const isNam = gender.toLowerCase() === 'nam';
+  return (
+    <View style={styles.silhouetteContainer}>
+      <View style={[styles.silhouetteHair, isNam ? styles.hairMale : styles.hairFemale]} />
+      <View style={styles.silhouetteHead} />
+      <View style={styles.silhouetteNeck} />
+      <LinearGradient
+        colors={isNam ? ['#54A0E6', '#2563EB'] : ['#EC4899', '#BE185D']}
+        style={styles.silhouetteBody}
+      />
+    </View>
+  );
+};
+
+// ─────────────────────────────────────────────────────────
+//  Animated scanner line
 // ─────────────────────────────────────────────────────────
 const ScanLine: React.FC = () => {
   const anim = useRef(new Animated.Value(0)).current;
@@ -96,16 +123,15 @@ const CornerDeco: React.FC<{ pos: 'tl' | 'tr' | 'bl' | 'br' }> = ({ pos }) => {
 };
 
 // ─────────────────────────────────────────────────────────
-//  Member Info Bottom Sheet
+//  Member Info Bottom Sheet (With Memorial Display Option)
 // ─────────────────────────────────────────────────────────
 const MemberCard: React.FC<{
-  member     : ThanhVien | null;
+  member     : MappedMember | null;
   loading    : boolean;
   error      : string | null;
   onClose    : () => void;
   onScanAgain: () => void;
 }> = ({ member, loading, error, onClose, onScanAgain }) => {
-
   const slideAnim = useRef(new Animated.Value(500)).current;
 
   useEffect(() => {
@@ -114,7 +140,8 @@ const MemberCard: React.FC<{
     }).start();
   }, []);
 
-  const initial = member?.ho_ten?.split(' ').pop()?.[0]?.toUpperCase() ?? '?';
+  const birthObj = member ? getDualDateDisplay(member.ngay_sinh) : null;
+  const deathObj = member ? getDualDateDisplay(member.ngay_mat) : null;
 
   return (
     <View style={styles.sheetOverlay}>
@@ -125,9 +152,8 @@ const MemberCard: React.FC<{
         {loading ? (
           <View style={styles.sheetCenter}>
             <ActivityIndicator size="large" color="#6C63FF" />
-            <Text style={styles.sheetLoadingText}>Đang tải thông tin thành viên...</Text>
+            <Text style={styles.sheetLoadingText}>Đang kết nối máy chủ dòng tộc...</Text>
           </View>
-
         ) : error ? (
           <View style={styles.sheetCenter}>
             <Ionicons name="alert-circle-outline" size={52} color="#EF4444" />
@@ -138,54 +164,126 @@ const MemberCard: React.FC<{
               <Text style={styles.retryBtnText}>Quét lại</Text>
             </TouchableOpacity>
           </View>
-
         ) : member ? (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Avatar */}
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+            {/* Avatar & Memorial Badge */}
             <View style={styles.sheetAvatarRow}>
-              <LinearGradient colors={['#6C63FF', '#4F46E5']} style={styles.sheetAvatar}>
-                <Text style={styles.sheetAvatarText}>{initial}</Text>
-              </LinearGradient>
-              <View style={styles.sheetBadge}>
-                <Ionicons name="checkmark" size={10} color="#fff" />
+              <View style={[styles.avatarRing, member.da_mat ? { borderColor: '#F59E0B' } : { borderColor: '#6C63FF' }]}>
+                <SilhouetteAvatar gender={member.gioi_tinh ?? 'nam'} />
               </View>
+              {member.da_mat && (
+                <LinearGradient colors={['#FBBF24', '#D97706']} style={styles.deceasedBadge}>
+                  <Ionicons name="ribbon" size={11} color="#FFF" />
+                  <Text style={styles.deceasedBadgeTxt}>Cố Hương Linh</Text>
+                </LinearGradient>
+              )}
             </View>
 
-            <Text style={styles.sheetName}>{member.ho_ten}</Text>
-
-            {member.dong_ho ? (
-              <View style={styles.dongHoBadge}>
-                <Ionicons name="git-network-outline" size={12} color="#A78BFA" />
-                <Text style={styles.dongHoText}>Dòng họ {member.dong_ho}</Text>
+            {/* Custom memorial style for deceased members */}
+            {member.da_mat ? (
+              <View style={styles.memorialHeader}>
+                <Text style={styles.memorialPre}>TẤM BIA TƯỞNG NIỆM</Text>
+                <Text style={styles.memorialName}>{member.ten_day_du}</Text>
+                <Text style={styles.memorialSub}>"Sinh vi hoạt, tử vi thần - Công đức ngàn năm lưu hậu thế"</Text>
               </View>
-            ) : null}
+            ) : (
+              <View style={styles.normalHeader}>
+                <Text style={styles.sheetName}>{member.ten_day_du}</Text>
+                {member.dong_ho && (
+                  <View style={styles.dongHoBadge}>
+                    <Ionicons name="git-network-outline" size={12} color="#A78BFA" />
+                    <Text style={styles.dongHoText}>Dòng họ {member.dong_ho}</Text>
+                  </View>
+                )}
+              </View>
+            )}
 
-            {/* Info rows */}
+            {/* Detailed Info Card Stack */}
             <View style={styles.infoCard}>
-              {[
-                { icon: 'mail-outline',     label: 'Email',     value: member.email                                            },
-                { icon: 'calendar-outline', label: 'Ngày sinh', value: member.ngay_sinh  ?? 'Chưa cập nhật'                   },
-                { icon: 'location-outline', label: 'Quê quán',  value: member.que_quan   ?? 'Chưa cập nhật'                   },
-                { icon: 'ribbon-outline',   label: 'Chức danh', value: member.chuc_danh  ?? 'Thành viên'                      },
-                { icon: 'time-outline',     label: 'Tham gia',  value: new Date(member.created_at).toLocaleDateString('vi-VN') },
-              ].map((row, i) => (
-                <View key={i} style={[styles.infoRow, i > 0 && styles.infoRowBorder]}>
-                  <View style={styles.infoIconWrap}>
-                    <Ionicons name={row.icon as any} size={16} color="#A78BFA" />
+              {/* Giới tính */}
+              <View style={styles.infoRow}>
+                <View style={styles.infoIconWrap}>
+                  <Ionicons name="male-female-outline" size={16} color="#A78BFA" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.infoLabel}>Giới tính</Text>
+                  <Text style={styles.infoValue}>
+                    {member.gioi_tinh === 'nam' ? 'Nam' : member.gioi_tinh === 'nu' ? 'Nữ' : 'Chưa rõ'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Ngày sinh (Dương & Âm) */}
+              <View style={[styles.infoRow, styles.infoRowBorder]}>
+                <View style={styles.infoIconWrap}>
+                  <Ionicons name="gift-outline" size={16} color="#A78BFA" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.infoLabel}>Ngày sinh (Dương lịch)</Text>
+                  <Text style={styles.infoValue}>{birthObj?.solar ?? 'Chưa rõ'}</Text>
+                  {birthObj?.lunar && (
+                    <View style={styles.lunarContainer}>
+                      <Ionicons name="moon" size={10} color="#F59E0B" />
+                      <Text style={styles.lunarText}>Âm lịch: {birthObj.lunar}</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              {/* Ngày giỗ / Ngày mất (Nếu đã khuất) */}
+              {member.da_mat ? (
+                <View style={[styles.infoRow, styles.infoRowBorder, { backgroundColor: 'rgba(217,119,6,0.05)' }]}>
+                  <View style={[styles.infoIconWrap, { backgroundColor: 'rgba(217,119,6,0.15)' }]}>
+                    <Ionicons name="heart-dislike-outline" size={16} color="#F59E0B" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.infoLabel}>{row.label}</Text>
-                    <Text style={styles.infoValue}>{row.value}</Text>
+                    <Text style={[styles.infoLabel, { color: '#FBBF24' }]}>NGÀY MẤT / NGÀY GIỖ (Dương lịch)</Text>
+                    <Text style={[styles.infoValue, { color: '#F59E0B', fontWeight: 'bold' }]}>
+                      {deathObj?.solar ?? 'Chưa rõ'}
+                    </Text>
+                    {deathObj?.lunar && (
+                      <View style={styles.lunarContainer}>
+                        <Ionicons name="star" size={10} color="#F59E0B" />
+                        <Text style={[styles.lunarText, { color: '#FBBF24', fontWeight: 'bold' }]}>
+                          Kỵ Nhật (Âm lịch): {deathObj.lunar}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
-              ))}
+              ) : (
+                <View style={[styles.infoRow, styles.infoRowBorder]}>
+                  <View style={styles.infoIconWrap}>
+                    <Ionicons name="heart-outline" size={16} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.infoLabel}>Tình trạng</Text>
+                    <Text style={[styles.infoValue, { color: '#10B981', fontWeight: '800' }]}>Còn sống</Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Tiểu sử dòng đời & Công đức */}
+              <View style={[styles.infoRow, styles.infoRowBorder]}>
+                <View style={styles.infoIconWrap}>
+                  <Ionicons name="document-text-outline" size={16} color="#A78BFA" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.infoLabel}>Tiểu sử & Sự nghiệp</Text>
+                  <Text style={[styles.infoValue, styles.biographyText]}>
+                    {member.tieu_su && member.tieu_su.trim() !== ''
+                      ? member.tieu_su
+                      : 'Chưa cập nhật tiểu sử cuộc đời.'}
+                  </Text>
+                </View>
+              </View>
             </View>
 
             {/* Actions */}
             <View style={styles.sheetActions}>
               <TouchableOpacity style={styles.scanAgainBtn} onPress={onScanAgain}>
                 <Ionicons name="qr-code-outline" size={18} color="#6C63FF" />
-                <Text style={styles.scanAgainText}>Quét thêm</Text>
+                <Text style={styles.scanAgainText}>Quét tiếp</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
                 <Text style={styles.closeBtnText}>Đóng</Text>
@@ -205,7 +303,7 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
   const [hasPermission, setHasPermission] = useState(false);
   const [scanning,      setScanning]      = useState(true);
   const [showSheet,     setShowSheet]     = useState(false);
-  const [memberData,    setMemberData]    = useState<ThanhVien | null>(null);
+  const [memberData,    setMemberData]    = useState<MappedMember | null>(null);
   const [isLoading,     setIsLoading]     = useState(false);
   const [fetchError,    setFetchError]    = useState<string | null>(null);
   const [flashOn,       setFlashOn]       = useState(false);
@@ -219,7 +317,7 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
     ]).start();
   };
 
-  // ── Xin quyền camera (Android)
+  // Xin quyền camera
   useEffect(() => {
     (async () => {
       if (Platform.OS === 'android') {
@@ -227,7 +325,7 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
           PermissionsAndroid.PERMISSIONS.CAMERA,
           {
             title  : 'Cần quyền Camera',
-            message: 'App cần camera để quét QR của thành viên gia tộc',
+            message: 'Ứng dụng cần camera để quét QR của thành viên dòng họ',
             buttonPositive: 'Đồng ý',
             buttonNegative: 'Từ chối',
           }
@@ -235,7 +333,7 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
           setHasPermission(true);
         } else {
-          Alert.alert('Không có quyền camera', 'Vui lòng cấp quyền trong Cài đặt', [
+          Alert.alert('Không có quyền camera', 'Vui lòng cấp quyền trong Cài đặt để tiếp tục', [
             { text: 'Đóng', onPress: () => navigation.goBack() },
           ]);
         }
@@ -245,43 +343,66 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
     })();
   }, []);
 
-  // ── Gọi API lấy thông tin thành viên
+  // Gọi API lấy thông tin chi tiết thành viên
   const fetchMember = useCallback(async (memberId: string) => {
     setIsLoading(true);
     setFetchError(null);
     setMemberData(null);
     try {
       const token = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
-      const res   = await apiFetch<{ success: boolean; data: ThanhVien }>(
+      const res   = await apiFetch<{ success: boolean; data: { thong_tin: any } }>(
         `/nguoi/detail?id=${memberId}`,
         { method: 'GET' },
         token ?? undefined,
       );
-      setMemberData(res.data);
+      if (res.data && res.data.thong_tin) {
+        setMemberData(res.data.thong_tin);
+      } else {
+        setFetchError('Không tìm thấy thông tin chi tiết thành viên.');
+      }
     } catch (err: any) {
       const msg = err?.status === 404
-        ? 'Thành viên không tồn tại trong hệ thống'
-        : (err?.message ?? 'Không thể kết nối máy chủ');
+        ? 'Thành viên không tồn tại trong hệ thống dòng tộc'
+        : (err?.message ?? 'Không thể kết nối máy chủ dòng tộc');
       setFetchError(msg);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // ── Khi quét được QR code
+  // Khi quét được QR code
   const handleQRRead = useCallback((event: { nativeEvent: { codeStringValue: string } }) => {
     if (!scanning || showSheet) return;
     const value = event.nativeEvent.codeStringValue?.trim();
     if (!value || value === lastScannedRef.current) return;
     lastScannedRef.current = value;
 
-    // QR format: "cgp_member:<id>" hoặc số id thuần
-    const memberId = value.startsWith('cgp_member:')
-      ? value.replace('cgp_member:', '')
-      : value;
+    let memberId = '';
+
+    // Phân tích định dạng JSON đặc biệt của thẻ QR
+    if (value.startsWith('{') && value.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed.app === 'QLCayGiaPha' && parsed.id) {
+          memberId = String(parsed.id);
+        } else if (parsed.id) {
+          memberId = String(parsed.id);
+        }
+      } catch (e) {
+        // Fallback
+      }
+    }
+
+    if (!memberId) {
+      if (value.startsWith('cgp_member:')) {
+        memberId = value.replace('cgp_member:', '');
+      } else {
+        memberId = value;
+      }
+    }
 
     if (!/^\d+$/.test(memberId)) {
-      setFetchError('QR code không hợp lệ. Vui lòng quét QR của thành viên gia tộc.');
+      setFetchError('Mã QR không đúng định dạng. Vui lòng quét QR của thành viên trong dòng họ.');
       setShowSheet(true);
       setScanning(false);
       return;
@@ -292,6 +413,95 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
     setShowSheet(true);
     fetchMember(memberId);
   }, [scanning, showSheet, fetchMember]);
+
+  // Chọn ảnh QR từ Thư viện và giải mã thông minh
+  const handleSelectImage = async () => {
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        quality: 1,
+      });
+
+      if (result.didCancel || !result.assets || result.assets.length === 0) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      if (!asset.uri) return;
+
+      // Hiển thị trạng thái tải thông tin ngay
+      setIsLoading(true);
+      setFetchError(null);
+      setMemberData(null);
+      setShowSheet(true);
+      setScanning(false);
+
+      // Tạo FormData tải lên máy chủ API giải mã QR miễn phí cực kỳ nhanh
+      const formData = new FormData();
+      formData.append('file', {
+        uri: asset.uri,
+        type: asset.type || 'image/jpeg',
+        name: asset.fileName || 'qr_code.jpg',
+      } as any);
+
+      const qrRes = await fetch('https://api.qrserver.com/v1/read-qr-code/', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const qrJson = await qrRes.json();
+      const qrData = qrJson[0]?.symbol[0]?.data;
+
+      if (!qrData) {
+        setFetchError('Không thể nhận dạng mã QR trong bức ảnh này. Bạn vui lòng chọn bức ảnh chụp trực diện và rõ nét hơn nhé.');
+        return;
+      }
+
+      const value = qrData.trim();
+      let memberId = '';
+
+      if (value.startsWith('{') && value.endsWith('}')) {
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed.app === 'QLCayGiaPha' && parsed.id) {
+            memberId = String(parsed.id);
+          } else if (parsed.id) {
+            memberId = String(parsed.id);
+          }
+        } catch (e) {
+          // Fallback
+        }
+      }
+
+      if (!memberId) {
+        if (value.startsWith('cgp_member:')) {
+          memberId = value.replace('cgp_member:', '');
+        } else {
+          memberId = value;
+        }
+      }
+
+      if (!/^\d+$/.test(memberId)) {
+        setFetchError('Nội dung QR nhận diện không hợp lệ. Vui lòng quét ảnh QR của thành viên gia tộc.');
+        return;
+      }
+
+      // Lấy chi tiết thông tin
+      fetchMember(memberId);
+    } catch (err: any) {
+      setIsLoading(false);
+      setShowSheet(false);
+      setScanning(true);
+      Alert.alert(
+        'Yêu cầu khởi động lại ứng dụng ⚙️',
+        'Thư viện ảnh mới được thêm cần được biên dịch lại vào mã nguồn. Bạn vui lòng tắt app đang mở, mở terminal chạy lại lệnh "npm run android" để kích hoạt tính năng này nhé!'
+      );
+    }
+  };
 
   const handleClose = () => {
     setShowSheet(false);
@@ -311,7 +521,6 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
     setScanning(true);
   };
 
-  // ── No permission
   if (!hasPermission) {
     return (
       <View style={styles.permissionWrap}>
@@ -331,24 +540,23 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      {/* ── Camera ── */}
+      {/* Camera */}
       <Camera
         style={StyleSheet.absoluteFill}
         scanBarcode
         onReadCode={handleQRRead}
-        showFrame={false}          // Tắt frame mặc định, dùng frame tự vẽ
-        laserColor="transparent"   // Tắt laser mặc định
+        showFrame={false}
+        laserColor="transparent"
         frameColor="transparent"
         torchMode={flashOn ? 'on' : 'off'}
         cameraType="back"
       />
 
-      {/* ── Overlay tối (top / sides / bottom) ── */}
+      {/* Viewfinder Overlay */}
       <View style={styles.overlay} pointerEvents="none">
         <View style={styles.overlayTop} />
         <View style={styles.overlayMiddleRow}>
           <View style={styles.overlaySide} />
-          {/* Viewfinder cutout */}
           <Animated.View style={[styles.viewfinder, { transform: [{ scale: pulseAnim }] }]}>
             <CornerDeco pos="tl" />
             <CornerDeco pos="tr" />
@@ -361,7 +569,7 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
         <View style={styles.overlayBottom} />
       </View>
 
-      {/* ── Top bar ── */}
+      {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.topBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
           <LinearGradient colors={['rgba(12,10,30,0.88)', 'rgba(12,10,30,0.65)']} style={styles.topBtnGrad}>
@@ -385,15 +593,25 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* ── Hint ── */}
+      {/* Hint */}
       <View style={styles.hintWrap} pointerEvents="none">
         <View style={styles.hintBox}>
           <Ionicons name="scan-outline" size={13} color="rgba(255,255,255,0.65)" />
-          <Text style={styles.hintText}>Đưa QR của thành viên vào khung để quét</Text>
+          <Text style={styles.hintText}>Đưa mã QR của thành viên vào khung để quét</Text>
         </View>
       </View>
 
-      {/* ── Bottom sheet ── */}
+      {/* Gallery Image Picker Button */}
+      <View style={styles.galleryButtonWrap}>
+        <TouchableOpacity style={styles.galleryBtn} onPress={handleSelectImage} activeOpacity={0.85}>
+          <LinearGradient colors={['rgba(108,99,255,0.9)', 'rgba(79,70,229,0.7)']} style={styles.galleryBtnGrad}>
+            <Ionicons name="images-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
+            <Text style={styles.galleryBtnTxt}>Tải ảnh QR từ Thư viện</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+
+      {/* Bottom sheet */}
       <Modal visible={showSheet} transparent animationType="none" statusBarTranslucent>
         <MemberCard
           member={memberData}
@@ -492,6 +710,36 @@ const styles = StyleSheet.create({
   },
   hintText: { fontSize: fontSize.xs, color: 'rgba(255,255,255,0.65)', fontWeight: '500' },
 
+  // Gallery Picker Button
+  galleryButtonWrap: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  galleryBtn: {
+    borderRadius: borderRadius.full,
+    overflow: 'hidden',
+    shadowColor: '#6C63FF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  galleryBtnGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: borderRadius.full,
+  },
+  galleryBtnTxt: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
   // Bottom sheet
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
@@ -503,7 +751,7 @@ const styles = StyleSheet.create({
     paddingHorizontal  : spacing.lg,
     paddingBottom      : Platform.OS === 'ios' ? 40 : 28,
     paddingTop         : spacing.md,
-    maxHeight          : '80%',
+    maxHeight          : '85%',
   },
   sheetHandle      : { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', alignSelf: 'center', marginBottom: spacing.lg },
   sheetCenter      : { alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.md },
@@ -518,15 +766,72 @@ const styles = StyleSheet.create({
   },
   retryBtnText     : { fontSize: fontSize.md, color: '#A78BFA', fontWeight: '600' },
 
-  // Member info
-  sheetAvatarRow   : { alignItems: 'center', marginBottom: spacing.md },
-  sheetAvatar      : { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center' },
-  sheetAvatarText  : { fontSize: 32, fontWeight: '800', color: '#fff' },
-  sheetBadge       : {
-    position: 'absolute', bottom: 0, right: '38%',
-    width: 22, height: 22, borderRadius: 11,
-    backgroundColor: '#10B981', borderWidth: 2, borderColor: '#0E0A26',
-    justifyContent: 'center', alignItems: 'center',
+  // Member Avatar Ring
+  sheetAvatarRow : { alignItems: 'center', marginBottom: spacing.sm },
+  avatarRing: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    borderWidth: 3,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 3,
+  },
+  deceasedBadge: {
+    position: 'absolute',
+    bottom: -6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  deceasedBadgeTxt: {
+    fontSize: 9.5,
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
+
+  // Memorial design styles
+  memorialHeader: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  memorialPre: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#F59E0B',
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  memorialName: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#FBBF24',
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  memorialSub: {
+    fontSize: 12,
+    fontWeight: '700',
+    fontStyle: 'italic',
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 18,
+    paddingHorizontal: 12,
+  },
+
+  // Normal header
+  normalHeader: {
+    alignItems: 'center',
+    marginBottom: spacing.md,
   },
   sheetName        : { fontSize: fontSize.xxl, fontWeight: '800', color: '#fff', textAlign: 'center', letterSpacing: -0.5, marginBottom: spacing.xs },
   dongHoBadge      : {
@@ -534,13 +839,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md, paddingVertical: 5,
     borderRadius: borderRadius.full,
     backgroundColor: 'rgba(108,99,255,0.15)', borderWidth: 1, borderColor: 'rgba(108,99,255,0.3)',
-    marginBottom: spacing.lg,
   },
   dongHoText       : { fontSize: fontSize.xs, color: '#A78BFA', fontWeight: '600' },
 
   // Info card
   infoCard    : {
-    backgroundColor : 'rgba(255,255,255,0.05)',
+    backgroundColor : 'rgba(255,255,255,0.04)',
     borderRadius    : borderRadius.xl,
     borderWidth     : 1, borderColor: 'rgba(108,99,255,0.15)',
     overflow        : 'hidden', marginBottom: spacing.lg,
@@ -548,8 +852,80 @@ const styles = StyleSheet.create({
   infoRow      : { flexDirection: 'row', alignItems: 'center', padding: spacing.md, gap: spacing.md },
   infoRowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' },
   infoIconWrap : { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(108,99,255,0.15)', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-  infoLabel    : { fontSize: fontSize.xxs, color: 'rgba(255,255,255,0.35)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
-  infoValue    : { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.85)', fontWeight: '500', marginTop: 2 },
+  infoLabel    : { fontSize: fontSize.xxs, color: 'rgba(255,255,255,0.35)', fontWeight: '650', textTransform: 'uppercase', letterSpacing: 0.5 },
+  infoValue    : { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.85)', fontWeight: '700', marginTop: 2 },
+  
+  lunarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  lunarText: {
+    fontSize: 11.5,
+    color: '#F59E0B',
+    fontWeight: '700',
+    fontStyle: 'italic',
+  },
+  biographyText: {
+    fontWeight: '500',
+    lineHeight: 20,
+    color: 'rgba(255,255,255,0.75)',
+  },
+
+  // Silhouette graphics
+  silhouetteContainer: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#E2E8F0',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  silhouetteHair: {
+    position: 'absolute',
+    top: 6,
+    zIndex: 3,
+  },
+  hairMale: {
+    width: 26,
+    height: 14,
+    borderTopLeftRadius: 14,
+    borderTopRightRadius: 14,
+    backgroundColor: '#1E293B',
+  },
+  hairFemale: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1E293B',
+    top: 5,
+  },
+  silhouetteHead: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FDBA74',
+    position: 'absolute',
+    top: 14,
+    zIndex: 2,
+  },
+  silhouetteNeck: {
+    width: 8,
+    height: 8,
+    backgroundColor: '#E59B5F',
+    position: 'absolute',
+    top: 32,
+    zIndex: 1,
+  },
+  silhouetteBody: {
+    width: 58,
+    height: 22,
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    zIndex: 2,
+  },
 
   // Actions
   sheetActions  : { flexDirection: 'row', gap: spacing.sm },

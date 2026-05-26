@@ -16,6 +16,7 @@ type FormState = {
     da_mat: boolean;
     id_cha: string;
     id_me: string;
+    id_con?: string;
     id_vo_chong_list: string[];
     tieu_su: string;
     anh_dai_dien: string;
@@ -31,6 +32,7 @@ const emptyForm: FormState = {
     da_mat: false,
     id_cha: '',
     id_me: '',
+    id_con: '',
     id_vo_chong_list: [],
     tieu_su: '',
     anh_dai_dien: '',
@@ -139,15 +141,16 @@ const findSpouseIdFromChildren = (members: Nguoi[], parentId: string, spouseKey:
     return child?.[spouseKey] ? String(child[spouseKey]) : '';
 };
 
-const buildPayload = (form: FormState, isDauRe: boolean): NguoiPayload => ({
+const buildPayload = (form: FormState, isDauRe: boolean, quickAddMode: string): NguoiPayload => ({
     id_dong_ho: Number(form.id_dong_ho),
     ten_day_du: form.ten_day_du.trim(),
     gioi_tinh: form.gioi_tinh,
     ngay_sinh: toNullableString(form.ngay_sinh),
     da_mat: form.da_mat,
     ngay_mat: form.da_mat ? toNullableString(form.ngay_mat) : null,
-    id_cha: isDauRe ? null : toNullableNumber(form.id_cha),
-    id_me: isDauRe ? null : toNullableNumber(form.id_me),
+    id_cha: quickAddMode === 'parent' ? null : (isDauRe ? null : toNullableNumber(form.id_cha)),
+    id_me: quickAddMode === 'parent' ? null : (isDauRe ? null : toNullableNumber(form.id_me)),
+    id_con: quickAddMode === 'parent' ? toNullableNumber(form.id_con || '') : null,
     id_vo_chong_list: isDauRe ? form.id_vo_chong_list.map(id => Number(id)).filter(id => !isNaN(id)) : [],
     tieu_su: toNullableString(form.tieu_su),
     anh_dai_dien: toNullableString(form.anh_dai_dien),
@@ -302,7 +305,7 @@ export default function CayGiaPha() {
     const [formOpen, setFormOpen] = useState(false);
     const [form, setForm] = useState<FormState>(emptyForm);
     const [isDauRe, setIsDauRe] = useState(false);
-    const [quickAddMode, setQuickAddMode] = useState<'none' | 'child' | 'spouse'>('none');
+    const [quickAddMode, setQuickAddMode] = useState<'none' | 'child' | 'spouse' | 'parent'>('none');
     const [selectedParentId, setSelectedParentId] = useState<string>('');
     const [saving, setSaving] = useState(false);
 
@@ -405,6 +408,18 @@ export default function CayGiaPha() {
         setFormOpen(true);
     };
 
+    const handleAddParentQuick = (child: Nguoi) => {
+        setIsDauRe(false);
+        setQuickAddMode('parent');
+        setSelectedParentId('');
+        setForm({
+            ...emptyForm,
+            id_dong_ho: String(child.id_dong_ho),
+            id_con: String(child.id),
+        });
+        setFormOpen(true);
+    };
+
     const closeForm = () => {
         setFormOpen(false);
         setForm(emptyForm);
@@ -463,7 +478,7 @@ export default function CayGiaPha() {
 
         setSaving(true);
         try {
-            const payload = buildPayload(form, isDauRe);
+            const payload = buildPayload(form, isDauRe, quickAddMode);
             const result = form.id
                 ? await nguoiApi.update({ id: form.id, ...payload })
                 : await nguoiApi.create(payload);
@@ -623,6 +638,7 @@ export default function CayGiaPha() {
                                 onClose={() => setSelectedPerson(null)}
                                 onAddChild={handleAddChildQuick}
                                 onAddSpouse={handleAddSpouseQuick}
+                                onAddParent={handleAddParentQuick}
                             />
                         ) : (
                             <div className="gp-card bg-[linear-gradient(145deg,var(--card),var(--gold-glow)_180%)] p-5">
@@ -658,7 +674,7 @@ export default function CayGiaPha() {
                                     <div className="md:col-span-2 flex items-center gap-6 rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3">
                                         <span className="text-sm font-semibold text-emerald-800">Chế độ thêm nhanh:</span>
                                         <span className="text-sm font-bold text-emerald-700">
-                                            {quickAddMode === 'child' ? 'Thành viên gốc (Thêm con đẻ)' : 'Dâu / Rể (Thêm phối ngẫu)'}
+                                            {quickAddMode === 'child' ? 'Thành viên gốc (Thêm con đẻ)' : quickAddMode === 'parent' ? 'Thành viên gốc (Thêm cha mẹ)' : 'Dâu / Rể (Thêm phối ngẫu)'}
                                         </span>
                                     </div>
                                 ) : (
@@ -806,7 +822,7 @@ export default function CayGiaPha() {
                                     </label>
                                 )}
 
-                                {!isDauRe && (
+                                {!isDauRe && quickAddMode !== 'parent' && (
                                     <>
                                         <label>
                                             <span className="mb-1 block text-sm font-semibold text-[var(--ink-soft)]">Cha</span>
@@ -1039,6 +1055,7 @@ function PersonPanel({
     onClose,
     onAddChild,
     onAddSpouse,
+    onAddParent,
 }: {
     person: Nguoi;
     people: Nguoi[];
@@ -1046,6 +1063,7 @@ function PersonPanel({
     onClose: () => void;
     onAddChild: (parent: Nguoi) => void;
     onAddSpouse: (spouse: Nguoi) => void;
+    onAddParent: (child: Nguoi) => void;
 }) {
     const father = person.id_cha ? people.find((item) => item.id === person.id_cha) : undefined;
     const mother = person.id_me ? people.find((item) => item.id === person.id_me) : undefined;
@@ -1087,15 +1105,27 @@ function PersonPanel({
                 )}
                 
                 {isMaster && (
-                    <div className="grid grid-cols-2 gap-2 pt-2">
-                        <button
-                            type="button"
-                            onClick={() => onAddChild(person)}
-                            className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--gold)] bg-[var(--gold-glow)] py-2 text-center text-xs font-bold text-[var(--gold)] hover:bg-[color-mix(in_srgb,var(--gold)_12%,transparent)] transition"
-                        >
-                            <Icon name="plus" size={13} />
-                            Thêm con nhanh
-                        </button>
+                    <div className="flex flex-col gap-2 pt-2">
+                        <div className={`grid gap-2 ${(!person.id_cha && !person.id_me) ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            <button
+                                type="button"
+                                onClick={() => onAddChild(person)}
+                                className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--gold)] bg-[var(--gold-glow)] py-2 text-center text-xs font-bold text-[var(--gold)] hover:bg-[color-mix(in_srgb,var(--gold)_12%,transparent)] transition"
+                            >
+                                <Icon name="plus" size={13} />
+                                Thêm con
+                            </button>
+                            {(!person.id_cha && !person.id_me) && (
+                                <button
+                                    type="button"
+                                    onClick={() => onAddParent(person)}
+                                    className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--jade)] bg-[var(--jade-glow)] py-2 text-center text-xs font-bold text-[var(--jade)] hover:bg-[color-mix(in_srgb,var(--jade)_12%,transparent)] transition"
+                                >
+                                    <Icon name="plus" size={13} />
+                                    Thêm cha mẹ
+                                </button>
+                            )}
+                        </div>
                         <button
                             type="button"
                             onClick={() => onAddSpouse(person)}

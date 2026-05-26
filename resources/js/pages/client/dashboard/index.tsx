@@ -389,7 +389,6 @@ export default function ClientDashboard() {
                             <h2 className="mb-4 text-[16px] font-semibold">Tiện ích gia đình</h2>
                             <div className="grid grid-cols-2 gap-3">
                                 <QuickAction icon="link" label="Tra quan hệ" color="jade" onClick={() => router.visit('/gia-pha/tra-cuu-danh-xung')} />
-                                <QuickAction icon="sparkle" label="Thử nghiệm QR" color="gold" onClick={() => router.visit('/gia-pha/test-qr')} />
                                 <QuickAction icon="book" label="Xem Cây Gia Phả" color="terracotta" onClick={() => router.visit('/gia-pha/cay-gia-pha')} />
                                 <QuickAction icon="add-user" label="Xem danh sách" color="gold" onClick={() => router.visit('/gia-pha/thanh-vien')} />
                             </div>

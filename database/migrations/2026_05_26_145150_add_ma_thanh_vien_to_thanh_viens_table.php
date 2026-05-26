@@ -11,9 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('nguoi_dungs', function (Blueprint $table) {
-            $table->string('google_id')->nullable()->unique()->after('email');
-            $table->string('avatar')->nullable()->after('google_id');
+        Schema::table('thanh_viens', function (Blueprint $table) {
+            $table->string('ma_thanh_vien')->unique()->nullable()->after('id');
         });
     }
 
@@ -22,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('nguoi_dungs', function (Blueprint $table) {
-            $table->dropColumn(['google_id', 'avatar']);
+        Schema::table('thanh_viens', function (Blueprint $table) {
+            $table->dropColumn('ma_thanh_vien');
         });
     }
 };

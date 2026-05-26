@@ -27,6 +27,7 @@ class CreateNguoiRequest extends FormRequest
             'id_vo_chong' => 'nullable|integer|exists:thanh_viens,id',
             'id_vo_chong_list' => 'nullable|array',
             'id_vo_chong_list.*' => 'integer|exists:thanh_viens,id',
+            'id_con' => 'nullable|integer|exists:thanh_viens,id',
             'tieu_su' => 'nullable|string',
             'anh_dai_dien' => 'nullable|string',
             'thu_tu_sinh' => 'nullable|integer|min:1',
@@ -41,6 +42,11 @@ class CreateNguoiRequest extends FormRequest
             $ngaySinh = $this->input('ngay_sinh');
             $namSinh = $ngaySinh ? (int) date('Y', strtotime($ngaySinh)) : null;
             $thuTuSinh = $this->input('thu_tu_sinh');
+            $idCon = $this->input('id_con');
+
+            if ($idCon && ($idCha || $idMe)) {
+                $validator->errors()->add('id_con', 'Không thể vừa thêm cha mẹ vừa thêm con cho một thành viên mới.');
+            }
 
             if ($idCha && $idMe && $this->laToTienCua($idCha, $idMe)) {
                 $validator->errors()->add('id_me', 'Cha va me khong duoc la to tien hoac con chau cua nhau.');

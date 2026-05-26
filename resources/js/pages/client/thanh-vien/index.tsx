@@ -175,7 +175,7 @@ export default function ClientDanhSachThanhVien() {
                             return (
                                 <Link key={member.id} href={`/gia-pha/thanh-vien/${member.id}`} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', height: '100%' }}>
                                     <div
-                                        style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', overflow: 'hidden', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', cursor: 'pointer', position: 'relative', display: 'flex', flexDirection: 'column', flex: 1 }}
+                                        style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', overflow: 'hidden', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', cursor: 'pointer', display: 'flex', flexDirection: 'column', flex: 1, position: 'relative' }}
                                         onMouseEnter={e => {
                                             (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--gold-soft)';
                                             (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)';
@@ -187,6 +187,7 @@ export default function ClientDanhSachThanhVien() {
                                             (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.03)';
                                         }}
                                     >
+                                        {/* Banner */}
                                         <div style={{ height: 60, background: avatarGrad(member.ten_day_du), position: 'relative', opacity: 0.9 }}>
                                             <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at right top, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at left bottom, rgba(0,0,0,0.15) 0%, transparent 50%)' }} />
                                             {member.da_mat && (
@@ -202,7 +203,8 @@ export default function ClientDanhSachThanhVien() {
                                             </div>
                                         </div>
 
-                                        <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                                        <div style={{ padding: '0px 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+
                                             <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)', marginBottom: 6, fontFamily: 'Cormorant Garamond, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.ten_day_du}</div>
 
                                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>

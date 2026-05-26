@@ -7,6 +7,7 @@ use App\Http\Requests\Onboarding\CreateClanRequest;
 use App\Http\Requests\Onboarding\JoinClanRequest;
 use App\Models\DongHo;
 use App\Models\ThanhVien;
+use App\Support\MaThanhVienHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -110,6 +111,7 @@ class OnboardingController extends Controller
             // 2. Tạo Thành Viên đại diện cho user (người sáng lập/quản lý)
             $thanhVien = ThanhVien::create([
                 'dong_ho_id' => $dongHo->id,
+                'ma_thanh_vien' => MaThanhVienHelper::generate($dongHo->id),
                 'ho_ten' => $data['ho_ten_thanh_vien'],
                 'gioi_tinh' => $data['gioi_tinh'],
                 'tinh_trang_song' => 1, // Còn sống

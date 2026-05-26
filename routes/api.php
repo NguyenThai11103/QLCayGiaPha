@@ -10,18 +10,15 @@ use App\Http\Controllers\Api\TaiLieuController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\QuanHeController;
 use App\Http\Controllers\Api\CacheXungHoController;
-use App\Http\Controllers\Api\OnboardingController;
-use App\Http\Controllers\Api\DuyetThanhVienController;
-use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
-use App\Http\Controllers\Api\Admin\AdminDongHoController;
-use App\Http\Controllers\Api\Admin\AdminNguoiDungController;
 use App\Http\Controllers\Api\MoPhanController;
+use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
 Route::prefix('auth')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::get('/google/url', [AuthController::class, 'googleUrl']);
     Route::post('/google/callback', [AuthController::class, 'googleCallback']);
@@ -32,31 +29,31 @@ Route::prefix('auth')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
+        Route::post('/update-profile', [AuthController::class, 'updateProfile']);
+        Route::post('/profile', [AuthController::class, 'updateProfile']);
+        Route::post('/change-password', [AuthController::class, 'changePassword']);
     });
 });
 
-Route::prefix('admin')->group(function () {
-    Route::prefix('auth')->group(function () {
-        Route::post('/login', [AdminAuthController::class, 'login']);
-        
-        Route::middleware(['auth:sanctum', 'check.admin.system'])->group(function () {
-            Route::get('/me', [AdminAuthController::class, 'me']);
-            Route::post('/logout', [AdminAuthController::class, 'logout']);
-        });
+Route::prefix('admin/auth')->group(function () {
+    Route::post('/login', [AdminAuthController::class, 'login']);
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::get('/me', [AdminAuthController::class, 'me']);
+        Route::post('/logout', [AdminAuthController::class, 'logout']);
     });
+});
 
-    Route::middleware(['auth:sanctum', 'check.admin.system'])->group(function () {
-        Route::prefix('dong-ho')->group(function () {
-            Route::get('/list', [AdminDongHoController::class, 'index']);
-            Route::post('/update-status/{id}', [AdminDongHoController::class, 'updateStatus']);
-            Route::post('/delete/{id}', [AdminDongHoController::class, 'destroy']);
-        });
-
-        Route::prefix('nguoi-dung')->group(function () {
-            Route::get('/list', [AdminNguoiDungController::class, 'index']);
-            Route::post('/update-status/{id}', [AdminNguoiDungController::class, 'updateStatus']);
-            Route::post('/delete/{id}', [AdminNguoiDungController::class, 'destroy']);
-        });
+Route::prefix('admin')->middleware(['auth:sanctum', 'check.admin.system'])->group(function () {
+    Route::prefix('dong-ho')->group(function () {
+        Route::get('/list', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'index']);
+        Route::patch('/{id}/status', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'updateStatus']);
+        Route::delete('/{id}', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'destroy']);
+    });
+    
+    Route::prefix('nguoi-dung')->group(function () {
+        Route::get('/list', [\App\Http\Controllers\Api\Admin\AdminNguoiDungController::class, 'index']);
+        Route::patch('/{id}/status', [\App\Http\Controllers\Api\Admin\AdminNguoiDungController::class, 'updateStatus']);
+        Route::delete('/{id}', [\App\Http\Controllers\Api\Admin\AdminNguoiDungController::class, 'destroy']);
     });
 });
 
@@ -100,6 +97,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/create', [SuKienController::class, 'store'])->middleware('check.permission:quan_ly');
         Route::post('/update', [SuKienController::class, 'update'])->middleware('check.permission:quan_ly');
         Route::post('/delete', [SuKienController::class, 'destroy'])->middleware('check.permission:quan_ly');
+        Route::post('/attend', [SuKienController::class, 'attend']);
+        Route::post('/leave', [SuKienController::class, 'leave']);
     });
 
     Route::prefix('tai-lieu')->group(function () {
@@ -116,19 +115,25 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/delete', [QuanHeController::class, 'destroy'])->middleware('check.permission:quan_ly');
     });
 
-    Route::prefix('mo-phan')->group(function () {
-        Route::get('/list', [MoPhanController::class, 'index']);
-        Route::get('/detail', [MoPhanController::class, 'detail']);
-        Route::post('/create', [MoPhanController::class, 'store']);
-        Route::post('/update', [MoPhanController::class, 'update']);
-        Route::post('/delete', [MoPhanController::class, 'destroy']);
-    });
-
     Route::prefix('cache-xung-ho')->group(function () {
         Route::get('/list', [CacheXungHoController::class, 'index']);
         Route::post('/create', [CacheXungHoController::class, 'store'])->middleware('check.permission:quan_ly');
         Route::post('/update', [CacheXungHoController::class, 'update'])->middleware('check.permission:quan_ly');
         Route::post('/delete', [CacheXungHoController::class, 'destroy'])->middleware('check.permission:quan_ly');
+    });
+
+    Route::prefix('mo-phan')->group(function () {
+        Route::get('/list', [MoPhanController::class, 'index']);
+        Route::get('/detail', [MoPhanController::class, 'detail']);
+        Route::post('/create', [MoPhanController::class, 'store']);
+        Route::post('/update', [MoPhanController::class, 'update']);
+        Route::post('/delete', [MoPhanController::class, 'destroy'])->middleware('check.permission:quan_ly');
+    });
+
+    Route::prefix('notifications')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Api\ThongBaoController::class, 'index']);
+        Route::post('/read', [\App\Http\Controllers\Api\ThongBaoController::class, 'read']);
+        Route::post('/read-all', [\App\Http\Controllers\Api\ThongBaoController::class, 'readAll']);
     });
 });
 

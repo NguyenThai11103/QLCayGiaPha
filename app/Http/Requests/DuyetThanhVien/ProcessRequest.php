@@ -22,8 +22,12 @@ class ProcessRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'user_id' => ['required', 'integer', 'exists:nguoi_dungs,id'],
-            'action'  => ['required', 'string', 'in:approve,reject'],
+            'user_id'                 => ['required', 'integer', 'exists:nguoi_dungs,id'],
+            'action'                  => ['required', 'string', 'in:approve,reject'],
+            'thanh_vien_lien_quan_id' => ['nullable', 'integer', 'exists:thanh_viens,id'],
+            'loai_quan_he'            => ['nullable', 'string', 'in:vo_chong,cha_con,me_con,anh_chi_em'],
+            'doi_thu'                 => ['nullable', 'integer', 'min:1'],
+            'thu_tu_sinh'             => ['nullable', 'integer', 'min:1'],
         ];
     }
 }

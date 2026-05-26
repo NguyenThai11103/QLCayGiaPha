@@ -4,6 +4,8 @@ import Icon from '../../../components/gia-pha/Icon';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import { Nguoi, nguoiApi } from '../../../services/gia-pha.api';
 import { useAuth } from '../../../contexts/auth.context';
+import { Html5QrcodeScanner } from 'html5-qrcode';
+import toast from '../../../lib/toast.util';
 
 type RelationshipKind =
     | 'self'
@@ -109,6 +111,7 @@ export default function TraCuuDanhXung() {
     const [aId, setAId] = useState<number | null>(null);
     const [bId, setBId] = useState<number | null>(null);
     const [picker, setPicker] = useState<'a' | 'b' | null>(null);
+    const [isScanningQR, setIsScanningQR] = useState(false);
     const [recents, setRecents] = useState<Array<{ a: number; b: number; time: string }>>([]);
 
     useEffect(() => {
@@ -163,6 +166,26 @@ export default function TraCuuDanhXung() {
         setRecents((prev) => [{ a: nextA, b: nextB, time: 'Vừa xong' }, ...prev.filter((item) => item.a !== nextA || item.b !== nextB)].slice(0, 5));
     };
 
+    const handleQRResult = (targetCode: string) => {
+        setIsScanningQR(false);
+        const targetMember = members.find(m => m.ma_thanh_vien === targetCode || m.id.toString() === targetCode);
+        if (targetMember) {
+            const loggedInMemberId = user?.thanh_vien_id ? parseInt(String(user.thanh_vien_id), 10) : null;
+            const defaultA = loggedInMemberId && members.some((m) => m.id === loggedInMemberId)
+                ? loggedInMemberId
+                : (members[0]?.id ?? null);
+                
+            if (defaultA) {
+                setAId(defaultA);
+                setBId(targetMember.id);
+                setRecents((prev) => [{ a: defaultA, b: targetMember.id, time: 'Vừa xong' }, ...prev.filter((item) => item.a !== defaultA || item.b !== targetMember.id)].slice(0, 5));
+                toast.success('Nhận diện thành công!');
+            }
+        } else {
+            toast.error('Thành viên không tồn tại trong gia phả này!');
+        }
+    };
+
     return (
         <AuthenticatedLayout>
             <Head title="Tra cứu danh xưng" />
@@ -180,6 +203,10 @@ export default function TraCuuDanhXung() {
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                        <button type="button" className="gp-btn border border-[var(--line)] bg-[var(--card)] text-[var(--ink)] hover:bg-[var(--card-soft)]" onClick={() => setIsScanningQR(true)}>
+                            <Icon name="camera" size={14} />
+                            Quét QR
+                        </button>
                         <button type="button" className="gp-btn gp-btn-ghost" onClick={() => router.visit('/gia-pha/cay-gia-pha')}>
                             <Icon name="tree" size={14} />
                             Xem trên cây
@@ -239,6 +266,12 @@ export default function TraCuuDanhXung() {
                         if (picker === 'b') setBId(id);
                         setPicker(null);
                     }}
+                />
+
+                <QRScannerModal
+                    open={isScanningQR}
+                    onClose={() => setIsScanningQR(false)}
+                    onResult={handleQRResult}
                 />
             </div>
         </AuthenticatedLayout>
@@ -551,6 +584,97 @@ function PickerModal({
                             <Icon name="chevron-right" size={14} className="text-[var(--ink-faint)]" />
                         </button>
                     ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function QRScannerModal({
+    open,
+    onClose,
+    onResult,
+}: {
+    open: boolean;
+    onClose: () => void;
+    onResult: (targetCode: string) => void;
+}) {
+    const [manualId, setManualId] = useState('');
+
+    useEffect(() => {
+        if (!open) return;
+
+        const scanner = new Html5QrcodeScanner(
+            'qr-reader',
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            false
+        );
+
+        scanner.render(
+            (decodedText) => {
+                let targetCode: string | null = null;
+                try {
+                    const url = new URL(decodedText);
+                    const param = url.searchParams.get('target_id');
+                    if (param) targetCode = param;
+                } catch (e) {
+                    targetCode = decodedText;
+                }
+
+                if (targetCode) {
+                    scanner.clear();
+                    onResult(targetCode);
+                }
+            },
+            (error) => {
+                // ignore
+            }
+        );
+
+        return () => {
+            scanner.clear().catch(console.error);
+        };
+    }, [open, onResult]);
+
+    if (!open) return null;
+
+    const handleManualSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const targetCode = manualId.trim();
+        if (targetCode) {
+            onResult(targetCode);
+        } else {
+            toast.error('Mã không hợp lệ!');
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+            <div className="gp-card flex w-full max-w-md flex-col overflow-hidden shadow-[var(--shadow-lg)]" onClick={(e) => e.stopPropagation()}>
+                <div className="border-b border-[var(--line)] p-4 flex items-center justify-between">
+                    <h2 className="font-serif text-[20px] font-semibold">Quét Mã QR Nhận Diện</h2>
+                    <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-[var(--ink-mute)] hover:bg-[var(--card-soft)]">
+                        <Icon name="x" size={17} />
+                    </button>
+                </div>
+                <div className="p-4">
+                    <div id="qr-reader" className="overflow-hidden rounded-xl border border-[var(--line)] bg-[var(--card-soft)] min-h-[250px]"></div>
+                    <div className="mt-3 text-center text-[11px] text-[var(--terracotta)] bg-red-50 p-2 rounded-lg">
+                        * Lưu ý: Hãy đảm bảo đã cấp quyền Camera. Trên điện thoại, bạn cần truy cập qua HTTPS hoặc localhost để trình duyệt cho phép dùng Camera.
+                    </div>
+                    <div className="mt-4 text-center text-[13px] text-[var(--ink-mute)]">
+                        Hoặc nhập tay mã ID thành viên:
+                    </div>
+                    <form onSubmit={handleManualSubmit} className="mt-2 flex gap-2">
+                        <input
+                            type="text"
+                            value={manualId}
+                            onChange={(e) => setManualId(e.target.value)}
+                            placeholder="Nhập ID (vd: 123)"
+                            className="gp-input flex-1 py-2 text-[13px]"
+                        />
+                        <button type="submit" className="gp-btn gp-btn-primary px-4">Kiểm tra</button>
+                    </form>
                 </div>
             </div>
         </div>

@@ -16,6 +16,7 @@ class UpdateSuKienRequest extends FormRequest
         return [
             'id'                => 'required|integer|exists:su_kiens,id',
             'dong_ho_id'        => 'nullable|integer|exists:dong_hos,id',
+            'thanh_vien_id'     => 'nullable|integer|exists:thanh_viens,id',
             'ten_su_kien'       => 'nullable|string|max:255',
             'loai_su_kien'      => 'nullable|string|max:255',
             'ngay_duong'        => 'nullable|date',

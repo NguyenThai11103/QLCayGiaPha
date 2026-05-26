@@ -46,7 +46,9 @@ export type EventType =
     | 'wedding' // Lễ cưới
     | 'ceremony' // Lễ truyền thống
     | 'longevity' // Mừng thọ
-    | 'birthday'; // Đầy tháng / Sinh nhật
+    | 'birthday' // Đầy tháng / Sinh nhật
+    | 'housewarming' // Tân gia / Nhà mới
+    | 'other'; // Khác
 
 export type RsvpStatus = 'going' | 'maybe' | 'declined' | 'pending';
 
@@ -60,6 +62,8 @@ export interface FamilyEvent {
     type: EventType;
     /** Honoree member id (the person the event is for) */
     honoreeId?: string;
+    honoree?: any;
+    isAttending?: boolean;
     /** Host / organizer member id */
     hostId?: string;
     location: string;
@@ -134,6 +138,8 @@ const EVENT_META: Record<EventType, EventTypeMeta> = {
     ceremony: { label: 'Lễ truyền thống', icon: 'lotus', color: 'jade' },
     longevity: { label: 'Mừng thọ', icon: 'sparkle', color: 'gold' },
     birthday: { label: 'Đầy tháng / Sinh nhật', icon: 'users', color: 'crimson' },
+    housewarming: { label: 'Tân gia', icon: 'home', color: 'jade' },
+    other: { label: 'Khác', icon: 'calendar', color: 'brown' },
 };
 
 // ============================================================
@@ -340,7 +346,7 @@ const Countdown: React.FC<CountdownProps> = ({ targetISO, today }) => {
 
 interface NextEventHeroProps {
     event: FamilyEvent;
-    honoree: Member | null;
+    honoree: any | null;
     today: string;
 }
 
@@ -546,6 +552,8 @@ interface CalendarViewProps {
     today: string;
     onSelect: (iso: string) => void;
     onMonthChange: (direction: -1 | 1) => void;
+    onAddEvent?: (iso: string) => void;
+    isMaster?: boolean;
 }
 
 interface DayCell {
@@ -553,7 +561,7 @@ interface DayCell {
     iso: string;
 }
 
-const CalendarView: React.FC<CalendarViewProps> = ({ year, month, events, selected, today, onSelect, onMonthChange }) => {
+const CalendarView: React.FC<CalendarViewProps> = ({ year, month, events, selected, today, onSelect, onMonthChange, onAddEvent, isMaster }) => {
     const totalDays = daysInMonth(year, month);
     const startWeekday = firstWeekdayOf(year, month);
     const cells: (DayCell | null)[] = [];
@@ -681,9 +689,32 @@ const CalendarView: React.FC<CalendarViewProps> = ({ year, month, events, select
                                 >
                                     {cell.day}
                                 </span>
-                                <span style={{ fontSize: 9, color: 'var(--ink-faint)', fontWeight: 500 }}>
-                                    {approximateLunar(year, month, cell.day)}
-                                </span>
+                                {isSelected && isMaster && onAddEvent ? (
+                                    <div
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onAddEvent(cell.iso);
+                                        }}
+                                        style={{
+                                            padding: 4,
+                                            borderRadius: '50%',
+                                            background: 'var(--gold)',
+                                            color: 'white',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer',
+                                            marginLeft: 4,
+                                        }}
+                                        title="Thêm sự kiện"
+                                    >
+                                        <Icon name="plus" size={10} strokeWidth={3} />
+                                    </div>
+                                ) : (
+                                    <span style={{ fontSize: 9, color: 'var(--ink-faint)', fontWeight: 500 }}>
+                                        {approximateLunar(year, month, cell.day)}
+                                    </span>
+                                )}
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                                 {dayEvents.slice(0, 2).map((e) => {
@@ -732,7 +763,7 @@ const CalendarView: React.FC<CalendarViewProps> = ({ year, month, events, select
 // ============================================================
 interface UpcomingItemProps {
     event: FamilyEvent;
-    honoree: Member | null;
+    honoree: any | null;
     isLast: boolean;
     today: string;
 }
@@ -991,10 +1022,34 @@ const YearHeatmap: React.FC<YearHeatmapProps> = ({ events, currentMonth, onMonth
 // ============================================================
 interface EventDetailProps {
     event: FamilyEvent | null;
-    honoree: Member | null;
+    honoree: any | null;
+    onReload?: () => void;
 }
 
-const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
+const EventDetail: React.FC<EventDetailProps> = ({ event, honoree, onReload }) => {
+    const [attending, setAttending] = React.useState(false);
+
+    const handleAttend = async () => {
+        if (!event) return;
+        setAttending(true);
+        try {
+            const { suKienApi } = await import('../../../services/gia-pha.api');
+            let soNguoi = 0;
+            if (!event.isAttending) {
+                const ans = prompt('Bạn có đi cùng ai không? (Nhập số người, ví dụ 1, hoặc để trống nếu đi một mình)', '0');
+                if (ans === null) return; // cancelled
+                soNguoi = parseInt(ans, 10) || 0;
+                await suKienApi.attend(Number(event.id), soNguoi);
+            } else {
+                if (confirm('Bạn muốn huỷ đăng ký tham gia sự kiện này?')) {
+                    await suKienApi.leave(Number(event.id));
+                } else return;
+            }
+            if (onReload) onReload();
+        } finally {
+            setAttending(false);
+        }
+    };
     if (!event) {
         return (
             <div className="card card-pad" style={{ textAlign: 'center', color: 'var(--ink-mute)', padding: 32 }}>
@@ -1121,13 +1176,14 @@ const EventDetail: React.FC<EventDetailProps> = ({ event, honoree }) => {
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
-                <button className="btn btn-primary" style={{ flex: 1, justifyContent: 'center' }}>
-                    <Icon name="plus" size={13} />
-                    Tham dự
-                </button>
-                <button className="btn btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>
-                    <Icon name="edit" size={13} />
-                    Chỉnh sửa
+                <button 
+                    className={`btn ${event.isAttending ? 'btn-ghost' : 'btn-primary'}`} 
+                    style={{ flex: 1, justifyContent: 'center', opacity: attending ? 0.6 : 1, color: event.isAttending ? 'var(--crimson)' : undefined }}
+                    onClick={handleAttend}
+                    disabled={attending}
+                >
+                    <Icon name={event.isAttending ? "x" : "plus"} size={13} />
+                    {event.isAttending ? 'Huỷ tham dự' : 'Tham dự'}
                 </button>
             </div>
         </div>
@@ -1166,17 +1222,32 @@ const LOAI_MAP: Record<string, EventType> = {
     ceremony        : 'ceremony',
     longevity       : 'longevity',
     birthday        : 'birthday',
+    tan_gia         : 'housewarming',
+    khac            : 'other',
+    housewarming    : 'housewarming',
+    other           : 'other',
 };
 
 function mapSuKienToFamilyEvent(sk: import('../../../services/gia-pha.api').SuKien): FamilyEvent {
+    let honoree = null;
+    if (sk.thanh_vien) {
+        honoree = {
+            name: sk.thanh_vien.ho_ten,
+            short: sk.thanh_vien.ho_ten.split(' ').slice(-1)[0],
+            gender: sk.thanh_vien.gioi_tinh === 'Nam' ? 'M' : 'F',
+        };
+    }
+
     return {
         id          : String(sk.id),
-        date        : sk.ngay_duong || sk.ngay_am || new Date().toISOString().slice(0, 10),
+        date        : sk.next_date || sk.ngay_duong || sk.ngay_am || new Date().toISOString().slice(0, 10),
         lunarDate   : sk.ngay_am ? sk.ngay_am.split('-').reverse().join('/') + ' ÂL' : undefined,
         title       : sk.ten_su_kien,
         type        : LOAI_MAP[sk.loai_su_kien || ''] ?? 'ceremony',
+        honoree     : honoree,
         location    : sk.dia_diem || 'Chưa cập nhật địa điểm',
-        attendees   : 0,
+        attendees   : sk.participants_count || 0,
+        isAttending : sk.is_attending || false,
         description : sk.mo_ta ?? undefined,
         pinned      : false,
     };
@@ -1187,6 +1258,7 @@ function mapSuKienToFamilyEvent(sk: import('../../../services/gia-pha.api').SuKi
 // ============================================================
 interface AddEventModalProps {
     dongHoId  : number;
+    initialDate?: string;
     onClose   : () => void;
     onSuccess : () => void;
 }
@@ -1197,18 +1269,32 @@ const LOAI_OPTIONS: { value: string; label: string }[] = [
     { value: 'le_truyen_thong', label: 'Lễ truyền thống' },
     { value: 'mung_tho',        label: 'Mừng thọ' },
     { value: 'sinh_nhat',       label: 'Sinh nhật / Đầy tháng' },
+    { value: 'tan_gia',         label: 'Tân gia / Nhà mới' },
+    { value: 'khac',            label: 'Khác' },
 ];
 
-const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, onClose, onSuccess }) => {
+const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, initialDate, onClose, onSuccess }) => {
     const [form, setForm] = React.useState({
+        thanh_vien_id    : '',
         ten_su_kien      : '',
         loai_su_kien     : 'gio_to',
-        ngay_duong       : '',
+        ngay_duong       : initialDate || '',
         ngay_am          : '',
         lap_lai_hang_nam : false,
         dia_diem         : '',
         mo_ta            : '',
     });
+    const [members, setMembers] = React.useState<any[]>([]);
+
+    React.useEffect(() => {
+        import('../../../services/gia-pha.api').then(({ nguoiApi }) => {
+            nguoiApi.list(dongHoId).then(res => {
+                if (res.success && res.data) {
+                    setMembers(res.data);
+                }
+            });
+        });
+    }, [dongHoId]);
     const [saving, setSaving] = React.useState(false);
     const [error,  setError]  = React.useState('');
 
@@ -1223,6 +1309,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, onClose, onSucc
             const { suKienApi } = await import('../../../services/gia-pha.api');
             const res = await suKienApi.create({
                 dong_ho_id       : dongHoId,
+                thanh_vien_id    : form.thanh_vien_id ? Number(form.thanh_vien_id) : undefined,
                 ten_su_kien      : form.ten_su_kien.trim(),
                 loai_su_kien     : form.loai_su_kien,
                 ngay_duong       : form.ngay_duong   || null,
@@ -1263,12 +1350,21 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, onClose, onSucc
                         <input value={form.ten_su_kien} onChange={e => f('ten_su_kien', e.target.value)} className="gp-input" placeholder="Vd: Giỗ Tổ Cụ Nguyễn Văn A" required />
                     </label>
 
-                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Loại sự kiện</span>
-                        <select value={form.loai_su_kien} onChange={e => f('loai_su_kien', e.target.value)} className="gp-input">
-                            {LOAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                        </select>
-                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Loại sự kiện</span>
+                            <select value={form.loai_su_kien} onChange={e => f('loai_su_kien', e.target.value)} className="gp-input">
+                                {LOAI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Tưởng nhớ / Vinh danh</span>
+                            <select value={form.thanh_vien_id} onChange={e => f('thanh_vien_id', e.target.value)} className="gp-input">
+                                <option value="">-- Không liên kết --</option>
+                                {members.map(m => <option key={m.id} value={m.id}>{m.ho_ten} (Đời {m.doi})</option>)}
+                            </select>
+                        </label>
+                    </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1311,19 +1407,12 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, onClose, onSucc
 // ============================================================
 // Main page — kết nối API thực
 // ============================================================
-export const EventsPage: React.FC<EventsPageProps> = ({ onNav, today = new Date().toISOString().slice(0, 10) }) => {
-    const { user } = useAuth();
-
-    const [rawEvents,    setRawEvents]    = React.useState<FamilyEvent[]>([]);
-    const [loading,      setLoading]      = React.useState(true);
-    const [showAddModal, setShowAddModal] = React.useState(false);
-    const [filter,       setFilter]       = useState<FilterValue>('all');
-    const [viewMonth,    setViewMonth]    = useState<{ y: number; m: number }>({
 export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEvents, today = new Date().toISOString().slice(0, 10) }) => {
     const { user } = useAuth();
     const [rawEvents,    setRawEvents]    = React.useState<FamilyEvent[]>(initialEvents || []);
-    const [loading,      setLoading]      = React.useState(!initialEvents);
+    const [loading,      setLoading]      = React.useState(true);
     const [showAddModal, setShowAddModal] = React.useState(false);
+    const [addModalInitialDate, setAddModalInitialDate] = React.useState<string | undefined>();
 
 
     const [filter, setFilter] = useState<FilterValue>('all');
@@ -1352,13 +1441,13 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
 
     React.useEffect(() => { void loadEvents(); }, [loadEvents]);
 
-    // Nếu API chưa có dữ liệu, dùng fallback mẫu để không blank hoàn toàn
-    const events = rawEvents.length > 0 ? rawEvents : (loading ? [] : EVENTS_2026);
+    // Xoá mockup EVENTS_2026
+    const events = rawEvents;
 
     const filtered = useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
 
     const counts = useMemo<Record<FilterValue, number>>(() => {
-        const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0 };
+        const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0, housewarming: 0, other: 0 };
         for (const e of events) c[e.type]++;
         return c;
     }, [events]);
@@ -1398,7 +1487,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
         router.visit(href);
     });
 
-    const isMaster = user?.is_master === 1;
+    const isMaster = user?.is_master === 1 || user?.quyen_han === 'quan_ly';
 
     return (
         <AuthenticatedLayout>
@@ -1420,7 +1509,10 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
                             Bảng điều khiển
                         </button>
                         {isMaster && (
-                            <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>
+                            <button className="btn btn-primary" onClick={() => {
+                                setAddModalInitialDate(undefined);
+                                setShowAddModal(true);
+                            }}>
                                 <Icon name="plus" size={14} />
                                 Tạo sự kiện
                             </button>
@@ -1438,7 +1530,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
                 ) : (
                     <>
                         {nextEvent && (
-                            <NextEventHero event={nextEvent} honoree={nextEvent.honoreeId ? (BY_ID[nextEvent.honoreeId] ?? null) : null} today={today} />
+                            <NextEventHero event={nextEvent} honoree={nextEvent.honoree ?? null} today={today} />
                         )}
 
                         <FilterBar active={filter} onChange={setFilter} counts={counts} />
@@ -1453,12 +1545,17 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
                                     today={today}
                                     onSelect={setSelectedDate}
                                     onMonthChange={changeMonth}
+                                    isMaster={isMaster}
+                                    onAddEvent={(iso) => {
+                                        setAddModalInitialDate(iso);
+                                        setShowAddModal(true);
+                                    }}
                                 />
                                 <YearHeatmap events={events} currentMonth={viewMonth.m} onMonthClick={(m) => setViewMonth((v) => ({ ...v, m }))} />
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                                <EventDetail event={selectedEvent} honoree={selectedEvent?.honoreeId ? (BY_ID[selectedEvent.honoreeId] ?? null) : null} />
+                                <EventDetail event={selectedEvent} honoree={selectedEvent?.honoree ?? null} onReload={loadEvents} />
 
                                 <div className="card card-pad">
                                     <div className="row" style={{ justifyContent: 'space-between', marginBottom: 14 }}>
@@ -1472,7 +1569,10 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
                                             <Icon name="calendar" size={28} color="var(--ink-faint)" />
                                             <div style={{ marginTop: 8 }}>Không có sự kiện sắp tới</div>
                                             {isMaster && (
-                                                <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => setShowAddModal(true)}>
+                                                <button className="btn btn-primary" style={{ marginTop: 12 }} onClick={() => {
+                                                    setAddModalInitialDate(undefined);
+                                                    setShowAddModal(true);
+                                                }}>
                                                     <Icon name="plus" size={13} /> Thêm sự kiện
                                                 </button>
                                             )}
@@ -1483,7 +1583,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
                                                 <UpcomingItem
                                                     key={e.id}
                                                     event={e}
-                                                    honoree={e.honoreeId ? (BY_ID[e.honoreeId] ?? null) : null}
+                                                    honoree={e.honoree ?? null}
                                                     isLast={i === upcoming.length - 1}
                                                     today={today}
                                                 />
@@ -1500,6 +1600,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
             {showAddModal && user?.dong_ho?.id && (
                 <AddEventModal
                     dongHoId={user.dong_ho.id}
+                    initialDate={addModalInitialDate}
                     onClose={() => setShowAddModal(false)}
                     onSuccess={() => void loadEvents()}
                 />

@@ -39,6 +39,7 @@ export interface Nguoi {
 export type NguoiPayload = Omit<Nguoi, 'id' | 'vo_chong_ids'> & {
     id_vo_chong_list?: number[];
     id_vo_chong?: number | null; // Tương thích API cũ nếu có
+    id_con?: number | null;
 };
 export type NguoiUpdatePayload = Partial<NguoiPayload> & { id: number };
 
@@ -61,8 +62,9 @@ export const choDuyetApi = {
         const response = await apiClient.get('/cho-duyet/list');
         return response.data;
     },
-    async process(userId: number, action: 'approve' | 'reject') {
-        const response = await apiClient.post('/cho-duyet/process', { user_id: userId, action });
+    async process(userId: number, action: 'approve' | 'reject', extraData?: any) {
+        const payload = { user_id: userId, action, ...extraData };
+        const response = await apiClient.post('/cho-duyet/process', payload);
         return response.data;
     }
 };
@@ -96,18 +98,23 @@ export const nguoiApi = {
 export interface SuKien {
     id                : number;
     dong_ho_id        : number;
+    thanh_vien_id     ?: number | null;
+    thanh_vien        ?: any;
     ten_su_kien       : string;
     loai_su_kien      : string | null;
     ngay_duong        : string | null;  // ISO date yyyy-mm-dd
     ngay_am           : string | null;  // ISO date yyyy-mm-dd (âm lịch)
+    next_date         ?: string | null; // Calculated future/current occurrence
     lap_lai_hang_nam  : boolean;
     dia_diem          : string | null;
     mo_ta             : string | null;
+    participants_count?: number;
+    is_attending      ?: boolean;
     created_at        : string;
     updated_at        : string;
 }
 
-export type SuKienPayload = Omit<SuKien, 'id' | 'created_at' | 'updated_at'>;
+export type SuKienPayload = Omit<SuKien, 'id' | 'created_at' | 'updated_at' | 'thanh_vien' | 'next_date' | 'participants_count' | 'is_attending'>;
 export type SuKienUpdatePayload = Partial<SuKienPayload> & { id: number };
 
 export const suKienApi = {
@@ -130,6 +137,16 @@ export const suKienApi = {
 
     async delete(id: number) {
         const response = await apiClient.post<ApiResponse>('/su-kien/delete', { id });
+        return response.data;
+    },
+
+    async attend(id: number, so_nguoi_di_cung: number = 0, ghi_chu: string = '') {
+        const response = await apiClient.post<ApiResponse>('/su-kien/attend', { id, so_nguoi_di_cung, ghi_chu });
+        return response.data;
+    },
+
+    async leave(id: number) {
+        const response = await apiClient.post<ApiResponse>('/su-kien/leave', { id });
         return response.data;
     },
 };

@@ -468,7 +468,6 @@ export default function AdminDashboard() {
                                 <QuickAction icon="add-user" label="Thêm thành viên" color="gold" onClick={() => router.visit('/admin/thanh-vien')} />
                                 <QuickAction icon="link" label="Tra quan hệ" color="jade" onClick={() => router.visit('/gia-pha/tra-cuu-danh-xung')} />
                                 <QuickAction icon="calendar" label="Tạo lễ giỗ" color="crimson" onClick={() => undefined} />
-                                <QuickAction icon="sparkle" label="Thử nghiệm QR" color="gold" onClick={() => router.visit('/gia-pha/test-qr')} />
                                 <QuickAction icon="book" label="Tải gia phả cũ" color="terracotta" onClick={() => undefined} />
                             </div>
                         </section>

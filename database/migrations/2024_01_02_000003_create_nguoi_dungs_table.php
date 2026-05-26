@@ -13,9 +13,13 @@ return new class extends Migration
             $table->foreignId('dong_ho_id')->nullable()->constrained('dong_hos')->cascadeOnDelete();
             $table->string('ho_ten');
             $table->string('email')->unique();
+            $table->string('google_id')->nullable()->unique();
+            $table->string('avatar')->nullable();
             $table->string('password');
             $table->foreignId('thanh_vien_id')->nullable()->constrained('thanh_viens')->nullOnDelete();
             $table->string('quyen_han')->default('thanh_vien');
+            $table->boolean('trang_thai')->default(true)->comment('true: hoạt động, false: bị khóa');
+            $table->string('trang_thai_gia_nhap', 50)->default('da_duyet')->comment('cho_duyet, da_duyet, tu_choi');
             $table->timestamps();
         });
     }

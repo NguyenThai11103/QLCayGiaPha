@@ -57,7 +57,7 @@ class AccessControl
         return self::isFamilyManager($user) && self::canAccessFamily($user, $familyId);
     }
 
-    public static function scopeFamilyQuery(Builder $query, ?Authenticatable $user, string $column = 'dong_ho_id'): Builder
+    public static function scopeFamilyQuery(\Illuminate\Database\Query\Builder|\Illuminate\Database\Eloquent\Builder $query, ?Authenticatable $user, string $column = 'dong_ho_id')
     {
         if (self::isSystemAdmin($user)) {
             return $query;

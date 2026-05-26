@@ -304,6 +304,22 @@ export default function ProfilePage() {
                                     )}
                                 </div>
 
+                                {user?.thanh_vien_id && (user as any).ma_thanh_vien && (
+                                    <div style={{ padding: '20px', borderRadius: 14, background: 'var(--card)', border: '1px solid var(--line)', marginTop: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            <Icon name="scan-line" size={18} color="var(--gold)" />
+                                            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)' }}>Mã QR Cá Nhân</span>
+                                        </div>
+                                        <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0', textAlign: 'center', maxWidth: 280 }}>
+                                            Đưa mã QR này cho người khác quét để nhận diện quan hệ gia phả với bạn.
+                                        </p>
+                                        <div style={{ padding: 12, background: '#fff', borderRadius: 12, border: '1px solid var(--line-soft)', marginTop: 4 }}>
+                                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/gia-pha/tra-cuu-danh-xung?target_id=${(user as any).ma_thanh_vien}`)}`} alt="QR Code" style={{ display: 'block', width: 160, height: 160 }} />
+                                        </div>
+                                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-soft)', marginTop: 2 }}>Mã Thành Viên: <span style={{ color: 'var(--gold)' }}>{(user as any).ma_thanh_vien}</span></div>
+                                    </div>
+                                )}
+
                                 <div style={{ padding: '16px 20px', borderRadius: 14, background: 'color-mix(in srgb, var(--crimson) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--crimson) 20%, transparent)', marginTop: 8 }}>
                                     <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--crimson)', marginBottom: 4 }}>⚠ Vùng nguy hiểm</div>
                                     <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Nếu bạn muốn xóa tài khoản, vui lòng liên hệ quản trị viên dòng họ để được hỗ trợ.</p>

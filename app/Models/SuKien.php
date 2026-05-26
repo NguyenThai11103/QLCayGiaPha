@@ -13,6 +13,7 @@ class SuKien extends Model
 
     protected $fillable = [
         'dong_ho_id',
+        'thanh_vien_id',
         'ten_su_kien',
         'loai_su_kien',
         'ngay_duong',
@@ -33,5 +34,17 @@ class SuKien extends Model
     public function dongHo()
     {
         return $this->belongsTo(DongHo::class, 'dong_ho_id');
+    }
+
+    public function thanhVien()
+    {
+        return $this->belongsTo(ThanhVien::class, 'thanh_vien_id');
+    }
+
+    public function participants()
+    {
+        return $this->belongsToMany(NguoiDung::class, 'su_kien_nguoi_dung', 'su_kien_id', 'nguoi_dung_id')
+                    ->withPivot('so_nguoi_di_cung', 'ghi_chu')
+                    ->withTimestamps();
     }
 }

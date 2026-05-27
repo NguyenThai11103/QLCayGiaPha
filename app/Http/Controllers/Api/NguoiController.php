@@ -10,7 +10,6 @@ use App\Support\AccessControl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use App\Support\MaThanhVienHelper;
 
 class NguoiController extends Controller
 {
@@ -26,7 +25,23 @@ class NguoiController extends Controller
         AccessControl::scopeFamilyQuery($query, $request->user());
 
         if ($idDongHo) {
-            $query->where('dong_ho_id', $idDongHo);
+            $query->where(function ($q) use ($idDongHo) {
+                $q->where('thanh_viens.dong_ho_id', $idDongHo)
+                  ->orWhereExists(function ($sub) use ($idDongHo) {
+                      $sub->select(DB::raw(1))
+                          ->from('quan_hes')
+                          ->where(function($qh) {
+                              $qh->whereColumn('quan_hes.node_1_id', 'thanh_viens.id')
+                                 ->orWhereColumn('quan_hes.node_2_id', 'thanh_viens.id');
+                          })
+                          ->whereExists(function ($inClan) use ($idDongHo) {
+                              $inClan->select(DB::raw(1))
+                                     ->from('thanh_viens as tv2')
+                                     ->where('tv2.dong_ho_id', $idDongHo)
+                                     ->whereRaw('(quan_hes.node_1_id = tv2.id OR quan_hes.node_2_id = tv2.id)');
+                          });
+                  });
+            });
         }
 
         $thanhViens = $query->get();
@@ -54,7 +69,26 @@ class NguoiController extends Controller
             return AccessControl::forbidden();
         }
 
-        $tatCa = DB::table('thanh_viens')->where('dong_ho_id', $nguoiDb->dong_ho_id)->get();
+        $query = DB::table('thanh_viens');
+        $idDongHo = $nguoiDb->dong_ho_id;
+        $query->where(function ($q) use ($idDongHo) {
+            $q->where('thanh_viens.dong_ho_id', $idDongHo)
+              ->orWhereExists(function ($sub) use ($idDongHo) {
+                  $sub->select(DB::raw(1))
+                      ->from('quan_hes')
+                      ->where(function($qh) {
+                          $qh->whereColumn('quan_hes.node_1_id', 'thanh_viens.id')
+                             ->orWhereColumn('quan_hes.node_2_id', 'thanh_viens.id');
+                      })
+                      ->whereExists(function ($inClan) use ($idDongHo) {
+                          $inClan->select(DB::raw(1))
+                                 ->from('thanh_viens as tv2')
+                                 ->where('tv2.dong_ho_id', $idDongHo)
+                                 ->whereRaw('(quan_hes.node_1_id = tv2.id OR quan_hes.node_2_id = tv2.id)');
+                      });
+              });
+        });
+        $tatCa = $query->get();
         $tatCaNguoi = $this->mapThanhVienToNguoi($tatCa);
 
         $map = [];
@@ -104,13 +138,32 @@ class NguoiController extends Controller
         $idCha = $data['id_cha'] ?? null;
         $idMe = $data['id_me'] ?? null;
         $idCon = $data['id_con'] ?? null;
+        $conDb = null;
 
-        if (!AccessControl::allMembersInFamily(array_merge([$idCha, $idMe, $idCon], $voChongList), $data['id_dong_ho'])) {
-            return AccessControl::invalidScope('Cha, me, con hoac vo/chong khong thuoc dong ho duoc phep.');
+        if ($idCon) {
+            if (!AccessControl::allMembersInFamily([$idCon], $data['id_dong_ho'])) {
+                return AccessControl::invalidScope('Con khong thuoc dong ho duoc phep.');
+            }
+            $conDb = DB::table('thanh_viens')->where('id', $idCon)->first();
+            if (!$conDb) {
+                return response()->json(['success' => false, 'message' => 'Không tìm thấy con hợp lệ.'], 404);
+            }
+            if ((int) $conDb->doi_thu !== 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chi co the them cha/me cho thanh vien dang o doi 1.',
+                ], 422);
+            }
+        } else {
+            if (!AccessControl::allMembersInFamily(array_merge([$idCha, $idMe], $voChongList), $data['id_dong_ho'])) {
+                return AccessControl::invalidScope('Cha, me hoac vo/chong khong thuoc dong ho duoc phep.');
+            }
         }
 
         $doiThu = 1;
-        if ($idCha) {
+        if ($idCon && $conDb) {
+            $doiThu = 1;
+        } elseif ($idCha) {
             $parentDoi = DB::table('thanh_viens')->where('id', $idCha)->value('doi_thu');
             if ($parentDoi !== null) {
                 $doiThu = $parentDoi + 1;
@@ -119,14 +172,6 @@ class NguoiController extends Controller
             $parentDoi = DB::table('thanh_viens')->where('id', $idMe)->value('doi_thu');
             if ($parentDoi !== null) {
                 $doiThu = $parentDoi + 1;
-            }
-        } elseif ($idCon) {
-            $childDoi = (int) DB::table('thanh_viens')->where('id', $idCon)->value('doi_thu');
-            if ($childDoi === 1) {
-                DB::table('thanh_viens')->where('dong_ho_id', $data['id_dong_ho'])->increment('doi_thu');
-                $doiThu = 1;
-            } elseif ($childDoi > 1) {
-                $doiThu = $childDoi - 1;
             }
         } elseif (!empty($voChongList)) {
             $spouseId = reset($voChongList);
@@ -142,11 +187,8 @@ class NguoiController extends Controller
             $ngaySinhAm = sprintf('%04d-%02d-%02d', $lunarConversion['year'], $lunarConversion['month'], $lunarConversion['day']);
         }
 
-        $maThanhVien = MaThanhVienHelper::generate($data['id_dong_ho']);
-
         $insertData = [
             'dong_ho_id'      => $data['id_dong_ho'],
-            'ma_thanh_vien'   => $maThanhVien,
             'ho_ten'          => $data['ten_day_du'],
             'gioi_tinh'       => $data['gioi_tinh'],
             'ngay_sinh_duong' => $data['ngay_sinh'] ?? null,
@@ -161,30 +203,30 @@ class NguoiController extends Controller
             'updated_at'      => now(),
         ];
 
-        $id = DB::transaction(function () use ($insertData, $voChongList, $idCha, $idMe, $idCon, $data) {
+        $id = DB::transaction(function () use ($insertData, $voChongList, $idCha, $idMe, $idCon) {
+            if ($idCon) {
+                DB::table('thanh_viens')->where('dong_ho_id', $insertData['dong_ho_id'])->increment('doi_thu');
+            }
+
             $id = DB::table('thanh_viens')->insertGetId($insertData);
 
-            $this->dongBoQuanHeVoChong($id, $voChongList);
-            $this->dongBoQuanHeChaMe($id, $idCha, $idMe);
-
             if ($idCon) {
-                $loaiQuanHe = $data['gioi_tinh'] === 'nam' ? 'cha_con' : 'me_con';
-                DB::table('quan_hes')
-                    ->where('node_2_id', $idCon)
-                    ->where('loai_quan_he', $loaiQuanHe)
-                    ->delete();
-                
                 DB::table('quan_hes')->insert([
                     'node_1_id' => $id,
                     'node_2_id' => $idCon,
-                    'loai_quan_he' => $loaiQuanHe,
+                    'loai_quan_he' => $insertData['gioi_tinh'] === 'nam' ? 'cha_con' : 'me_con',
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
+            } else {
+                $this->dongBoQuanHeChaMe($id, $idCha, $idMe);
             }
 
-            // Đồng bộ đời đệ quy (cập nhật chính nó và vợ/chồng liên quan)
-            $this->capNhatDoiThuDeQuy($id, $insertData['doi_thu']);
+            $this->dongBoQuanHeVoChong($id, $voChongList);
+
+            if (!$idCon) {
+                $this->capNhatDoiThuDeQuy($id, $insertData['doi_thu']);
+            }
 
             return $id;
         });
@@ -615,7 +657,6 @@ class NguoiController extends Controller
             return [
                 'id' => $tv->id,
                 'id_dong_ho' => $tv->dong_ho_id,
-                'ma_thanh_vien' => $tv->ma_thanh_vien,
                 'ten_day_du' => $tv->ho_ten,
                 'gioi_tinh' => $tv->gioi_tinh,
                 'ngay_sinh' => $tv->ngay_sinh_duong,

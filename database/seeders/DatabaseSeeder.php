@@ -13,15 +13,15 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             AdminSeeder::class,
-            DongHoSeeder::class,
-            ThanhVienSeeder::class,
-            NguoiDungSeeder::class,
-            QuanHeSeeder::class,
-            CacheXungHoSeeder::class,  
-            SuKienSeeder::class,
-            TaiLieuSeeder::class,
+            // DongHoSeeder::class,
+            // ThanhVienSeeder::class,
+            // NguoiDungSeeder::class,
+            // QuanHeSeeder::class,
+            // CacheXungHoSeeder::class,  
+            // SuKienSeeder::class,
+            // TaiLieuSeeder::class,
             ComplexClanSeeder::class,
-            MoPhanSeeder::class,
+            // MoPhanSeeder::class,
         ]);
     }
 }

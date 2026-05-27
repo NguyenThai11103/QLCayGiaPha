@@ -19,6 +19,7 @@
 
 import { Head, router } from '@inertiajs/react';
 import React, { useMemo, useState, useEffect } from 'react';
+import axios from 'axios';
 import IconBase from '../../../components/gia-pha/Icon';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import { useAuth } from '../../../contexts/auth.context';
@@ -1230,10 +1231,11 @@ const LOAI_MAP: Record<string, EventType> = {
 function mapSuKienToFamilyEvent(sk: import('../../../services/gia-pha.api').SuKien): FamilyEvent {
     let honoree = null;
     if (sk.thanh_vien) {
+        const honoreeName = sk.thanh_vien.ten_day_du || sk.thanh_vien.ho_ten || 'Thanh vien';
         honoree = {
-            name: sk.thanh_vien.ho_ten,
-            short: sk.thanh_vien.ho_ten.split(' ').slice(-1)[0],
-            gender: sk.thanh_vien.gioi_tinh === 'Nam' ? 'M' : 'F',
+            name: honoreeName,
+            short: honoreeName.split(' ').slice(-1)[0],
+            gender: sk.thanh_vien.gioi_tinh === 'nam' || sk.thanh_vien.gioi_tinh === 'Nam' ? 'M' : 'F',
         };
     }
 
@@ -1319,8 +1321,12 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, initialDate, on
             });
             if (res.success) { onSuccess(); onClose(); }
             else setError(res.message || 'Không thể tạo sự kiện.');
-        } catch {
+        } catch (error) {
             setError('Lỗi kết nối máy chủ.');
+            const message = axios.isAxiosError(error)
+                ? error.response?.data?.message || Object.values(error.response?.data?.errors || {}).flat().join(' ')
+                : '';
+            if (message) setError(message);
         } finally {
             setSaving(false);
         }
@@ -1360,7 +1366,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, initialDate, on
                             <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Tưởng nhớ / Vinh danh</span>
                             <select value={form.thanh_vien_id} onChange={e => f('thanh_vien_id', e.target.value)} className="gp-input">
                                 <option value="">-- Không liên kết --</option>
-                                {members.map(m => <option key={m.id} value={m.id}>{m.ho_ten} (Đời {m.doi})</option>)}
+                                {members.map(m => <option key={m.id} value={m.id}>{m.ten_day_du || m.ho_ten} (Đời {m.doi_thu || m.doi || '-'})</option>)}
                             </select>
                         </label>
                     </div>
@@ -1408,6 +1414,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, initialDate, on
 // ============================================================
 export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEvents, today = new Date().toISOString().slice(0, 10) }) => {
     const { user } = useAuth();
+    const dongHoId = user?.dong_ho?.id ?? user?.dong_ho_id ?? null;
     const [rawEvents,    setRawEvents]    = React.useState<FamilyEvent[]>(initialEvents || []);
     const [loading,      setLoading]      = React.useState(true);
     const [showAddModal, setShowAddModal] = React.useState(false);
@@ -1424,7 +1431,6 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
         setLoading(true);
         try {
             const { suKienApi } = await import('../../../services/gia-pha.api');
-            const dongHoId = user?.dong_ho?.id;
             const res = await suKienApi.list(dongHoId);
             if (res.success && res.data) {
                 setRawEvents(res.data.map(mapSuKienToFamilyEvent));
@@ -1434,7 +1440,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
         } finally {
             setLoading(false);
         }
-    }, [user?.dong_ho?.id]);
+    }, [dongHoId]);
 
     React.useEffect(() => { void loadEvents(); }, [loadEvents]);
 
@@ -1589,9 +1595,9 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
                 )}
             </div>
 
-            {showAddModal && user?.dong_ho?.id && (
+            {showAddModal && dongHoId && (
                 <AddEventModal
-                    dongHoId={user.dong_ho.id}
+                    dongHoId={dongHoId}
                     initialDate={addModalInitialDate}
                     onClose={() => setShowAddModal(false)}
                     onSuccess={() => void loadEvents()}

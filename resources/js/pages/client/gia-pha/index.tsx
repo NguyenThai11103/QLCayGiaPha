@@ -326,6 +326,7 @@ export default function CayGiaPha() {
     const [isDraggingTree, setIsDraggingTree] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [genPositions, setGenPositions] = useState<{ level: number; top: number; left: number }[]>([]);
+    const [exporting, setExporting] = useState(false);
 
     useEffect(() => {
         dongHoApi.list().then((res) => setDongHos(res.data || []));
@@ -406,12 +407,17 @@ export default function CayGiaPha() {
     };
 
     const handleAddParentQuick = (child: Nguoi) => {
+        if ((child.doi_thu ?? 1) !== 1) {
+            toast.error('Chỉ có thể thêm cha/mẹ cho thành viên đang ở đời 1.');
+            return;
+        }
+
         setSelectedPerson(child);
         setIsDauRe(false);
         setQuickAddMode('parent');
         setForm({
             ...emptyForm,
-            id_dong_ho: String(selectedDongHo),
+            id_dong_ho: String(child.id_dong_ho),
             ngay_sinh: '',
             ngay_mat: '',
         });
@@ -532,7 +538,7 @@ export default function CayGiaPha() {
             if (count > 0) {
                 const avgTop = sumTop / count;
                 const topOffset = (avgTop - scaleRect.top) / zoom;
-                const leftOffset = (minLeft - scaleRect.left) / zoom - 100;
+                const leftOffset = Math.max(10, (minLeft - scaleRect.left) / zoom - 72);
                 positions.push({ level: lvl, top: topOffset, left: leftOffset });
             }
         });
@@ -617,6 +623,10 @@ export default function CayGiaPha() {
             } else if (quickAddMode === 'spouse' && selectedPerson) {
                 payload.id_vo_chong = selectedPerson.id;
             } else if (quickAddMode === 'parent' && selectedPerson) {
+                if ((selectedPerson.doi_thu ?? 1) !== 1) {
+                    toast.error('Chỉ có thể thêm cha/mẹ cho thành viên đang ở đời 1.');
+                    return;
+                }
                 payload.id_con = selectedPerson.id;
             }
 
@@ -684,6 +694,129 @@ export default function CayGiaPha() {
             document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
         }
     }, []);
+
+    const inlineComputedStyles = (source: Element, target: Element) => {
+        const sourceElements = [source, ...Array.from(source.querySelectorAll('*'))] as HTMLElement[];
+        const targetElements = [target, ...Array.from(target.querySelectorAll('*'))] as HTMLElement[];
+
+        sourceElements.forEach((sourceElement, index) => {
+            const targetElement = targetElements[index];
+            if (!targetElement) return;
+
+            const computed = window.getComputedStyle(sourceElement);
+            let cssText = '';
+            for (let i = 0; i < computed.length; i++) {
+                const property = computed.item(i);
+                cssText += `${property}:${computed.getPropertyValue(property)};`;
+            }
+            targetElement.setAttribute('style', `${targetElement.getAttribute('style') || ''};${cssText}`);
+        });
+    };
+
+    const getExportClone = () => {
+        const source = treeScaleRef.current;
+        if (!source) return null;
+
+        const clone = source.cloneNode(true) as HTMLElement;
+        inlineComputedStyles(source, clone);
+        clone.style.transform = 'none';
+        clone.style.transformOrigin = 'top left';
+        clone.style.width = `${source.scrollWidth}px`;
+        clone.style.minWidth = `${source.scrollWidth}px`;
+        clone.style.background = 'transparent';
+
+        return {
+            clone,
+            width: Math.ceil(source.scrollWidth + 96),
+            height: Math.ceil(source.scrollHeight + 96),
+        };
+    };
+
+    const exportTreeImage = async () => {
+        const exportData = getExportClone();
+        if (!exportData) {
+            toast.error('Chưa có cây gia phả để xuất.');
+            return;
+        }
+
+        setExporting(true);
+        try {
+            const wrapper = document.createElement('div');
+            wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+            wrapper.style.boxSizing = 'border-box';
+            wrapper.style.width = `${exportData.width}px`;
+            wrapper.style.minHeight = `${exportData.height}px`;
+            wrapper.style.padding = '48px';
+            wrapper.style.background = '#fbf5e6';
+            wrapper.style.fontFamily = 'Inter, Arial, sans-serif';
+            wrapper.appendChild(exportData.clone);
+
+            const svg = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="${exportData.width}" height="${exportData.height}">
+                    <foreignObject width="100%" height="100%">${new XMLSerializer().serializeToString(wrapper)}</foreignObject>
+                </svg>
+            `;
+            const clanName = (selectedDongHoName || 'cay-gia-pha')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9]+/g, '-')
+                .replace(/^-|-$/g, '')
+                .toLowerCase();
+
+            const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.download = `${clanName || 'cay-gia-pha'}.svg`;
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+            toast.success('Đã xuất ảnh cây gia phả.');
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Không thể xuất ảnh cây gia phả.');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    const printTree = () => {
+        const exportData = getExportClone();
+        if (!exportData) {
+            toast.error('Chưa có cây gia phả để in.');
+            return;
+        }
+
+        const printWindow = window.open('', '_blank', 'width=1400,height=900');
+        if (!printWindow) {
+            toast.error('Trình duyệt đã chặn cửa sổ in.');
+            return;
+        }
+
+        const wrapper = document.createElement('div');
+        wrapper.style.boxSizing = 'border-box';
+        wrapper.style.width = `${exportData.width}px`;
+        wrapper.style.minHeight = `${exportData.height}px`;
+        wrapper.style.padding = '48px';
+        wrapper.style.background = '#fbf5e6';
+        wrapper.appendChild(exportData.clone);
+
+        printWindow.document.write(`
+            <!doctype html>
+            <html>
+                <head>
+                    <title>${selectedDongHoName || 'Cây gia phả'}</title>
+                    <style>
+                        @page { size: A3 landscape; margin: 12mm; }
+                        html, body { margin: 0; background: #fbf5e6; }
+                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    </style>
+                </head>
+                <body>${wrapper.outerHTML}</body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => printWindow.print(), 300);
+    };
 
     useEffect(() => {
         const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -830,6 +963,14 @@ export default function CayGiaPha() {
                         <button type="button" onClick={() => setBloodlineOnly((value) => !value)} className={`gp-btn ${bloodlineOnly ? 'gp-btn-jade' : 'gp-btn-ghost'}`}>
                             <Icon name="branch" size={16} />
                             Huyết thống
+                        </button>
+                        <button type="button" onClick={exportTreeImage} disabled={exporting || loading || treeData.length === 0} className="gp-btn gp-btn-ghost disabled:opacity-50" title="Tai anh SVG de in hoac chia se">
+                            <Icon name="photo" size={16} />
+                            {exporting ? 'Dang xuat...' : 'SVG'}
+                        </button>
+                        <button type="button" onClick={printTree} disabled={loading || treeData.length === 0} className="gp-btn gp-btn-ghost disabled:opacity-50" title="Mo man hinh in de luu PDF">
+                            <Icon name="book" size={16} />
+                            PDF
                         </button>
                         {user?.quyen_han === 'quan_ly' && (
                             <button type="button" onClick={() => router.visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary">
@@ -1554,6 +1695,7 @@ function PersonPanel({
     const mother = person.id_me ? people.find((item) => item.id === person.id_me) : undefined;
     const spouses = (person.vo_chong_ids || []).map((id) => people.find((item) => item.id === id)).filter(Boolean) as Nguoi[];
     const children = people.filter((item) => item.id_cha === person.id || item.id_me === person.id);
+    const canAddParent = (person.doi_thu ?? 1) === 1;
 
     // Build timeline events
     const events: { year: string; type: string; desc: string; icon: string; color: string }[] = [];
@@ -1609,7 +1751,17 @@ function PersonPanel({
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {isMaster && (
                     <div className="grid grid-cols-3 gap-2">
-                        <button type="button" onClick={() => onAddParent(person)} className="flex flex-col items-center gap-1 rounded-xl bg-slate-50 border border-slate-200 p-2 text-center transition hover:bg-slate-100 hover:border-slate-300">
+                        <button
+                            type="button"
+                            onClick={() => canAddParent && onAddParent(person)}
+                            disabled={!canAddParent}
+                            title={canAddParent ? undefined : 'Chỉ thêm cha/mẹ cho thành viên đời 1'}
+                            className={`flex flex-col items-center gap-1 rounded-xl border p-2 text-center transition ${
+                                canAddParent
+                                    ? 'bg-slate-50 border-slate-200 hover:bg-slate-100 hover:border-slate-300'
+                                    : 'cursor-not-allowed bg-slate-50/60 border-slate-100 opacity-50'
+                            }`}
+                        >
                             <span className="grid h-7 w-7 place-items-center rounded-full bg-slate-200 text-slate-600"><Icon name="arrow-up" size={14} /></span>
                             <span className="text-[10px] font-bold text-slate-600">Thêm cha/mẹ</span>
                         </button>

@@ -31,14 +31,14 @@ class NguoiController extends Controller
                       $sub->select(DB::raw(1))
                           ->from('quan_hes')
                           ->where(function($qh) {
-                              $qh->whereColumn('quan_hes.thanh_vien_id_1', 'thanh_viens.id')
-                                 ->orWhereColumn('quan_hes.thanh_vien_id_2', 'thanh_viens.id');
+                              $qh->whereColumn('quan_hes.node_1_id', 'thanh_viens.id')
+                                 ->orWhereColumn('quan_hes.node_2_id', 'thanh_viens.id');
                           })
                           ->whereExists(function ($inClan) use ($idDongHo) {
                               $inClan->select(DB::raw(1))
                                      ->from('thanh_viens as tv2')
                                      ->where('tv2.dong_ho_id', $idDongHo)
-                                     ->whereRaw('(quan_hes.thanh_vien_id_1 = tv2.id OR quan_hes.thanh_vien_id_2 = tv2.id)');
+                                     ->whereRaw('(quan_hes.node_1_id = tv2.id OR quan_hes.node_2_id = tv2.id)');
                           });
                   });
             });
@@ -77,14 +77,14 @@ class NguoiController extends Controller
                   $sub->select(DB::raw(1))
                       ->from('quan_hes')
                       ->where(function($qh) {
-                          $qh->whereColumn('quan_hes.thanh_vien_id_1', 'thanh_viens.id')
-                             ->orWhereColumn('quan_hes.thanh_vien_id_2', 'thanh_viens.id');
+                          $qh->whereColumn('quan_hes.node_1_id', 'thanh_viens.id')
+                             ->orWhereColumn('quan_hes.node_2_id', 'thanh_viens.id');
                       })
                       ->whereExists(function ($inClan) use ($idDongHo) {
                           $inClan->select(DB::raw(1))
                                  ->from('thanh_viens as tv2')
                                  ->where('tv2.dong_ho_id', $idDongHo)
-                                 ->whereRaw('(quan_hes.thanh_vien_id_1 = tv2.id OR quan_hes.thanh_vien_id_2 = tv2.id)');
+                                 ->whereRaw('(quan_hes.node_1_id = tv2.id OR quan_hes.node_2_id = tv2.id)');
                       });
               });
         });
@@ -148,6 +148,12 @@ class NguoiController extends Controller
             if (!$conDb) {
                 return response()->json(['success' => false, 'message' => 'Không tìm thấy con hợp lệ.'], 404);
             }
+            if ((int) $conDb->doi_thu !== 1) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chi co the them cha/me cho thanh vien dang o doi 1.',
+                ], 422);
+            }
         } else {
             if (!AccessControl::allMembersInFamily(array_merge([$idCha, $idMe], $voChongList), $data['id_dong_ho'])) {
                 return AccessControl::invalidScope('Cha, me hoac vo/chong khong thuoc dong ho duoc phep.');
@@ -156,12 +162,7 @@ class NguoiController extends Controller
 
         $doiThu = 1;
         if ($idCon && $conDb) {
-            if ($conDb->doi_thu == 1) {
-                $doiThu = 1;
-            } else {
-                $doiThu = $conDb->doi_thu - 1;
-                if ($doiThu < 1) $doiThu = 1;
-            }
+            $doiThu = 1;
         } elseif ($idCha) {
             $parentDoi = DB::table('thanh_viens')->where('id', $idCha)->value('doi_thu');
             if ($parentDoi !== null) {
@@ -202,8 +203,8 @@ class NguoiController extends Controller
             'updated_at'      => now(),
         ];
 
-        $id = DB::transaction(function () use ($insertData, $voChongList, $idCha, $idMe, $idCon, $conDb) {
-            if ($idCon && $conDb && $conDb->doi_thu == 1) {
+        $id = DB::transaction(function () use ($insertData, $voChongList, $idCha, $idMe, $idCon) {
+            if ($idCon) {
                 DB::table('thanh_viens')->where('dong_ho_id', $insertData['dong_ho_id'])->increment('doi_thu');
             }
 

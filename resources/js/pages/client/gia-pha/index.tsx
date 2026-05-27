@@ -1370,7 +1370,7 @@ function FamilyCard({
     parentLabel?: string;
 }) {
     const hasChildren = family.children.length > 0;
-    const [isExpanded, setIsExpanded] = useState(level <= 2);
+    const [isExpanded, setIsExpanded] = useState(true);
     const [hoveredSpouseId, setHoveredSpouseId] = useState<number | null>(null);
     
     const isSelectedSpouse = family.spouses.some(s => s.id === selectedPerson?.id);

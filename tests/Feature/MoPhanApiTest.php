@@ -166,6 +166,25 @@ it('allows an approved family member to update a grave location in their family'
     ]);
 });
 
+it('rejects null coordinates when updating a grave location', function () {
+    $familyId = createMoPhanTestDongHo('Ho Toa Do Null');
+    $memberId = createMoPhanTestThanhVien($familyId, 'Nguoi Co Toa Do');
+    $user = createMoPhanTestUser($familyId);
+    $graveId = createMoPhanTestRecord($familyId, $memberId);
+
+    Sanctum::actingAs($user);
+
+    $this->postJson('/api/mo-phan/update', [
+        'id' => $graveId,
+        'vi_do' => null,
+    ])->assertUnprocessable();
+
+    $this->assertDatabaseHas('mo_phans', [
+        'id' => $graveId,
+        'vi_do' => 10.1234567,
+    ]);
+});
+
 it('prevents reading another family grave scope', function () {
     $familyA = createMoPhanTestDongHo('Ho Doc A');
     $familyB = createMoPhanTestDongHo('Ho Doc B');

@@ -6,9 +6,12 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\TaiLieu\CreateTaiLieuRequest;
 use App\Http\Requests\TaiLieu\DeleteTaiLieuRequest;
 use App\Http\Requests\TaiLieu\UpdateTaiLieuRequest;
+use App\Models\NguoiDung;
 use App\Support\AccessControl;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class TaiLieuController extends Controller
 {
@@ -74,8 +77,7 @@ class TaiLieuController extends Controller
             $data['dong_ho_id'] = $familyId;
         }
 
-        $data['created_at'] = now();
-        $data['updated_at'] = now();
+        $data = $this->prepareDocumentData($request, $data, $familyId);
 
         $id = DB::table('tai_lieus')->insertGetId($data);
 
@@ -113,7 +115,7 @@ class TaiLieuController extends Controller
             return AccessControl::invalidScope('Thanh vien va tai lieu khong cung dong ho.');
         }
 
-        $data['updated_at'] = now();
+        $data = $this->prepareDocumentData($request, $data, $familyId, $taiLieu);
 
         DB::table('tai_lieus')->where('id', $id)->update($data);
 
@@ -137,6 +139,7 @@ class TaiLieuController extends Controller
         }
 
         DB::table('tai_lieus')->where('id', $data['id'])->delete();
+        $this->deleteStoredFile($taiLieu);
 
         return response()->json([
             'success' => true,
@@ -151,5 +154,61 @@ class TaiLieuController extends Controller
         }
 
         return AccessControl::memberFamilyId($data['thanh_vien_id'] ?? null);
+    }
+
+    private function prepareDocumentData(Request $request, array $data, ?int $familyId, ?object $existing = null): array
+    {
+        unset($data['file']);
+
+        if ($request->hasFile('file')) {
+            $file = $request->file('file');
+            $disk = 'public';
+            $directory = 'tai-lieu/' . ($familyId ?: 'he-thong');
+            $path = $file->store($directory, $disk);
+
+            if ($existing) {
+                $this->deleteStoredFile($existing);
+            }
+
+            $data['duong_dan_file'] = Storage::disk($disk)->url($path);
+            $data['loai_file'] = $file->getMimeType() ?: $file->getClientOriginalExtension();
+            $data['ten_file_goc'] = $file->getClientOriginalName();
+            $data['mime_type'] = $file->getMimeType();
+            $data['kich_thuoc'] = $file->getSize();
+            $data['disk'] = $disk;
+            $data['path'] = $path;
+        }
+
+        if (empty($data['loai_file']) && !empty($data['duong_dan_file'])) {
+            $extension = strtolower(pathinfo(parse_url($data['duong_dan_file'], PHP_URL_PATH) ?: $data['duong_dan_file'], PATHINFO_EXTENSION));
+            $data['loai_file'] = $extension ?: 'other';
+        }
+
+        if (empty($data['ten_tai_lieu']) && !empty($data['ten_file_goc'])) {
+            $data['ten_tai_lieu'] = pathinfo($data['ten_file_goc'], PATHINFO_FILENAME);
+        }
+
+        if (!$existing) {
+            $data['nguoi_tai_len_id'] = $this->nguoiDungId($request->user());
+            $data['created_at'] = now();
+        }
+
+        $data['updated_at'] = now();
+
+        return $data;
+    }
+
+    private function deleteStoredFile(object $taiLieu): void
+    {
+        if (empty($taiLieu->disk) || empty($taiLieu->path)) {
+            return;
+        }
+
+        Storage::disk($taiLieu->disk)->delete($taiLieu->path);
+    }
+
+    private function nguoiDungId(?Authenticatable $user): ?int
+    {
+        return $user instanceof NguoiDung ? (int) $user->id : null;
     }
 }

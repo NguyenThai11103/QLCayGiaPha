@@ -16,8 +16,8 @@ class UpdateMoPhanRequest extends FormRequest
     {
         return [
             'id' => 'required|integer|exists:mo_phans,id',
-            'vi_do' => 'nullable|numeric|between:-90,90',
-            'kinh_do' => 'nullable|numeric|between:-180,180',
+            'vi_do' => 'sometimes|required|numeric|between:-90,90',
+            'kinh_do' => 'sometimes|required|numeric|between:-180,180',
             'ghi_chu' => 'nullable|string|max:2000',
         ];
     }

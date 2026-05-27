@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../../components/gia-pha/Icon';
 import { useAuth } from '../../../contexts/auth.context';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
@@ -35,24 +35,38 @@ function isDeceased(member: Nguoi): boolean {
     return member.da_mat === true || member.da_mat === 1;
 }
 
+function getInitialMemberId(): string {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('thanh_vien_id') || '';
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+    const data = (error as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } })?.response?.data;
+    if (data?.message) return data.message;
+
+    const firstError = data?.errors ? Object.values(data.errors)[0]?.[0] : null;
+    return firstError || fallback;
+}
+
 export default function MoPhanPage() {
     const { user } = useAuth();
     const [moPhans, setMoPhans] = useState<MoPhan[]>([]);
     const [members, setMembers] = useState<Nguoi[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState('');
     const [search, setSearch] = useState('');
-    const [selectedMemberId, setSelectedMemberId] = useState(() => {
-        if (typeof window === 'undefined') return '';
-        return new URLSearchParams(window.location.search).get('thanh_vien_id') || '';
-    });
+    const initialMemberIdRef = useRef(getInitialMemberId());
+    const autoOpenedMemberIdRef = useRef('');
+    const [selectedMemberId, setSelectedMemberId] = useState(initialMemberIdRef.current);
     const [editing, setEditing] = useState<MoPhan | null>(null);
     const [draftMember, setDraftMember] = useState<Nguoi | null>(null);
 
     const familyId = user?.dong_ho_id || user?.dong_ho?.id;
-    const canDelete = user?.quyen_han === 'quan_ly' || user?.quyen_han === 'admin' || user?.is_master === 1;
+    const canDelete = user?.quyen_han === 'quan_ly';
 
     const loadData = async () => {
         setLoading(true);
+        setLoadError('');
         try {
             const [moRes, nguoiRes] = await Promise.all([
                 moPhanApi.list(familyId ? { dong_ho_id: familyId } : undefined),
@@ -61,6 +75,8 @@ export default function MoPhanPage() {
 
             if (moRes.success) setMoPhans(moRes.data || []);
             if (nguoiRes.success) setMembers(nguoiRes.data || []);
+        } catch (error) {
+            setLoadError(getErrorMessage(error, 'Không thể tải dữ liệu mộ phần.'));
         } finally {
             setLoading(false);
         }
@@ -76,6 +92,22 @@ export default function MoPhanPage() {
         moPhans.forEach((item) => map.set(Number(item.thanh_vien_id), item));
         return map;
     }, [moPhans]);
+
+    useEffect(() => {
+        const memberId = initialMemberIdRef.current;
+        if (loading || !memberId || autoOpenedMemberIdRef.current === memberId) return;
+
+        const member = deceasedMembers.find((item) => String(item.id) === memberId);
+        if (!member) return;
+
+        autoOpenedMemberIdRef.current = memberId;
+        const moPhan = graveByMemberId.get(member.id);
+        if (moPhan) {
+            openUpdate(moPhan);
+        } else {
+            openCreate(member);
+        }
+    }, [loading, deceasedMembers, graveByMemberId]);
 
     const rows = useMemo(() => {
         const keyword = search.trim().toLowerCase();
@@ -93,8 +125,8 @@ export default function MoPhanPage() {
             });
     }, [deceasedMembers, graveByMemberId, search, selectedMemberId]);
 
-    const withLocation = rows.filter((row) => row.moPhan).length;
-    const withoutLocation = rows.length - withLocation;
+    const withLocation = deceasedMembers.filter((member) => graveByMemberId.has(member.id)).length;
+    const withoutLocation = deceasedMembers.length - withLocation;
 
     const openCreate = (member?: Nguoi) => {
         setEditing(null);
@@ -114,17 +146,25 @@ export default function MoPhanPage() {
     const handleDelete = async (moPhan: MoPhan) => {
         if (!window.confirm('Xóa thông tin mộ phần này?')) return;
 
-        const res = await moPhanApi.delete(moPhan.id);
-        if (res.success) {
-            toast.success(res.message || 'Đã xóa mộ phần');
-            await loadData();
+        try {
+            const res = await moPhanApi.delete(moPhan.id);
+            if (res.success) {
+                toast.success(res.message || 'Đã xóa mộ phần');
+                await loadData();
+            }
+        } catch {
+            // apiClient interceptor already displays the backend error.
         }
     };
 
     const copyLocation = async (moPhan: MoPhan) => {
-        const text = `${moPhan.vi_do}, ${moPhan.kinh_do}`;
-        await navigator.clipboard?.writeText(text);
-        toast.success('Đã sao chép tọa độ');
+        try {
+            const text = `${moPhan.vi_do}, ${moPhan.kinh_do}`;
+            await navigator.clipboard?.writeText(text);
+            toast.success('Đã sao chép tọa độ');
+        } catch {
+            toast.error('Không thể sao chép tọa độ.');
+        }
     };
 
     return (
@@ -190,6 +230,12 @@ export default function MoPhanPage() {
                         </button>
                     )}
                 </div>
+
+                {loadError && !loading ? (
+                    <div style={{ background: 'color-mix(in srgb, var(--crimson) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--crimson) 22%, transparent)', borderRadius: 12, color: 'var(--crimson)', fontSize: 13, marginBottom: 16, padding: '12px 14px' }}>
+                        {loadError}
+                    </div>
+                ) : null}
 
                 {loading ? (
                     <div style={{ display: 'grid', placeItems: 'center', height: 280 }}>
@@ -438,6 +484,8 @@ function MoPhanFormModal({
             } else {
                 setError(res.message || 'Không thể lưu mộ phần.');
             }
+        } catch (error) {
+            setError(getErrorMessage(error, 'Không thể lưu mộ phần.'));
         } finally {
             setSaving(false);
         }

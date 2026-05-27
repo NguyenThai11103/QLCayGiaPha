@@ -159,8 +159,16 @@ export interface TaiLieu {
     id              : number;
     dong_ho_id      : number | null;
     thanh_vien_id   : number | null;
+    ten_tai_lieu?    : string | null;
+    mo_ta?           : string | null;
     duong_dan_file  : string;
+    ten_file_goc?    : string | null;
     loai_file       : string;
+    mime_type?       : string | null;
+    kich_thuoc?      : number | null;
+    disk?            : string | null;
+    path?            : string | null;
+    nguoi_tai_len_id?: number | null;
     du_lieu_orc     : string | null;
     created_at      : string;
     updated_at      : string;
@@ -175,12 +183,12 @@ export const taiLieuApi = {
         return response.data;
     },
 
-    async create(payload: TaiLieuPayload) {
+    async create(payload: TaiLieuPayload | FormData) {
         const response = await apiClient.post<ApiResponse>('/tai-lieu/create', payload);
         return response.data;
     },
 
-    async update(payload: TaiLieuUpdatePayload) {
+    async update(payload: TaiLieuUpdatePayload | FormData) {
         const response = await apiClient.post<ApiResponse>('/tai-lieu/update', payload);
         return response.data;
     },

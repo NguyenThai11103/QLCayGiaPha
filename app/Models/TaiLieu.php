@@ -14,8 +14,16 @@ class TaiLieu extends Model
     protected $fillable = [
         'dong_ho_id',
         'thanh_vien_id',
+        'ten_tai_lieu',
+        'mo_ta',
         'duong_dan_file',
+        'ten_file_goc',
         'loai_file',
+        'mime_type',
+        'kich_thuoc',
+        'disk',
+        'path',
+        'nguoi_tai_len_id',
         'du_lieu_orc',
     ];
 
@@ -29,5 +37,10 @@ class TaiLieu extends Model
     public function thanhVien()
     {
         return $this->belongsTo(ThanhVien::class, 'thanh_vien_id');
+    }
+
+    public function nguoiTaiLen()
+    {
+        return $this->belongsTo(NguoiDung::class, 'nguoi_tai_len_id');
     }
 }

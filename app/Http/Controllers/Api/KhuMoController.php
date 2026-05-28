@@ -112,9 +112,11 @@ class KhuMoController extends Controller
     public function direction(Request $request)
     {
         $data = $request->validate([
-            'origin' => 'required|string',
-            'destination' => 'required|string',
+            'origin' => ['required', 'string', 'regex:/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/'],
+            'destination' => ['required', 'string', 'regex:/^-?\d+(\.\d+)?,-?\d+(\.\d+)?(?:;-?\d+(\.\d+)?,-?\d+(\.\d+)?)*$/'],
             'vehicle' => 'nullable|in:car,bike,motor,taxi,truck,walking',
+            'alternatives' => 'nullable|in:true,false,1,0',
+            'admin_v2' => 'nullable|in:true,false,1,0',
         ]);
 
         $apiKey = config('services.openmap.api_key');
@@ -126,6 +128,8 @@ class KhuMoController extends Controller
             'origin' => $data['origin'],
             'destination' => $data['destination'],
             'vehicle' => $data['vehicle'] ?? 'car',
+            'alternatives' => $request->boolean('alternatives') ? 'true' : 'false',
+            'admin_v2' => $request->boolean('admin_v2') ? 'true' : 'false',
             'apikey' => $apiKey,
         ]);
 

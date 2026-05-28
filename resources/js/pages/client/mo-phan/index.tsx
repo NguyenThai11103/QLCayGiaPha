@@ -4,7 +4,7 @@ import Icon from '../../../components/gia-pha/Icon';
 import { useAuth } from '../../../contexts/auth.context';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import toast from '../../../lib/toast.util';
-import { KhuMo, KhuMoPayload, MoPhan, MoPhanHistory, Nguoi, khuMoApi, moPhanApi, nguoiApi } from '../../../services/gia-pha.api';
+import { KhuMo, KhuMoPayload, MoPhan, MoPhanHistory, Nguoi, OpenMapDirectionSummary, OpenMapVehicle, khuMoApi, moPhanApi, nguoiApi } from '../../../services/gia-pha.api';
 
 interface MoPhanFormState {
     thanh_vien_id: string;
@@ -45,6 +45,13 @@ function mapUrl(viDo: number | string, kinhDo: number | string): string {
 function openMapPlaceUrl(viDo: number | string, kinhDo: number | string): string {
     return `https://www.openmap.vn/place/latlon%3A${viDo}%3A${kinhDo}`;
 }
+
+const OPENMAP_VEHICLES: Array<{ value: OpenMapVehicle; label: string }> = [
+    { value: 'motor', label: 'Xe máy' },
+    { value: 'car', label: 'Ô tô' },
+    { value: 'walking', label: 'Đi bộ' },
+    { value: 'bike', label: 'Xe đạp' },
+];
 
 function isDeceased(member: Nguoi): boolean {
     return member.da_mat === true || member.da_mat === 1;
@@ -1044,7 +1051,8 @@ function KhuMoFormModal({ dongHoId, editing, onClose, onSaved }: { dongHoId: num
 
 function DirectionModal({ target, onClose }: { target: { title: string; lat: number; lng: number }; onClose: () => void }) {
     const [loading, setLoading] = useState(false);
-    const [summary, setSummary] = useState<{ distanceText: string; durationText: string } | null>(null);
+    const [vehicle, setVehicle] = useState<OpenMapVehicle>('motor');
+    const [summary, setSummary] = useState<OpenMapDirectionSummary | null>(null);
     const [error, setError] = useState('');
 
     const getDirection = () => {
@@ -1061,7 +1069,9 @@ function DirectionModal({ target, onClose }: { target: { title: string; lat: num
                     const res = await khuMoApi.direction({
                         origin: `${position.coords.latitude},${position.coords.longitude}`,
                         destination: `${target.lat},${target.lng}`,
-                        vehicle: 'car',
+                        vehicle,
+                        alternatives: false,
+                        admin_v2: true,
                     });
                     if (res.success && res.data) setSummary(res.data);
                     else setError(res.message || 'Không thể lấy chỉ đường.');
@@ -1092,17 +1102,57 @@ function DirectionModal({ target, onClose }: { target: { title: string; lat: num
                 <div style={{ borderRadius: 12, background: 'var(--card-soft)', border: '1px solid var(--line)', padding: 12, color: 'var(--ink-soft)', fontSize: 13 }}>
                     Điểm đến: {target.lat.toFixed(7)}, {target.lng.toFixed(7)}
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>
+                    {OPENMAP_VEHICLES.map((item) => (
+                        <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => {
+                                setVehicle(item.value);
+                                setSummary(null);
+                                setError('');
+                            }}
+                            className={vehicle === item.value ? 'gp-btn gp-btn-primary' : 'gp-btn gp-btn-ghost'}
+                            style={{ justifyContent: 'center', minWidth: 0, paddingInline: 8 }}
+                        >
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
                 {summary && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
-                        <div style={{ background: 'var(--card-soft)', border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
-                            <div style={{ fontSize: 22, fontWeight: 800 }}>{summary.distanceText}</div>
-                            <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Quãng đường</div>
+                    <>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+                            <div style={{ background: 'var(--card-soft)', border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
+                                <div style={{ fontSize: 22, fontWeight: 800 }}>{summary.distanceText}</div>
+                                <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Quãng đường</div>
+                            </div>
+                            <div style={{ background: 'var(--card-soft)', border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
+                                <div style={{ fontSize: 22, fontWeight: 800 }}>{summary.durationText}</div>
+                                <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Thời gian</div>
+                            </div>
                         </div>
-                        <div style={{ background: 'var(--card-soft)', border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
-                            <div style={{ fontSize: 22, fontWeight: 800 }}>{summary.durationText}</div>
-                            <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Thời gian</div>
-                        </div>
-                    </div>
+                        {(summary.startAddress || summary.endAddress) && (
+                            <div style={{ marginTop: 10, borderRadius: 12, border: '1px solid var(--line)', background: 'var(--card-soft)', padding: 12, fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.5 }}>
+                                {summary.startAddress && <div><strong>Xuất phát:</strong> {summary.startAddress}</div>}
+                                {summary.endAddress && <div><strong>Điểm đến:</strong> {summary.endAddress}</div>}
+                            </div>
+                        )}
+                        {summary.steps.length > 0 && (
+                            <div style={{ marginTop: 10, maxHeight: 220, overflow: 'auto', border: '1px solid var(--line)', borderRadius: 12, background: 'var(--bg-elev)' }}>
+                                {summary.steps.map((step, index) => (
+                                    <div key={`${step.instruction}-${index}`} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 10, padding: 12, borderTop: index === 0 ? 'none' : '1px solid var(--line-soft)' }}>
+                                        <div style={{ width: 28, height: 28, borderRadius: 999, background: 'var(--gold-glow)', color: 'var(--gold)', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 12 }}>
+                                            {index + 1}
+                                        </div>
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.4 }}>{step.instruction}</div>
+                                            <div style={{ fontSize: 11.5, color: 'var(--ink-mute)', marginTop: 3 }}>{step.distanceText} - {step.durationText}</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
                 )}
                 {error && <div style={{ color: 'var(--crimson)', fontSize: 13, marginTop: 12 }}>{error}</div>}
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>

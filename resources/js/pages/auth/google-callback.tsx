@@ -5,6 +5,8 @@ import apiClient from '../../lib/api.client';
 import { tokenStorage } from '../../lib/token.storage';
 import toast from '../../lib/toast.util';
 
+const googleCallbackRequests = new Map<string, Promise<any>>();
+
 export default function GoogleCallback() {
     const { checkAuth } = useAuth();
     const [showOtpForm, setShowOtpForm] = useState(false);
@@ -33,12 +35,30 @@ export default function GoogleCallback() {
                 return;
             }
 
+            const callbackStorageKey = `google_callback:${code}`;
+            const cachedEmail = window.sessionStorage.getItem(`${callbackStorageKey}:email`);
+
+            if (cachedEmail) {
+                setEmail(cachedEmail);
+                setShowOtpForm(true);
+                setStatusMessage('Vui lòng nhập mã OTP đã được gửi về email của bạn.');
+                return;
+            }
+
             try {
-                const response = await apiClient.post('/auth/google/callback', { code });
+                let callbackRequest = googleCallbackRequests.get(code);
+
+                if (!callbackRequest) {
+                    callbackRequest = apiClient.post('/auth/google/callback', { code });
+                    googleCallbackRequests.set(code, callbackRequest);
+                }
+
+                const response = await callbackRequest;
 
                 if (response.data.success) {
                     if (response.data.need_otp) {
                         setEmail(response.data.email);
+                        window.sessionStorage.setItem(`${callbackStorageKey}:email`, response.data.email);
                         setShowOtpForm(true);
                         return;
                     }
@@ -64,6 +84,8 @@ export default function GoogleCallback() {
                 }
             } catch (error) {
                 console.error('Lỗi callback Google:', error);
+                googleCallbackRequests.delete(code);
+                window.sessionStorage.removeItem(`${callbackStorageKey}:email`);
                 router.visit('/login');
             }
         };
@@ -112,17 +134,9 @@ export default function GoogleCallback() {
     };
 
     const handleResendOtp = async () => {
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get('code');
-        if (!code) {
-            toast.error('Không tìm thấy mã xác thực Google cũ, vui lòng đăng nhập lại.');
-            router.visit('/login');
-            return;
-        }
-
         setIsSubmitting(true);
         try {
-            const response = await apiClient.post('/auth/google/callback', { code, email });
+            const response = await apiClient.post('/auth/google/resend-otp', { email });
             if (response.data.success && response.data.need_otp) {
                 toast.success('Mã OTP mới đã được gửi về hòm thư của bạn.');
                 setOtpCode('');

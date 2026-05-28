@@ -25,6 +25,7 @@ Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login']);
     Route::get('/google/url', [AuthController::class, 'googleUrl']);
     Route::post('/google/callback', [AuthController::class, 'googleCallback']);
+    Route::post('/google/resend-otp', [AuthController::class, 'googleResendOtp']);
     Route::post('/google/verify-otp', [AuthController::class, 'googleVerifyOtp']);
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);

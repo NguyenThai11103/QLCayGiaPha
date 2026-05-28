@@ -76,7 +76,11 @@ class AuthController extends Controller
             // Trả về trực tiếp trang callback của frontend với mock code một cách động
             $url = url('/auth/google/callback?code=mock_authorization_code');
         } else {
-            $url = Socialite::driver('google')->stateless()->redirect()->getTargetUrl();
+            $url = Socialite::driver('google')
+                ->redirectUrl(config('services.google.redirect'))
+                ->stateless()
+                ->redirect()
+                ->getTargetUrl();
         }
 
         return response()->json([
@@ -114,7 +118,10 @@ class AuthController extends Controller
         } else {
             try {
                 // Socialite driver google stateless exchange token from code
-                $googleUser = Socialite::driver('google')->stateless()->user();
+                $googleUser = Socialite::driver('google')
+                    ->redirectUrl(config('services.google.redirect'))
+                    ->stateless()
+                    ->user();
             } catch (\Exception $e) {
                 return response()->json([
                     'success' => false,
@@ -249,6 +256,43 @@ class AuthController extends Controller
                 'user'  => $user,
                 'token' => $authToken
             ]
+        ]);
+    }
+
+    public function googleResendOtp(Request $request)
+    {
+        $data = $request->validate([
+            'email' => ['required', 'email', 'exists:nguoi_dungs,email'],
+        ], [
+            'email.required' => 'Vui lòng nhập địa chỉ email.',
+            'email.email'    => 'Địa chỉ email không đúng định dạng.',
+            'email.exists'   => 'Email tài khoản không tồn tại trên hệ thống.',
+        ]);
+
+        $otpCode = (string) rand(100000, 999999);
+
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $data['email']],
+            [
+                'token'      => Hash::make($otpCode),
+                'created_at' => now(),
+            ]
+        );
+
+        try {
+            Mail::to($data['email'])->send(new GoogleLoginOtpEmail($otpCode));
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể gửi lại mã OTP xác nhận. Vui lòng thử lại sau.',
+            ], 500);
+        }
+
+        return response()->json([
+            'success'  => true,
+            'need_otp' => true,
+            'email'    => $data['email'],
+            'message'  => 'Mã OTP mới đã được gửi về email của bạn.',
         ]);
     }
 

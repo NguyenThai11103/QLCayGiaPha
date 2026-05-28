@@ -205,12 +205,20 @@ export interface MoPhan {
     id: number;
     dong_ho_id: number;
     thanh_vien_id: number;
+    khu_mo_id?: number | null;
     vi_do: number;
     kinh_do: number;
     ghi_chu: string | null;
+    anh_mo_path?: string | null;
+    anh_mo_url?: string | null;
     nguoi_cap_nhat_id: number | null;
     ten_thanh_vien?: string | null;
+    doi_thu?: number | null;
     tinh_trang_song?: number | null;
+    ten_khu_mo?: string | null;
+    dia_chi_khu_mo?: string | null;
+    vi_do_khu_mo?: number | null;
+    kinh_do_khu_mo?: number | null;
     ten_nguoi_cap_nhat?: string | null;
     created_at: string;
     updated_at: string;
@@ -218,15 +226,85 @@ export interface MoPhan {
 
 export interface MoPhanPayload {
     thanh_vien_id: number;
+    khu_mo_id?: number | null;
     vi_do: number;
     kinh_do: number;
     ghi_chu?: string | null;
+    anh_mo?: File | null;
 }
 
 export type MoPhanUpdatePayload = Partial<Omit<MoPhanPayload, 'thanh_vien_id'>> & { id: number };
 
+export interface MoPhanHistory {
+    id: number;
+    mo_phan_id: number;
+    nguoi_cap_nhat_id: number | null;
+    ten_nguoi_cap_nhat?: string | null;
+    vi_do_cu: number | null;
+    kinh_do_cu: number | null;
+    vi_do_moi: number | null;
+    kinh_do_moi: number | null;
+    ghi_chu_cu: string | null;
+    ghi_chu_moi: string | null;
+    anh_mo_cu: string | null;
+    anh_mo_moi: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface KhuMo {
+    id: number;
+    dong_ho_id: number;
+    ten_khu_mo: string;
+    dia_chi: string | null;
+    vi_do: number;
+    kinh_do: number;
+    mo_ta: string | null;
+    anh_khu_mo_url?: string | null;
+    nguoi_cap_nhat_id?: number | null;
+    ten_nguoi_cap_nhat?: string | null;
+    so_mo_phan?: number | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface KhuMoPayload {
+    id?: number;
+    dong_ho_id?: number;
+    ten_khu_mo: string;
+    dia_chi?: string | null;
+    vi_do: number;
+    kinh_do: number;
+    mo_ta?: string | null;
+    anh_khu_mo?: File | null;
+}
+
+export interface OpenMapDirectionSummary {
+    distanceText: string;
+    durationText: string;
+    raw: any;
+}
+
+function moPhanFormData(payload: MoPhanPayload | MoPhanUpdatePayload) {
+    const formData = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+        if (value === undefined || value === null) return;
+        formData.append(key, value instanceof File ? value : String(value));
+    });
+    return formData;
+}
+
+function formDataFromObject(payload: Record<string, unknown>) {
+    const formData = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+        if (value === undefined || value === null) return;
+        formData.append(key, value instanceof File ? value : String(value));
+    });
+    return formData;
+}
+
 export const moPhanApi = {
-    async list(params?: { dong_ho_id?: number | string; thanh_vien_id?: number | string }) {
+    async list(params?: { dong_ho_id?: number | string; thanh_vien_id?: number | string; doi_thu?: number | string; khu_mo_id?: number | string }) {
         const response = await apiClient.get<ApiResponse<MoPhan[]>>('/mo-phan/list', { params });
         return response.data;
     },
@@ -237,17 +315,57 @@ export const moPhanApi = {
     },
 
     async create(payload: MoPhanPayload) {
-        const response = await apiClient.post<ApiResponse>('/mo-phan/create', payload);
+        const response = await apiClient.post<ApiResponse>('/mo-phan/create', moPhanFormData(payload));
         return response.data;
     },
 
     async update(payload: MoPhanUpdatePayload) {
-        const response = await apiClient.post<ApiResponse>('/mo-phan/update', payload);
+        const response = await apiClient.post<ApiResponse>('/mo-phan/update', moPhanFormData(payload));
+        return response.data;
+    },
+
+    async history(id: number | string) {
+        const response = await apiClient.get<ApiResponse<MoPhanHistory[]>>('/mo-phan/history', { params: { id } });
         return response.data;
     },
 
     async delete(id: number) {
         const response = await apiClient.post<ApiResponse>('/mo-phan/delete', { id });
         return response.data;
+    },
+};
+
+function directionSummary(raw: any): OpenMapDirectionSummary {
+    const route = raw?.routes?.[0] || raw?.data?.routes?.[0] || null;
+    const leg = route?.legs?.[0] || null;
+    const distance = leg?.distance?.text || route?.distance?.text || (typeof route?.distance === 'number' ? `${(route.distance / 1000).toFixed(1)} km` : 'Chưa rõ');
+    const duration = leg?.duration?.text || route?.duration?.text || (typeof route?.duration === 'number' ? `${Math.round(route.duration / 60)} phút` : 'Chưa rõ');
+    return { distanceText: distance, durationText: duration, raw };
+}
+
+export const khuMoApi = {
+    async list(params?: { dong_ho_id?: number | string }) {
+        const response = await apiClient.get<ApiResponse<KhuMo[]>>('/khu-mo/list', { params });
+        return response.data;
+    },
+
+    async create(payload: KhuMoPayload) {
+        const response = await apiClient.post<ApiResponse>('/khu-mo/create', formDataFromObject(payload as unknown as Record<string, unknown>));
+        return response.data;
+    },
+
+    async update(payload: KhuMoPayload & { id: number }) {
+        const response = await apiClient.post<ApiResponse>('/khu-mo/update', formDataFromObject(payload as unknown as Record<string, unknown>));
+        return response.data;
+    },
+
+    async delete(id: number) {
+        const response = await apiClient.post<ApiResponse>('/khu-mo/delete', { id });
+        return response.data;
+    },
+
+    async direction(params: { origin: string; destination: string; vehicle?: 'car' | 'bike' | 'motor' | 'taxi' | 'truck' | 'walking' }) {
+        const response = await apiClient.get<ApiResponse<any>>('/khu-mo/direction', { params });
+        return response.data.success ? { ...response.data, data: directionSummary(response.data.data) } : response.data;
     },
 };

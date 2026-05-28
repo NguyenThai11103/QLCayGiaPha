@@ -14,9 +14,12 @@ class MoPhan extends Model
     protected $fillable = [
         'dong_ho_id',
         'thanh_vien_id',
+        'khu_mo_id',
         'vi_do',
         'kinh_do',
         'ghi_chu',
+        'anh_mo_path',
+        'anh_mo_disk',
         'nguoi_cap_nhat_id',
     ];
 

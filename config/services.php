@@ -54,4 +54,9 @@ return [
         'redirect'      => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    'openmap' => [
+        'api_key' => env('OPENMAP_API_KEY'),
+        'base_url' => env('OPENMAP_BASE_URL', 'https://mapapis.openmap.vn/v1'),
+    ],
+
 ];

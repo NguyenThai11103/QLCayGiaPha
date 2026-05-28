@@ -156,25 +156,27 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                             {/* Hero Card */}
                             <div style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', overflow: 'hidden', boxShadow: 'var(--shadow-md)' }}>
                                 {/* Banner gradient */}
-                                <div style={{ height: 90, background: avatarGrad(tv.ten_day_du), position: 'relative' }}>
+                                <div style={{ height: 88, background: avatarGrad(tv.ten_day_du), position: 'relative' }}>
                                     <div style={{ position: 'absolute', inset: 0, opacity: 0.15, backgroundImage: 'radial-gradient(circle at 30% 40%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
                                 </div>
 
-                                <div style={{ padding: '0 24px 24px', marginTop: -44 }}>
+                                <div style={{ padding: '0 24px 24px' }}>
                                     {/* Avatar */}
-                                    {tv.anh_dai_dien ? (
-                                        <img
-                                            src={tv.anh_dai_dien}
-                                            alt={tv.ten_day_du}
-                                            style={{ width: 80, height: 80, borderRadius: '50%', border: '3px solid var(--bg-elev)', objectFit: 'cover', boxShadow: 'var(--shadow-md)', display: 'block', marginBottom: 12 }}
-                                        />
-                                    ) : (
-                                        <div style={{ width: 80, height: 80, borderRadius: '50%', border: '3px solid var(--bg-elev)', background: avatarGrad(tv.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 28, fontWeight: 700, color: 'white', boxShadow: 'var(--shadow-md)', marginBottom: 12 }}>
-                                            {initials(tv.ten_day_du)}
-                                        </div>
-                                    )}
+                                    <div style={{ marginTop: -42, marginBottom: 14 }}>
+                                        {tv.anh_dai_dien ? (
+                                            <img
+                                                src={tv.anh_dai_dien}
+                                                alt={tv.ten_day_du}
+                                                style={{ width: 80, height: 80, borderRadius: '50%', border: '3px solid var(--bg-elev)', objectFit: 'cover', boxShadow: 'var(--shadow-md)', display: 'block' }}
+                                            />
+                                        ) : (
+                                            <div style={{ width: 80, height: 80, borderRadius: '50%', border: '3px solid var(--bg-elev)', background: avatarGrad(tv.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 28, fontWeight: 700, color: 'white', boxShadow: 'var(--shadow-md)' }}>
+                                                {initials(tv.ten_day_du)}
+                                            </div>
+                                        )}
+                                    </div>
 
-                                    <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', margin: '0 0 4px', fontFamily: 'Cormorant Garamond, serif' }}>
+                                    <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', margin: '0 0 8px', fontFamily: 'Cormorant Garamond, serif', lineHeight: 1.15, overflowWrap: 'anywhere' }}>
                                         {tv.ten_day_du}
                                     </h1>
 

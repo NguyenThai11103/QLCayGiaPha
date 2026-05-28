@@ -170,8 +170,10 @@ class TaiLieuController extends Controller
                 $this->deleteStoredFile($existing);
             }
 
-            $data['duong_dan_file'] = Storage::disk($disk)->url($path);
-            $data['loai_file'] = $file->getMimeType() ?: $file->getClientOriginalExtension();
+            $extension = strtolower($file->getClientOriginalExtension() ?: $file->extension() ?: '');
+
+            $data['duong_dan_file'] = '/storage/' . $path;
+            $data['loai_file'] = $extension ?: 'other';
             $data['ten_file_goc'] = $file->getClientOriginalName();
             $data['mime_type'] = $file->getMimeType();
             $data['kich_thuoc'] = $file->getSize();

@@ -119,13 +119,13 @@ export default function ProfilePage() {
                 {/* ─── Profile Hero ──────────────────────── */}
                 <div style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', overflow: 'hidden', marginBottom: 24, boxShadow: 'var(--shadow-md)' }}>
                     {/* Banner */}
-                    <div style={{ height: 100, background: avatarGrad(displayName), position: 'relative' }}>
+                    <div style={{ height: 96, background: avatarGrad(displayName), position: 'relative' }}>
                         <div style={{ position: 'absolute', inset: 0, opacity: 0.12, backgroundImage: 'radial-gradient(circle at 30% 40%, white 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
                     </div>
-                    <div style={{ padding: '0 28px 24px', marginTop: -36, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16 }}>
+                    <div style={{ padding: '18px 28px 24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, minWidth: 0, flex: '1 1 360px' }}>
                             {/* Avatar */}
-                            <div style={{ position: 'relative' }}>
+                            <div style={{ position: 'relative', marginTop: -56, flexShrink: 0 }}>
                                 {profile.anh_dai_dien ? (
                                     <img src={profile.anh_dai_dien} alt={displayName} style={{ width: 76, height: 76, borderRadius: '50%', border: '3px solid var(--bg-elev)', objectFit: 'cover', boxShadow: 'var(--shadow-md)', display: 'block' }} />
                                 ) : (
@@ -134,21 +134,21 @@ export default function ProfilePage() {
                                     </div>
                                 )}
                             </div>
-                            <div style={{ paddingBottom: 4 }}>
-                                <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', margin: '0 0 3px', fontFamily: 'Cormorant Garamond, serif' }}>{displayName}</h1>
-                                <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <div style={{ minWidth: 0, paddingTop: 2 }}>
+                                <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink)', margin: '0 0 5px', fontFamily: 'Cormorant Garamond, serif', lineHeight: 1.15, overflowWrap: 'anywhere' }}>{displayName}</h1>
+                                <div style={{ fontSize: 12.5, color: 'var(--ink-mute)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', lineHeight: 1.5 }}>
                                     <span style={{ padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: user?.is_master === 1 ? 'color-mix(in srgb, var(--gold) 15%, transparent)' : 'var(--card-soft)', color: user?.is_master === 1 ? 'var(--gold)' : 'var(--ink-mute)', border: `1px solid ${user?.is_master === 1 ? 'color-mix(in srgb, var(--gold) 25%, transparent)' : 'var(--line)'}` }}>
                                         {role}
                                     </span>
-                                    <span>{user?.email}</span>
+                                    <span style={{ overflowWrap: 'anywhere' }}>{user?.email}</span>
                                 </div>
                             </div>
                         </div>
 
                         {user?.dong_ho && (
-                            <div style={{ padding: '8px 14px', borderRadius: 12, background: 'var(--gold-glow)', border: '1px solid var(--gold-pale)', textAlign: 'right' }}>
+                            <div style={{ padding: '8px 14px', borderRadius: 12, background: 'var(--gold-glow)', border: '1px solid var(--gold-pale)', textAlign: 'right', maxWidth: '100%' }}>
                                 <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 2 }}>Dòng họ</div>
-                                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--brown)', fontFamily: 'Cormorant Garamond, serif' }}>{user.dong_ho.ten_dong_ho}</div>
+                                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--brown)', fontFamily: 'Cormorant Garamond, serif', overflowWrap: 'anywhere' }}>{user.dong_ho.ten_dong_ho}</div>
                             </div>
                         )}
                     </div>

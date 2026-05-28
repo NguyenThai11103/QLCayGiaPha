@@ -1,5 +1,6 @@
 import { Head, router } from '@inertiajs/react';
 import Icon from '../../components/gia-pha/Icon';
+import { useAuth } from '../../contexts/auth.context';
 
 const stats = [
     ['12K+', 'Dòng họ'],
@@ -25,6 +26,15 @@ const timeline = [
 ];
 
 export default function Landing() {
+    const { user, isAuthenticated, isLoading } = useAuth();
+    const displayName = user?.ten_goi_nho || user?.ho_va_ten || 'Người dùng';
+    const initials = displayName
+        .split(' ')
+        .filter(Boolean)
+        .slice(-2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join('') || 'G';
+
     return (
         <>
             <Head title="Gia Phả - Lưu giữ nguồn cội" />
@@ -41,13 +51,30 @@ export default function Landing() {
                     </button>
 
                     <div className="flex items-center gap-3">
-                        <button type="button" className="gp-btn gp-btn-ghost hidden sm:inline-flex" onClick={() => router.visit('/login')}>
-                            Đăng nhập
-                        </button>
+                        {!isAuthenticated && !isLoading && (
+                            <button type="button" className="gp-btn gp-btn-ghost hidden sm:inline-flex" onClick={() => router.visit('/login')}>
+                                Đăng nhập
+                            </button>
+                        )}
                         <button type="button" className="gp-btn gp-btn-primary" onClick={() => router.visit('/gia-pha/dashboard')}>
                             Vào không gian họ
                             <Icon name="arrow-right" size={16} />
                         </button>
+                        {isAuthenticated && (
+                            <button
+                                type="button"
+                                className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-[var(--line)] bg-[linear-gradient(135deg,var(--gold-soft),var(--terracotta))] text-[13px] font-bold text-white shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-md)]"
+                                onClick={() => router.visit('/profile')}
+                                title={displayName}
+                                aria-label={`Hồ sơ của ${displayName}`}
+                            >
+                                {user?.anh_dai_dien ? (
+                                    <img src={user.anh_dai_dien} alt={displayName} className="h-full w-full object-cover" />
+                                ) : (
+                                    initials
+                                )}
+                            </button>
+                        )}
                     </div>
                 </header>
 

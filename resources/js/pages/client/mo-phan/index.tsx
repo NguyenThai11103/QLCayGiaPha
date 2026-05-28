@@ -4,13 +4,24 @@ import Icon from '../../../components/gia-pha/Icon';
 import { useAuth } from '../../../contexts/auth.context';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import toast from '../../../lib/toast.util';
-import { MoPhan, Nguoi, moPhanApi, nguoiApi } from '../../../services/gia-pha.api';
+import { KhuMo, KhuMoPayload, MoPhan, MoPhanHistory, Nguoi, khuMoApi, moPhanApi, nguoiApi } from '../../../services/gia-pha.api';
 
 interface MoPhanFormState {
     thanh_vien_id: string;
+    khu_mo_id: string;
     vi_do: string;
     kinh_do: string;
     ghi_chu: string;
+    anh_mo: File | null;
+}
+
+interface KhuMoFormState {
+    ten_khu_mo: string;
+    dia_chi: string;
+    vi_do: string;
+    kinh_do: string;
+    mo_ta: string;
+    anh_khu_mo: File | null;
 }
 
 function formatDateTime(value: string | null | undefined): string {
@@ -31,8 +42,27 @@ function mapUrl(viDo: number | string, kinhDo: number | string): string {
     return `https://www.google.com/maps?q=${viDo},${kinhDo}`;
 }
 
+function openMapPlaceUrl(viDo: number | string, kinhDo: number | string): string {
+    return `https://www.openmap.vn/place/latlon%3A${viDo}%3A${kinhDo}`;
+}
+
 function isDeceased(member: Nguoi): boolean {
     return member.da_mat === true || member.da_mat === 1;
+}
+
+function memberBranch(member: Nguoi, memberById: Map<number, Nguoi>): Nguoi {
+    let current = member;
+    const seen = new Set<number>();
+
+    while ((current.id_cha || current.id_me) && !seen.has(current.id)) {
+        seen.add(current.id);
+        const parent = (current.id_cha ? memberById.get(Number(current.id_cha)) : null)
+            || (current.id_me ? memberById.get(Number(current.id_me)) : null);
+        if (!parent) break;
+        current = parent;
+    }
+
+    return current;
 }
 
 function getInitialMemberId(): string {
@@ -51,15 +81,23 @@ function getErrorMessage(error: unknown, fallback: string): string {
 export default function MoPhanPage() {
     const { user } = useAuth();
     const [moPhans, setMoPhans] = useState<MoPhan[]>([]);
+    const [khuMos, setKhuMos] = useState<KhuMo[]>([]);
     const [members, setMembers] = useState<Nguoi[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState('');
     const [search, setSearch] = useState('');
+    const [doiFilter, setDoiFilter] = useState('');
+    const [branchFilter, setBranchFilter] = useState('');
+    const [khuMoFilter, setKhuMoFilter] = useState('');
     const initialMemberIdRef = useRef(getInitialMemberId());
     const autoOpenedMemberIdRef = useRef('');
     const [selectedMemberId, setSelectedMemberId] = useState(initialMemberIdRef.current);
     const [editing, setEditing] = useState<MoPhan | null>(null);
     const [draftMember, setDraftMember] = useState<Nguoi | null>(null);
+    const [historyTarget, setHistoryTarget] = useState<MoPhan | null>(null);
+    const [khuMoModalOpen, setKhuMoModalOpen] = useState(false);
+    const [editingKhuMo, setEditingKhuMo] = useState<KhuMo | null>(null);
+    const [directionTarget, setDirectionTarget] = useState<{ title: string; lat: number; lng: number } | null>(null);
 
     const familyId = user?.dong_ho_id || user?.dong_ho?.id;
     const canDelete = user?.quyen_han === 'quan_ly';
@@ -68,13 +106,15 @@ export default function MoPhanPage() {
         setLoading(true);
         setLoadError('');
         try {
-            const [moRes, nguoiRes] = await Promise.all([
+            const [moRes, nguoiRes, khuRes] = await Promise.all([
                 moPhanApi.list(familyId ? { dong_ho_id: familyId } : undefined),
                 nguoiApi.list(familyId),
+                khuMoApi.list(familyId ? { dong_ho_id: familyId } : undefined),
             ]);
 
             if (moRes.success) setMoPhans(moRes.data || []);
             if (nguoiRes.success) setMembers(nguoiRes.data || []);
+            if (khuRes.success) setKhuMos(khuRes.data || []);
         } catch (error) {
             setLoadError(getErrorMessage(error, 'Không thể tải dữ liệu mộ phần.'));
         } finally {
@@ -87,11 +127,27 @@ export default function MoPhanPage() {
     }, [familyId]);
 
     const deceasedMembers = useMemo(() => members.filter(isDeceased), [members]);
+    const memberById = useMemo(() => {
+        const map = new Map<number, Nguoi>();
+        members.forEach((member) => map.set(Number(member.id), member));
+        return map;
+    }, [members]);
     const graveByMemberId = useMemo(() => {
         const map = new Map<number, MoPhan>();
         moPhans.forEach((item) => map.set(Number(item.thanh_vien_id), item));
         return map;
     }, [moPhans]);
+    const doiOptions = useMemo(() => {
+        return Array.from(new Set(deceasedMembers.map((member) => member.doi_thu).filter(Boolean) as number[])).sort((a, b) => a - b);
+    }, [deceasedMembers]);
+    const branchOptions = useMemo(() => {
+        const map = new Map<number, Nguoi>();
+        deceasedMembers.forEach((member) => {
+            const branch = memberBranch(member, memberById);
+            map.set(branch.id, branch);
+        });
+        return Array.from(map.values()).sort((a, b) => a.ten_day_du.localeCompare(b.ten_day_du, 'vi'));
+    }, [deceasedMembers, memberById]);
 
     useEffect(() => {
         const memberId = initialMemberIdRef.current;
@@ -119,11 +175,15 @@ export default function MoPhanPage() {
             }))
             .filter(({ member }) => {
                 if (selectedMemberId && String(member.id) !== selectedMemberId) return false;
+                if (doiFilter && String(member.doi_thu || '') !== doiFilter) return false;
+                if (branchFilter && String(memberBranch(member, memberById).id) !== branchFilter) return false;
+                const grave = graveByMemberId.get(member.id) || null;
+                if (khuMoFilter && String(grave?.khu_mo_id || '') !== khuMoFilter) return false;
                 if (!keyword) return true;
 
                 return member.ten_day_du.toLowerCase().includes(keyword);
             });
-    }, [deceasedMembers, graveByMemberId, search, selectedMemberId]);
+    }, [deceasedMembers, graveByMemberId, search, selectedMemberId, doiFilter, branchFilter, khuMoFilter, memberById]);
 
     const withLocation = deceasedMembers.filter((member) => graveByMemberId.has(member.id)).length;
     const withoutLocation = deceasedMembers.length - withLocation;
@@ -202,6 +262,16 @@ export default function MoPhanPage() {
                     <StatCard label="Chưa có tọa độ" value={withoutLocation} icon="map" color="terracotta" />
                 </div>
 
+                <KhuMoSection
+                    khuMos={khuMos}
+                    canManage={canDelete}
+                    onCreate={() => { setEditingKhuMo(null); setKhuMoModalOpen(true); }}
+                    onEdit={(khuMo) => { setEditingKhuMo(khuMo); setKhuMoModalOpen(true); }}
+                    onDirection={(khuMo) => setDirectionTarget({ title: khuMo.ten_khu_mo, lat: Number(khuMo.vi_do), lng: Number(khuMo.kinh_do) })}
+                />
+
+                <MoPhanMapPanel rows={rows.filter(({ moPhan }) => moPhan)} />
+
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
                     <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
                         <Icon name="search" size={14} color="var(--ink-mute)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
@@ -224,8 +294,41 @@ export default function MoPhanPage() {
                         ))}
                     </select>
 
-                    {selectedMemberId && (
-                        <button type="button" onClick={() => setSelectedMemberId('')} className="gp-btn gp-btn-ghost">
+                    <select
+                        value={doiFilter}
+                        onChange={(event) => setDoiFilter(event.target.value)}
+                        style={{ padding: '10px 34px 10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-elev)', color: 'var(--ink)', fontSize: 13, minWidth: 150 }}
+                    >
+                        <option value="">Tất cả đời</option>
+                        {doiOptions.map((doi) => (
+                            <option key={doi} value={doi}>Đời {doi}</option>
+                        ))}
+                    </select>
+
+                    <select
+                        value={branchFilter}
+                        onChange={(event) => setBranchFilter(event.target.value)}
+                        style={{ padding: '10px 34px 10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-elev)', color: 'var(--ink)', fontSize: 13, minWidth: 210 }}
+                    >
+                        <option value="">Tất cả nhánh</option>
+                        {branchOptions.map((branch) => (
+                            <option key={branch.id} value={branch.id}>Nhánh {branch.ten_day_du}</option>
+                        ))}
+                    </select>
+
+                    <select
+                        value={khuMoFilter}
+                        onChange={(event) => setKhuMoFilter(event.target.value)}
+                        style={{ padding: '10px 34px 10px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-elev)', color: 'var(--ink)', fontSize: 13, minWidth: 190 }}
+                    >
+                        <option value="">Tất cả khu mộ</option>
+                        {khuMos.map((khuMo) => (
+                            <option key={khuMo.id} value={khuMo.id}>{khuMo.ten_khu_mo}</option>
+                        ))}
+                    </select>
+
+                    {(selectedMemberId || doiFilter || branchFilter || khuMoFilter) && (
+                        <button type="button" onClick={() => { setSelectedMemberId(''); setDoiFilter(''); setBranchFilter(''); setKhuMoFilter(''); }} className="gp-btn gp-btn-ghost">
                             Bỏ lọc
                         </button>
                     )}
@@ -261,6 +364,13 @@ export default function MoPhanPage() {
                                 onUpdate={() => moPhan && openUpdate(moPhan)}
                                 onDelete={() => moPhan && void handleDelete(moPhan)}
                                 onCopy={() => moPhan && void copyLocation(moPhan)}
+                                onHistory={() => moPhan && setHistoryTarget(moPhan)}
+                                onDirection={() => {
+                                    if (!moPhan) return;
+                                    const lat = Number(moPhan.vi_do || moPhan.vi_do_khu_mo);
+                                    const lng = Number(moPhan.kinh_do || moPhan.kinh_do_khu_mo);
+                                    setDirectionTarget({ title: member.ten_day_du, lat, lng });
+                                }}
                             />
                         ))}
                     </div>
@@ -272,12 +382,34 @@ export default function MoPhanPage() {
                     members={deceasedMembers}
                     initialMember={draftMember}
                     editing={editing}
+                    khuMos={khuMos}
                     onClose={closeModal}
                     onSaved={async () => {
                         closeModal();
                         await loadData();
                     }}
                 />
+            )}
+
+            {historyTarget && (
+                <MoPhanHistoryModal moPhan={historyTarget} onClose={() => setHistoryTarget(null)} />
+            )}
+
+            {khuMoModalOpen && familyId && (
+                <KhuMoFormModal
+                    dongHoId={Number(familyId)}
+                    editing={editingKhuMo}
+                    onClose={() => { setKhuMoModalOpen(false); setEditingKhuMo(null); }}
+                    onSaved={async () => {
+                        setKhuMoModalOpen(false);
+                        setEditingKhuMo(null);
+                        await loadData();
+                    }}
+                />
+            )}
+
+            {directionTarget && (
+                <DirectionModal target={directionTarget} onClose={() => setDirectionTarget(null)} />
             )}
         </AuthenticatedLayout>
     );
@@ -297,6 +429,130 @@ function StatCard({ label, value, icon, color }: { label: string; value: number;
     );
 }
 
+function KhuMoSection({ khuMos, canManage, onCreate, onEdit, onDirection }: { khuMos: KhuMo[]; canManage: boolean; onCreate: () => void; onEdit: (khuMo: KhuMo) => void; onDirection: (khuMo: KhuMo) => void }) {
+    return (
+        <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)', padding: 18, marginBottom: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 14 }}>
+                <div>
+                    <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 3 }}>Khu mộ</div>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>Các khu an nghỉ của dòng họ</div>
+                </div>
+                {canManage && (
+                    <button type="button" onClick={onCreate} className="gp-btn gp-btn-primary">
+                        <Icon name="plus" size={14} />
+                        Thêm khu mộ
+                    </button>
+                )}
+            </div>
+
+            {khuMos.length === 0 ? (
+                <div style={{ borderRadius: 12, border: '1px dashed var(--line)', padding: 18, color: 'var(--ink-mute)', fontSize: 13 }}>
+                    Chưa có khu mộ. Hãy tạo khu mộ để nhóm các mộ phần cùng địa điểm.
+                </div>
+            ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+                    {khuMos.map((khuMo) => (
+                        <div key={khuMo.id} style={{ border: '1px solid var(--line)', borderRadius: 14, background: 'var(--card-soft)', overflow: 'hidden' }}>
+                            {khuMo.anh_khu_mo_url && (
+                                <img src={khuMo.anh_khu_mo_url} alt={khuMo.ten_khu_mo} style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
+                            )}
+                            <div style={{ padding: 14 }}>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>{khuMo.ten_khu_mo}</div>
+                                <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginTop: 3 }}>{khuMo.dia_chi || 'Chưa có địa chỉ'}</div>
+                                <div style={{ fontSize: 12, color: 'var(--ink-soft)', marginTop: 8 }}>
+                                    {khuMo.so_mo_phan || 0} mộ phần · {Number(khuMo.vi_do).toFixed(6)}, {Number(khuMo.kinh_do).toFixed(6)}
+                                </div>
+                                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                                    <button type="button" onClick={() => onDirection(khuMo)} className="gp-btn gp-btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>
+                                        <Icon name="map" size={14} />
+                                        Chỉ đường
+                                    </button>
+                                    {canManage && (
+                                        <button type="button" onClick={() => onEdit(khuMo)} className="gp-btn gp-btn-ghost" title="Sửa khu mộ">
+                                            <Icon name="edit" size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function MoPhanMapPanel({ rows }: { rows: Array<{ member: Nguoi; moPhan: MoPhan | null }> }) {
+    const points = rows
+        .filter((row): row is { member: Nguoi; moPhan: MoPhan } => !!row.moPhan)
+        .map(({ member, moPhan }) => ({
+            member,
+            moPhan,
+            lat: Number(moPhan.vi_do),
+            lng: Number(moPhan.kinh_do),
+        }))
+        .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lng));
+
+    const bounds = useMemo(() => {
+        if (points.length === 0) return null;
+        const latValues = points.map((point) => point.lat);
+        const lngValues = points.map((point) => point.lng);
+        const minLat = Math.min(...latValues);
+        const maxLat = Math.max(...latValues);
+        const minLng = Math.min(...lngValues);
+        const maxLng = Math.max(...lngValues);
+        return {
+            minLat,
+            maxLat,
+            minLng,
+            maxLng,
+            latRange: Math.max(maxLat - minLat, 0.0001),
+            lngRange: Math.max(maxLng - minLng, 0.0001),
+        };
+    }, [points]);
+
+    return (
+        <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', marginBottom: 18 }}>
+            <div style={{ padding: '16px 18px', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', borderBottom: '1px solid var(--line-soft)' }}>
+                <div>
+                    <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 3 }}>Bản đồ dòng họ</div>
+                    <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>Danh sách mộ phần có tọa độ</div>
+                </div>
+                <div style={{ fontSize: 12.5, color: 'var(--ink-mute)' }}>{points.length} vị trí</div>
+            </div>
+
+            <div style={{ position: 'relative', height: 320, background: 'linear-gradient(135deg, color-mix(in srgb, var(--jade) 8%, transparent), color-mix(in srgb, var(--gold) 12%, transparent))' }}>
+                <div style={{ position: 'absolute', inset: 0, opacity: 0.36, backgroundImage: 'linear-gradient(var(--line-soft) 1px, transparent 1px), linear-gradient(90deg, var(--line-soft) 1px, transparent 1px)', backgroundSize: '36px 36px' }} />
+                {points.length === 0 || !bounds ? (
+                    <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', textAlign: 'center', color: 'var(--ink-mute)', fontSize: 13 }}>
+                        Chưa có tọa độ để hiển thị trên bản đồ.
+                    </div>
+                ) : (
+                    points.map((point, index) => {
+                        const left = ((point.lng - bounds.minLng) / bounds.lngRange) * 86 + 7;
+                        const top = (1 - ((point.lat - bounds.minLat) / bounds.latRange)) * 78 + 11;
+
+                        return (
+                            <a
+                                key={`${point.moPhan.id}-${index}`}
+                                href={mapUrl(point.moPhan.vi_do, point.moPhan.kinh_do)}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={`${point.member.ten_day_du} - ${Number(point.moPhan.vi_do).toFixed(7)}, ${Number(point.moPhan.kinh_do).toFixed(7)}`}
+                                style={{ position: 'absolute', left: `${left}%`, top: `${top}%`, transform: 'translate(-50%, -100%)', textDecoration: 'none' }}
+                            >
+                                <span style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: '50% 50% 50% 4px', transform: 'rotate(-45deg)', background: 'linear-gradient(135deg, var(--gold), var(--brown-soft))', color: 'white', boxShadow: '0 8px 20px rgba(92,58,30,0.24)', border: '2px solid var(--bg-elev)' }}>
+                                    <span style={{ transform: 'rotate(45deg)', fontSize: 11, fontWeight: 800 }}>{index + 1}</span>
+                                </span>
+                            </a>
+                        );
+                    })
+                )}
+            </div>
+        </div>
+    );
+}
+
 function MoPhanCard({
     member,
     moPhan,
@@ -305,6 +561,8 @@ function MoPhanCard({
     onUpdate,
     onDelete,
     onCopy,
+    onHistory,
+    onDirection,
 }: {
     member: Nguoi;
     moPhan: MoPhan | null;
@@ -313,6 +571,8 @@ function MoPhanCard({
     onUpdate: () => void;
     onDelete: () => void;
     onCopy: () => void;
+    onHistory: () => void;
+    onDirection: () => void;
 }) {
     return (
         <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', padding: 16, boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -332,6 +592,12 @@ function MoPhanCard({
 
             {moPhan ? (
                 <>
+                    {moPhan.anh_mo_url && (
+                        <a href={moPhan.anh_mo_url} target="_blank" rel="noreferrer" style={{ display: 'block', height: 150, borderRadius: 12, overflow: 'hidden', border: '1px solid var(--line-soft)', background: 'var(--card-soft)' }}>
+                            <img src={moPhan.anh_mo_url} alt={`Ảnh mộ ${member.ten_day_du}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        </a>
+                    )}
+
                     <div style={{ borderRadius: 12, background: 'var(--card-soft)', border: '1px solid var(--line-soft)', padding: 12 }}>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
                             <CoordinatePill label="Vĩ độ" value={Number(moPhan.vi_do).toFixed(7)} />
@@ -340,13 +606,18 @@ function MoPhanCard({
                         <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.55 }}>
                             {moPhan.ghi_chu || 'Chưa có ghi chú vị trí.'}
                         </div>
+                        {moPhan.ten_khu_mo && (
+                            <div style={{ fontSize: 12, color: 'var(--brown)', marginTop: 8, fontWeight: 700 }}>
+                                Khu mộ: {moPhan.ten_khu_mo}
+                            </div>
+                        )}
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <a href={mapUrl(moPhan.vi_do, moPhan.kinh_do)} target="_blank" rel="noreferrer" className="gp-btn gp-btn-ghost" style={{ justifyContent: 'center', textDecoration: 'none' }}>
+                        <button type="button" onClick={onDirection} className="gp-btn gp-btn-ghost" style={{ justifyContent: 'center' }}>
                             <Icon name="map" size={14} />
-                            Mở bản đồ
-                        </a>
+                            Chỉ đường
+                        </button>
                         <button type="button" onClick={onCopy} className="gp-btn gp-btn-ghost">
                             <Icon name="copy" size={14} />
                             Sao chép
@@ -356,8 +627,12 @@ function MoPhanCard({
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', borderTop: '1px solid var(--line-soft)', paddingTop: 12 }}>
                         <div style={{ fontSize: 11.5, color: 'var(--ink-mute)' }}>
                             Cập nhật: {formatDateTime(moPhan.updated_at)}
+                            {moPhan.ten_nguoi_cap_nhat ? ` bởi ${moPhan.ten_nguoi_cap_nhat}` : ''}
                         </div>
                         <div style={{ display: 'flex', gap: 6 }}>
+                            <button type="button" onClick={onHistory} className="gp-btn gp-btn-ghost" title="Lịch sử cập nhật">
+                                <Icon name="clock" size={14} />
+                            </button>
                             <button type="button" onClick={onUpdate} className="gp-btn gp-btn-ghost" title="Cập nhật mộ phần">
                                 <Icon name="edit" size={14} />
                             </button>
@@ -395,26 +670,30 @@ function MoPhanFormModal({
     members,
     initialMember,
     editing,
+    khuMos,
     onClose,
     onSaved,
 }: {
     members: Nguoi[];
     initialMember: Nguoi | null;
     editing: MoPhan | null;
+    khuMos: KhuMo[];
     onClose: () => void;
     onSaved: () => Promise<void>;
 }) {
     const [form, setForm] = useState<MoPhanFormState>({
         thanh_vien_id: String(editing?.thanh_vien_id || initialMember?.id || ''),
+        khu_mo_id: String(editing?.khu_mo_id || ''),
         vi_do: editing ? String(editing.vi_do) : '',
         kinh_do: editing ? String(editing.kinh_do) : '',
         ghi_chu: editing?.ghi_chu || '',
+        anh_mo: null,
     });
     const [saving, setSaving] = useState(false);
     const [gpsLoading, setGpsLoading] = useState(false);
     const [error, setError] = useState('');
 
-    const setField = (key: keyof MoPhanFormState, value: string) => {
+    const setField = (key: keyof MoPhanFormState, value: string | File | null) => {
         setForm((current) => ({ ...current, [key]: value }));
     };
 
@@ -469,9 +748,11 @@ function MoPhanFormModal({
 
         try {
             const payload = {
+                khu_mo_id: form.khu_mo_id ? Number(form.khu_mo_id) : null,
                 vi_do: viDo,
                 kinh_do: kinhDo,
                 ghi_chu: form.ghi_chu.trim() || null,
+                anh_mo: form.anh_mo,
             };
 
             const res = editing
@@ -521,6 +802,16 @@ function MoPhanFormModal({
                         </select>
                     </label>
 
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontWeight: 700 }}>Khu mộ</span>
+                        <select value={form.khu_mo_id} onChange={(event) => setField('khu_mo_id', event.target.value)} className="gp-input">
+                            <option value="">Mộ riêng lẻ / chưa gắn khu</option>
+                            {khuMos.map((khuMo) => (
+                                <option key={khuMo.id} value={khuMo.id}>{khuMo.ten_khu_mo}</option>
+                            ))}
+                        </select>
+                    </label>
+
                     <button type="button" onClick={useCurrentLocation} disabled={gpsLoading} className="gp-btn gp-btn-ghost" style={{ justifyContent: 'center', opacity: gpsLoading ? 0.65 : 1 }}>
                         <Icon name="crosshair" size={15} />
                         {gpsLoading ? 'Đang lấy vị trí...' : 'Lấy vị trí GPS hiện tại'}
@@ -543,6 +834,21 @@ function MoPhanFormModal({
                         <textarea value={form.ghi_chu} onChange={(event) => setField('ghi_chu', event.target.value)} className="gp-input" rows={4} placeholder="Ví dụ: Mộ nằm cạnh cây dừa to, hàng thứ hai bên trái..." style={{ resize: 'vertical' }} />
                     </label>
 
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontWeight: 700 }}>Ảnh mộ</span>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) => setField('anh_mo', event.target.files?.[0] || null)}
+                            className="gp-input"
+                        />
+                        {editing?.anh_mo_url && !form.anh_mo && (
+                            <a href={editing.anh_mo_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 700, textDecoration: 'none' }}>
+                                Xem ảnh hiện tại
+                            </a>
+                        )}
+                    </label>
+
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 6 }}>
                         <button type="button" onClick={onClose} className="gp-btn gp-btn-ghost">Hủy</button>
                         <button type="submit" disabled={saving} className="gp-btn gp-btn-primary" style={{ opacity: saving ? 0.65 : 1 }}>
@@ -551,6 +857,269 @@ function MoPhanFormModal({
                     </div>
                 </div>
             </form>
+        </div>
+    );
+}
+
+function MoPhanHistoryModal({ moPhan, onClose }: { moPhan: MoPhan; onClose: () => void }) {
+    const [items, setItems] = useState<MoPhanHistory[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        setLoading(true);
+        setError('');
+        moPhanApi.history(moPhan.id)
+            .then((res) => {
+                if (res.success) setItems(res.data || []);
+                else setError(res.message || 'Không thể tải lịch sử.');
+            })
+            .catch((err) => setError(getErrorMessage(err, 'Không thể tải lịch sử.')))
+            .finally(() => setLoading(false));
+    }, [moPhan.id]);
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', padding: 16 }}>
+            <div style={{ width: '100%', maxWidth: 720, maxHeight: '86vh', background: 'var(--bg-elev)', borderRadius: 18, border: '1px solid var(--line)', boxShadow: '0 24px 60px rgba(0,0,0,0.28)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ padding: '18px 22px', background: 'linear-gradient(135deg, var(--gold), var(--brown-soft))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                        <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 700, opacity: 0.8 }}>Lịch sử tọa độ</div>
+                        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{moPhan.ten_thanh_vien || 'Mộ phần'}</h2>
+                    </div>
+                    <button type="button" onClick={onClose} style={{ width: 32, height: 32, borderRadius: 999, border: 'none', background: 'rgba(255,255,255,0.18)', color: 'white', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+                        <Icon name="x" size={15} />
+                    </button>
+                </div>
+
+                <div style={{ padding: 22, overflow: 'auto' }}>
+                    {loading ? (
+                        <div style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Đang tải lịch sử...</div>
+                    ) : error ? (
+                        <div style={{ color: 'var(--crimson)', fontSize: 13 }}>{error}</div>
+                    ) : items.length === 0 ? (
+                        <div style={{ color: 'var(--ink-mute)', fontSize: 13 }}>Chưa có lịch sử cập nhật.</div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            {items.map((item) => (
+                                <div key={item.id} style={{ border: '1px solid var(--line)', borderRadius: 12, background: 'var(--card-soft)', padding: 14 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)' }}>
+                                            {item.ten_nguoi_cap_nhat || 'Hệ thống'}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>{formatDateTime(item.created_at)}</div>
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                        <HistoryBlock title="Trước" lat={item.vi_do_cu} lng={item.kinh_do_cu} note={item.ghi_chu_cu} />
+                                        <HistoryBlock title="Sau" lat={item.vi_do_moi} lng={item.kinh_do_moi} note={item.ghi_chu_moi} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function HistoryBlock({ title, lat, lng, note }: { title: string; lat: number | null; lng: number | null; note: string | null }) {
+    return (
+        <div style={{ borderRadius: 10, background: 'var(--bg-elev)', border: '1px solid var(--line-soft)', padding: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{title}</div>
+            <div style={{ fontSize: 12.5, color: 'var(--ink-soft)', lineHeight: 1.6 }}>
+                {lat !== null && lng !== null ? `${Number(lat).toFixed(7)}, ${Number(lng).toFixed(7)}` : 'Chưa có tọa độ'}
+            </div>
+            {note && <div style={{ fontSize: 12, color: 'var(--ink-mute)', marginTop: 4, lineHeight: 1.5 }}>{note}</div>}
+        </div>
+    );
+}
+
+function KhuMoFormModal({ dongHoId, editing, onClose, onSaved }: { dongHoId: number; editing: KhuMo | null; onClose: () => void; onSaved: () => Promise<void> }) {
+    const [form, setForm] = useState<KhuMoFormState>({
+        ten_khu_mo: editing?.ten_khu_mo || '',
+        dia_chi: editing?.dia_chi || '',
+        vi_do: editing ? String(editing.vi_do) : '',
+        kinh_do: editing ? String(editing.kinh_do) : '',
+        mo_ta: editing?.mo_ta || '',
+        anh_khu_mo: null,
+    });
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+
+    const setField = (key: keyof KhuMoFormState, value: string | File | null) => setForm((current) => ({ ...current, [key]: value }));
+
+    const useCurrentLocation = () => {
+        if (!navigator.geolocation) {
+            setError('Thiết bị không hỗ trợ GPS.');
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setField('vi_do', position.coords.latitude.toFixed(7));
+                setField('kinh_do', position.coords.longitude.toFixed(7));
+            },
+            () => setError('Không thể lấy vị trí hiện tại.'),
+            { enableHighAccuracy: true, timeout: 12000 },
+        );
+    };
+
+    const handleSubmit = async (event: FormEvent) => {
+        event.preventDefault();
+        const viDo = Number(form.vi_do);
+        const kinhDo = Number(form.kinh_do);
+        if (!form.ten_khu_mo.trim()) return setError('Vui lòng nhập tên khu mộ.');
+        if (!Number.isFinite(viDo) || viDo < -90 || viDo > 90) return setError('Vĩ độ không hợp lệ.');
+        if (!Number.isFinite(kinhDo) || kinhDo < -180 || kinhDo > 180) return setError('Kinh độ không hợp lệ.');
+
+        const payload: KhuMoPayload = {
+            dong_ho_id: dongHoId,
+            ten_khu_mo: form.ten_khu_mo.trim(),
+            dia_chi: form.dia_chi.trim() || null,
+            vi_do: viDo,
+            kinh_do: kinhDo,
+            mo_ta: form.mo_ta.trim() || null,
+            anh_khu_mo: form.anh_khu_mo,
+        };
+
+        setSaving(true);
+        setError('');
+        try {
+            const res = editing ? await khuMoApi.update({ ...payload, id: editing.id }) : await khuMoApi.create(payload);
+            if (res.success) {
+                toast.success(res.message || 'Đã lưu khu mộ');
+                await onSaved();
+            } else {
+                setError(res.message || 'Không thể lưu khu mộ.');
+            }
+        } catch (err) {
+            setError(getErrorMessage(err, 'Không thể lưu khu mộ.'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', padding: 16 }}>
+            <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 560, background: 'var(--bg-elev)', borderRadius: 18, border: '1px solid var(--line)', boxShadow: '0 24px 60px rgba(0,0,0,0.28)', overflow: 'hidden' }}>
+                <div style={{ padding: '18px 22px', background: 'linear-gradient(135deg, var(--gold), var(--brown-soft))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                    <div>
+                        <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 700, opacity: 0.8 }}>Khu mộ</div>
+                        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>{editing ? 'Cập nhật khu mộ' : 'Thêm khu mộ'}</h2>
+                    </div>
+                    <button type="button" onClick={onClose} style={{ width: 32, height: 32, borderRadius: 999, border: 'none', background: 'rgba(255,255,255,0.18)', color: 'white', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+                        <Icon name="x" size={15} />
+                    </button>
+                </div>
+
+                <div style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {error && <div style={{ color: 'var(--crimson)', fontSize: 13 }}>{error}</div>}
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontWeight: 700 }}>Tên khu mộ</span>
+                        <input value={form.ten_khu_mo} onChange={(event) => setField('ten_khu_mo', event.target.value)} className="gp-input" />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <span style={{ fontSize: 12.5, color: 'var(--ink-soft)', fontWeight: 700 }}>Địa chỉ</span>
+                        <input value={form.dia_chi} onChange={(event) => setField('dia_chi', event.target.value)} className="gp-input" />
+                    </label>
+                    <button type="button" onClick={useCurrentLocation} className="gp-btn gp-btn-ghost" style={{ justifyContent: 'center' }}>
+                        <Icon name="crosshair" size={15} />
+                        Lấy vị trí GPS hiện tại
+                    </button>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                        <input value={form.vi_do} onChange={(event) => setField('vi_do', event.target.value)} className="gp-input" placeholder="Vĩ độ" />
+                        <input value={form.kinh_do} onChange={(event) => setField('kinh_do', event.target.value)} className="gp-input" placeholder="Kinh độ" />
+                    </div>
+                    <textarea value={form.mo_ta} onChange={(event) => setField('mo_ta', event.target.value)} className="gp-input" rows={3} placeholder="Mô tả khu mộ..." style={{ resize: 'vertical' }} />
+                    <input type="file" accept="image/*" onChange={(event) => setField('anh_khu_mo', event.target.files?.[0] || null)} className="gp-input" />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                        <button type="button" onClick={onClose} className="gp-btn gp-btn-ghost">Hủy</button>
+                        <button type="submit" disabled={saving} className="gp-btn gp-btn-primary">{saving ? 'Đang lưu...' : 'Lưu khu mộ'}</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    );
+}
+
+function DirectionModal({ target, onClose }: { target: { title: string; lat: number; lng: number }; onClose: () => void }) {
+    const [loading, setLoading] = useState(false);
+    const [summary, setSummary] = useState<{ distanceText: string; durationText: string } | null>(null);
+    const [error, setError] = useState('');
+
+    const getDirection = () => {
+        if (!navigator.geolocation) {
+            setError('Thiết bị không hỗ trợ GPS.');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                try {
+                    const res = await khuMoApi.direction({
+                        origin: `${position.coords.latitude},${position.coords.longitude}`,
+                        destination: `${target.lat},${target.lng}`,
+                        vehicle: 'car',
+                    });
+                    if (res.success && res.data) setSummary(res.data);
+                    else setError(res.message || 'Không thể lấy chỉ đường.');
+                } catch (err) {
+                    setError(getErrorMessage(err, 'Không thể lấy chỉ đường.'));
+                } finally {
+                    setLoading(false);
+                }
+            },
+            () => {
+                setError('Không thể lấy vị trí hiện tại. Vui lòng cấp quyền GPS.');
+                setLoading(false);
+            },
+            { enableHighAccuracy: true, timeout: 12000 },
+        );
+    };
+
+    return (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 60, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', padding: 16 }}>
+            <div style={{ width: '100%', maxWidth: 460, background: 'var(--bg-elev)', borderRadius: 18, border: '1px solid var(--line)', boxShadow: '0 24px 60px rgba(0,0,0,0.28)', padding: 22 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                    <div>
+                        <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase' }}>OpenMap.vn</div>
+                        <h2 style={{ margin: '3px 0 0', fontSize: 18, fontWeight: 800 }}>{target.title}</h2>
+                    </div>
+                    <button type="button" onClick={onClose} className="gp-btn gp-btn-ghost"><Icon name="x" size={14} /></button>
+                </div>
+                <div style={{ borderRadius: 12, background: 'var(--card-soft)', border: '1px solid var(--line)', padding: 12, color: 'var(--ink-soft)', fontSize: 13 }}>
+                    Điểm đến: {target.lat.toFixed(7)}, {target.lng.toFixed(7)}
+                </div>
+                {summary && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+                        <div style={{ background: 'var(--card-soft)', border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
+                            <div style={{ fontSize: 22, fontWeight: 800 }}>{summary.distanceText}</div>
+                            <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Quãng đường</div>
+                        </div>
+                        <div style={{ background: 'var(--card-soft)', border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
+                            <div style={{ fontSize: 22, fontWeight: 800 }}>{summary.durationText}</div>
+                            <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>Thời gian</div>
+                        </div>
+                    </div>
+                )}
+                {error && <div style={{ color: 'var(--crimson)', fontSize: 13, marginTop: 12 }}>{error}</div>}
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>
+                    <a href={openMapPlaceUrl(target.lat, target.lng)} target="_blank" rel="noreferrer" className="gp-btn gp-btn-ghost" style={{ textDecoration: 'none' }}>
+                        <Icon name="map" size={14} />
+                        OpenMap
+                    </a>
+                    <a href={mapUrl(target.lat, target.lng)} target="_blank" rel="noreferrer" className="gp-btn gp-btn-ghost" style={{ textDecoration: 'none' }}>
+                        <Icon name="map" size={14} />
+                        Google Maps
+                    </a>
+                    <button type="button" onClick={getDirection} disabled={loading} className="gp-btn gp-btn-primary">
+                        <Icon name="crosshair" size={14} />
+                        {loading ? 'Đang tính...' : 'Chỉ đường'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

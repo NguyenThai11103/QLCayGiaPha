@@ -285,8 +285,27 @@ interface ParsedDate {
 }
 
 function parseISO(iso: string): ParsedDate {
-    const [y, m, d] = iso.split('-').map(Number);
+    const [y, m, d] = normalizeISODate(iso).split('-').map(Number);
     return { y, m, d };
+}
+
+function normalizeISODate(value: string | null | undefined): string {
+    if (!value) return new Date().toISOString().slice(0, 10);
+
+    const matched = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (matched) return `${matched[1]}-${matched[2]}-${matched[3]}`;
+
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+
+    return new Date().toISOString().slice(0, 10);
+}
+
+function formatLunarDate(value: string | null | undefined): string | undefined {
+    if (!value) return undefined;
+
+    const { y, m, d } = parseISO(value);
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y} ÂL`;
 }
 
 function daysBetween(aISO: string, bISO: string): number {
@@ -888,10 +907,12 @@ const FILTER_LABELS: Record<FilterValue, string> = {
     ceremony: 'Lễ truyền thống',
     longevity: 'Mừng thọ',
     birthday: 'Sinh nhật',
+    housewarming: 'Tân gia',
+    other: 'Khác',
 };
 
 const FilterBar: React.FC<FilterBarProps> = ({ active, onChange, counts }) => {
-    const types: FilterValue[] = ['all', 'anniversary', 'wedding', 'ceremony', 'longevity', 'birthday'];
+    const types: FilterValue[] = ['all', 'anniversary', 'wedding', 'ceremony', 'longevity', 'birthday', 'housewarming', 'other'];
     return (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
             {types.map((t) => {
@@ -1241,8 +1262,8 @@ function mapSuKienToFamilyEvent(sk: import('../../../services/gia-pha.api').SuKi
 
     return {
         id          : String(sk.id),
-        date        : sk.next_date || sk.ngay_duong || sk.ngay_am || new Date().toISOString().slice(0, 10),
-        lunarDate   : sk.ngay_am ? sk.ngay_am.split('-').reverse().join('/') + ' ÂL' : undefined,
+        date        : normalizeISODate(sk.next_date || sk.ngay_duong || sk.ngay_am),
+        lunarDate   : formatLunarDate(sk.ngay_am),
         title       : sk.ten_su_kien,
         type        : LOAI_MAP[sk.loai_su_kien || ''] ?? 'ceremony',
         honoree     : honoree,
@@ -1431,7 +1452,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
         setLoading(true);
         try {
             const { suKienApi } = await import('../../../services/gia-pha.api');
-            const res = await suKienApi.list(dongHoId);
+            const res = await suKienApi.list(dongHoId ?? undefined);
             if (res.success && res.data) {
                 setRawEvents(res.data.map(mapSuKienToFamilyEvent));
             }
@@ -1450,7 +1471,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
     const filtered = React.useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
 
     const counts = React.useMemo<Record<FilterValue, number>>(() => {
-        const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0 };
+        const c: Record<FilterValue, number> = { all: events.length, anniversary: 0, wedding: 0, ceremony: 0, longevity: 0, birthday: 0, housewarming: 0, other: 0 };
         for (const e of events) {
             if (c[e.type] !== undefined) {
                 c[e.type]++;

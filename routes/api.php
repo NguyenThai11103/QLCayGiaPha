@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\QuanHeController;
 use App\Http\Controllers\Api\CacheXungHoController;
 use App\Http\Controllers\Api\MoPhanController;
+use App\Http\Controllers\Api\KhuMoController;
 use App\Http\Controllers\Api\DuyetThanhVienController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
@@ -127,9 +128,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('mo-phan')->group(function () {
         Route::get('/list', [MoPhanController::class, 'index']);
         Route::get('/detail', [MoPhanController::class, 'detail']);
+        Route::get('/history', [MoPhanController::class, 'history']);
         Route::post('/create', [MoPhanController::class, 'store']);
         Route::post('/update', [MoPhanController::class, 'update']);
         Route::post('/delete', [MoPhanController::class, 'destroy'])->middleware('check.permission:quan_ly');
+    });
+
+    Route::prefix('khu-mo')->group(function () {
+        Route::get('/list', [KhuMoController::class, 'index']);
+        Route::post('/create', [KhuMoController::class, 'store']);
+        Route::post('/update', [KhuMoController::class, 'update']);
+        Route::post('/delete', [KhuMoController::class, 'destroy'])->middleware('check.permission:quan_ly');
+        Route::get('/direction', [KhuMoController::class, 'direction']);
     });
 
     Route::prefix('notifications')->group(function () {
@@ -138,4 +148,3 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/read-all', [\App\Http\Controllers\Api\ThongBaoController::class, 'readAll']);
     });
 });
-

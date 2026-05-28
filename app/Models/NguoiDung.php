@@ -49,7 +49,7 @@ class NguoiDung extends Authenticatable
 
     public function getAnhDaiDienAttribute()
     {
-        return $this->thanhVien?->anh_dai_dien;
+        return $this->thanhVien?->anh_dai_dien ?? $this->avatar;
     }
 
 

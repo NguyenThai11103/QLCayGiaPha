@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\MoPhanController;
 use App\Http\Controllers\Api\KhuMoController;
 use App\Http\Controllers\Api\DuyetThanhVienController;
 use App\Http\Controllers\Api\OnboardingController;
+use App\Http\Controllers\Api\GlobalSearchController;
 use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
 
 Route::get('/user', function (Request $request) {
@@ -62,6 +63,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.admin.system'])->grou
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/global-search', GlobalSearchController::class);
     
     Route::prefix('onboarding')->group(function () {
         Route::get('/search-clan', [OnboardingController::class, 'searchClan']);

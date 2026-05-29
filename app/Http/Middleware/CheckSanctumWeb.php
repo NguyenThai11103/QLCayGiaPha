@@ -10,8 +10,13 @@ class CheckSanctumWeb
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (!$request->bearerToken() && $request->cookie('auth_token')) {
-            $request->headers->set('Authorization', 'Bearer ' . $request->cookie('auth_token'));
+        if (!$request->bearerToken()) {
+            $cookieName = str_starts_with($request->path(), 'admin') ? 'admin_auth_token' : 'user_auth_token';
+            $token = $request->cookie($cookieName) ?: $request->cookie('auth_token');
+
+            if ($token) {
+                $request->headers->set('Authorization', 'Bearer ' . $token);
+            }
         }
 
         return $next($request);

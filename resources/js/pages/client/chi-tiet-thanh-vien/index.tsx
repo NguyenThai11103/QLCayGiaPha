@@ -151,7 +151,15 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                     <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24, alignItems: 'start' }}>
 
                         {/* ─── Cột trái: Profile Card ─────────────────────────────── */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+                            {/* Header trái */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 48 }}>
+                                <div>
+                                    <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 4 }}>Thành viên</div>
+                                    <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--ink)', margin: 0, fontFamily: 'Cormorant Garamond, serif' }}>Thông tin chi tiết</h2>
+                                </div>
+                            </div>
 
                             {/* Hero Card */}
                             <div style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', overflow: 'hidden', boxShadow: 'var(--shadow-md)' }}>
@@ -280,7 +288,7 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
                             {/* Header */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: 48 }}>
                                 <div>
                                     <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 4 }}>Gia phả</div>
                                     <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--ink)', margin: 0, fontFamily: 'Cormorant Garamond, serif' }}>Các mối quan hệ</h2>

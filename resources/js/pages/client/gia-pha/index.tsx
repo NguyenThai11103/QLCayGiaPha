@@ -27,6 +27,7 @@ export default function CayGiaPha() {
     const [loading, setLoading] = useState(true);
     const [zoom, setZoom] = useState(0.85);
     const [searchTerm, setSearchTerm] = useState('');
+    const [searchFocused, setSearchFocused] = useState(false);
     const [bloodlineOnly, setBloodlineOnly] = useState(true);
     const [selectedPerson, setSelectedPerson] = useState<Nguoi | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -613,56 +614,90 @@ export default function CayGiaPha() {
         return () => clearTimeout(delaySearch);
     }, [searchTerm, people]);
 
+    // Search suggestions: filter people matching searchTerm
+    const searchSuggestions = searchTerm.trim().length >= 1
+        ? people
+            .filter((p) => p.ten_day_du.toLowerCase().includes(searchTerm.toLowerCase()))
+            .slice(0, 7)
+        : [];
+
+    const handleSelectSuggestion = (person: Nguoi) => {
+        setSearchTerm(person.ten_day_du);
+        setSearchFocused(false);
+        setSelectedPerson(person);
+        if (treeViewportRef.current) {
+            const viewport = treeViewportRef.current;
+            const el = document.getElementById(`person-card-${person.id}`);
+            if (el) {
+                const viewportRect = viewport.getBoundingClientRect();
+                const elRect = el.getBoundingClientRect();
+                const absoluteLeft = viewport.scrollLeft + (elRect.left - viewportRect.left);
+                const absoluteTop = viewport.scrollTop + (elRect.top - viewportRect.top);
+                viewport.scrollTo({
+                    left: absoluteLeft - viewportRect.width / 2 + elRect.width / 2,
+                    top: absoluteTop - viewportRect.height / 2 + elRect.height / 2,
+                    behavior: 'smooth',
+                });
+            }
+        }
+    };
+
     return (
         <AuthenticatedLayout fullBleed>
             <Head title="Cây Gia Phả" />
             <div ref={containerRef} className="flex min-h-[calc(100vh-64px)] flex-col bg-[var(--bg)]">
-                <div className="flex min-h-16 flex-col gap-3 border-b border-[var(--line)] bg-[var(--bg-elev)] px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-7">
-                    <div className="min-w-0">
-                        <div className="gp-eyebrow">{selectedDongHoName || 'Toàn bộ dòng họ'}</div>
-                        <h1 className="mt-1 font-serif text-[clamp(28px,4vw,36px)] leading-tight font-semibold text-[var(--ink)]">
-                            Toàn cây · {depth || 1} đời · {people.length} thành viên
-                        </h1>
-                        <div className="mt-2.5 flex flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/50 px-3 py-1 text-[13px] font-medium text-emerald-700 shadow-sm">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-                                </span>
-                                <span className="whitespace-nowrap">
-                                    Còn sống: <span className="font-bold">{people.length - deceased}</span>
-                                </span>
+
+                {/* ═══════════════════════════════════════════
+                    TOOLBAR
+                ═══════════════════════════════════════════ */}
+                <div className="border-b border-[var(--line)] bg-[var(--bg-elev)] shadow-sm">
+
+                    {/* Row 1 – Title + primary action */}
+                    <div className="flex items-center justify-between gap-4 px-5 pt-3 pb-2">
+                        <div className="min-w-0">
+                            <div className="gp-eyebrow">{selectedDongHoName || 'Toàn bộ gia tộc'}</div>
+                            <h1 className="mt-0.5 font-serif text-[clamp(22px,3vw,28px)] leading-tight font-semibold text-[var(--ink)]">
+                                Cây Gia Phả
+                            </h1>
+                        </div>
+
+                        <div className="flex shrink-0 items-center gap-2">
+                            {/* Stats chips */}
+                            <div className="hidden items-center gap-2 lg:flex">
+                                <StatChip
+                                    color="emerald"
+                                    label="Còn sống"
+                                    value={people.length - deceased}
+                                    pulse
+                                />
+                                <StatChip color="amber" label="Đời" value={depth || 1} />
+                                <StatChip color="blue" label="Thành viên" value={people.length} />
                             </div>
-                            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50/50 px-3 py-1 text-[13px] font-medium text-slate-600 shadow-sm">
-                                <span className="h-2 w-2 rounded-full bg-slate-400"></span>
-                                <span className="whitespace-nowrap">
-                                    Đã mất: <span className="font-bold">{deceased}</span>
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/50 px-3 py-1 text-[13px] font-medium text-blue-700 shadow-sm">
-                                <span className="h-2 w-2 rounded-full bg-blue-400"></span>
-                                <span className="whitespace-nowrap">
-                                    Nam: <span className="font-bold">{people.filter((p) => p.gioi_tinh === 'nam').length}</span> · Nữ:{' '}
-                                    <span className="font-bold">{people.filter((p) => p.gioi_tinh !== 'nam').length}</span>
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50/50 px-3 py-1 text-[13px] font-medium text-amber-700 shadow-sm">
-                                <span className="h-2 w-2 rounded-full bg-amber-400"></span>
-                                <span className="whitespace-nowrap">
-                                    Thế hệ: <span className="font-bold">{depth}</span> đời
-                                </span>
-                            </div>
+
+                            {user?.quyen_han === 'quan_ly' && (
+                                <button
+                                    type="button"
+                                    onClick={() => router.visit('/gia-pha/thanh-vien')}
+                                    className="gp-btn gp-btn-primary"
+                                >
+                                    <Icon name="plus" size={15} />
+                                    Thêm thành viên
+                                </button>
+                            )}
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    {/* Row 2 – Controls */}
+                    <div className="flex flex-wrap items-center gap-2 px-5 pb-3">
+
+                        {/* Clan selector */}
                         <select
                             value={selectedDongHo}
                             onChange={(e) => {
                                 setSelectedDongHo(e.target.value);
                                 setSearchTerm('');
                             }}
-                            className="gp-input min-h-[38px] min-w-[190px] py-2 text-[13px]"
+                            className="gp-input h-9 min-w-[180px] py-0 text-[13px]"
                         >
                             <option value="">Tất cả gia tộc</option>
                             {dongHos.map((dongHo) => (
@@ -672,30 +707,113 @@ export default function CayGiaPha() {
                             ))}
                         </select>
 
-                        <label className="relative">
-                            <Icon name="search" size={15} className="absolute top-1/2 left-3 -translate-y-1/2 text-[var(--ink-mute)]" />
-                            <input
-                                id="search-member-input"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="gp-input w-[220px] py-2 pl-9 text-[13px]"
-                                placeholder="Tìm thành viên... (Ctrl+F)"
-                            />
-                        </label>
+                        {/* ── Search with dropdown ── */}
+                        <div className="relative">
+                            <div className={`flex items-center gap-2 rounded-xl border bg-[var(--card)] px-3 py-0 transition-all duration-200 ${searchFocused ? 'border-[var(--gold)] shadow-[0_0_0_3px_var(--gold-glow)]' : 'border-[var(--card-border)]'}`}>
+                                <Icon
+                                    name="search"
+                                    size={14}
+                                    className={`shrink-0 transition-colors ${searchFocused ? 'text-[var(--gold)]' : 'text-[var(--ink-mute)]'}`}
+                                />
+                                <input
+                                    id="search-member-input"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    onFocus={() => setSearchFocused(true)}
+                                    onBlur={() => setTimeout(() => setSearchFocused(false), 180)}
+                                    className="h-9 w-[220px] bg-transparent text-[13px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-mute)]"
+                                    placeholder="Tìm thành viên... (Ctrl+F)"
+                                    autoComplete="off"
+                                />
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSearchTerm('')}
+                                        className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[var(--card-border)] text-[var(--ink-mute)] transition hover:bg-[var(--ink-mute)] hover:text-white"
+                                    >
+                                        <Icon name="x" size={10} />
+                                    </button>
+                                )}
+                            </div>
 
-                        <div className="flex items-center rounded-lg border border-[var(--card-border)] bg-[var(--card-soft)] p-1">
+                            {/* Suggestions dropdown */}
+                            {searchFocused && searchSuggestions.length > 0 && (
+                                <div className="gp-pop-in absolute top-[calc(100%+6px)] left-0 z-[100] w-[320px] overflow-hidden rounded-2xl border border-[var(--card-border)] bg-[var(--card)] shadow-[var(--shadow-lg)]">
+                                    <div className="border-b border-[var(--line)] px-3 py-2">
+                                        <span className="text-[10.5px] font-bold tracking-widest text-[var(--ink-mute)] uppercase">
+                                            {searchSuggestions.length} kết quả
+                                        </span>
+                                    </div>
+                                    <div className="max-h-[300px] overflow-y-auto">
+                                        {searchSuggestions.map((person, idx) => {
+                                            const isMale = person.gioi_tinh === 'nam';
+                                            const isDead = Boolean(person.da_mat);
+                                            const birthYear = person.ngay_sinh?.substring(0, 4);
+                                            return (
+                                                <button
+                                                    key={person.id}
+                                                    type="button"
+                                                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--card-soft)]"
+                                                    style={{ animationDelay: `${idx * 30}ms` }}
+                                                    onMouseDown={() => handleSelectSuggestion(person)}
+                                                >
+                                                    {/* Avatar */}
+                                                    <span
+                                                        className={`grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full text-sm font-bold text-white ${isDead ? 'opacity-70' : ''}`}
+                                                        style={{
+                                                            background: isDead
+                                                                ? 'linear-gradient(135deg,#9b8a6a,#6b5232)'
+                                                                : isMale
+                                                                    ? 'linear-gradient(135deg,var(--jade),var(--jade-soft))'
+                                                                    : 'linear-gradient(135deg,var(--terracotta),var(--crimson))',
+                                                        }}
+                                                    >
+                                                        {person.anh_dai_dien ? (
+                                                            <img src={person.anh_dai_dien} alt="" className="h-full w-full object-cover" />
+                                                        ) : (
+                                                            person.ten_day_du.charAt(0)
+                                                        )}
+                                                    </span>
+                                                    {/* Info */}
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="truncate text-[13px] font-semibold text-[var(--ink)]">
+                                                            {person.ten_day_du}
+                                                        </div>
+                                                        <div className="text-[11px] text-[var(--ink-mute)]">
+                                                            {isMale ? '♂ Nam' : '♀ Nữ'}
+                                                            {person.doi_thu ? ` · Đời ${person.doi_thu}` : ''}
+                                                            {birthYear ? ` · ${birthYear}` : ''}
+                                                            {isDead ? ' · Đã mất' : ''}
+                                                        </div>
+                                                    </div>
+                                                    <Icon name="arrow-right" size={13} className="shrink-0 text-[var(--ink-mute)]" />
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Divider */}
+                        <span className="hidden h-6 w-px bg-[var(--line)] lg:block" />
+
+                        {/* ── Zoom controls ── */}
+                        <div className="flex items-center rounded-xl border border-[var(--card-border)] bg-[var(--card-soft)] p-1 shadow-sm">
                             <button
                                 type="button"
                                 onClick={zoomOut}
                                 disabled={zoom <= 0.4}
-                                className="grid h-8 w-8 place-items-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--card)] disabled:opacity-40"
+                                className="grid h-7 w-7 place-items-center rounded-lg text-[var(--ink-soft)] transition hover:bg-[var(--card)] hover:text-[var(--ink)] disabled:opacity-30"
+                                title="Thu nhỏ (-)"
                             >
-                                <Icon name="minus" size={15} />
+                                <Icon name="minus" size={13} />
                             </button>
                             <button
                                 type="button"
                                 onClick={fit}
-                                className="min-w-14 rounded-md px-2 text-[12px] font-bold text-[var(--ink-soft)] hover:bg-[var(--card)]"
+                                className="min-w-12 rounded-lg px-1 text-[11.5px] font-bold text-[var(--ink-soft)] transition hover:bg-[var(--card)] hover:text-[var(--ink)]"
+                                title="Đặt lại zoom (0)"
                             >
                                 {Math.round(zoom * 100)}%
                             </button>
@@ -703,66 +821,77 @@ export default function CayGiaPha() {
                                 type="button"
                                 onClick={zoomIn}
                                 disabled={zoom >= 1.4}
-                                className="grid h-8 w-8 place-items-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--card)] disabled:opacity-40"
+                                className="grid h-7 w-7 place-items-center rounded-lg text-[var(--ink-soft)] transition hover:bg-[var(--card)] hover:text-[var(--ink)] disabled:opacity-30"
+                                title="Phóng to (+)"
                             >
-                                <Icon name="plus" size={15} />
+                                <Icon name="plus" size={13} />
                             </button>
-                            <span className="mx-1 h-5 w-px bg-[var(--line)]" />
+                        </div>
+
+                        {/* ── View toggles ── */}
+                        <div className="flex items-center rounded-xl border border-[var(--card-border)] bg-[var(--card-soft)] p-1 shadow-sm">
                             <button
                                 type="button"
                                 onClick={fit}
-                                className="grid h-8 w-8 place-items-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--card)]"
-                                title="Khớp màn hình"
+                                className="grid h-7 w-7 place-items-center rounded-lg text-[var(--ink-soft)] transition hover:bg-[var(--card)] hover:text-[var(--ink)]"
+                                title="Khớp màn hình (0)"
                             >
-                                <Icon name="fit" size={15} />
+                                <Icon name="fit" size={14} />
                             </button>
                             <button
                                 type="button"
                                 onClick={toggleFullscreen}
-                                className="grid h-8 w-8 place-items-center rounded-md text-[var(--ink-soft)] hover:bg-[var(--card)]"
-                                title="Toàn màn hình"
+                                className="grid h-7 w-7 place-items-center rounded-lg text-[var(--ink-soft)] transition hover:bg-[var(--card)] hover:text-[var(--ink)]"
+                                title={isFullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình (F)'}
                             >
-                                <Icon name={isFullscreen ? 'minus' : 'fit'} size={15} />
+                                <Icon name={isFullscreen ? 'minus' : 'fit'} size={14} />
+                            </button>
+                            <span className="mx-1 h-4 w-px bg-[var(--line)]" />
+                            <button
+                                type="button"
+                                onClick={() => setBloodlineOnly((v) => !v)}
+                                className={`flex h-7 items-center gap-1.5 rounded-lg px-2 text-[11.5px] font-bold transition ${
+                                    bloodlineOnly
+                                        ? 'bg-[var(--jade)] text-white shadow-sm'
+                                        : 'text-[var(--ink-soft)] hover:bg-[var(--card)] hover:text-[var(--ink)]'
+                                }`}
+                                title="Chế độ huyết thống"
+                            >
+                                <Icon name="branch" size={13} />
+                                <span className="hidden sm:inline">Huyết thống</span>
                             </button>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={() => setBloodlineOnly((value) => !value)}
-                            className={`gp-btn ${bloodlineOnly ? 'gp-btn-jade' : 'gp-btn-ghost'}`}
-                        >
-                            <Icon name="branch" size={16} />
-                            Huyết thống
-                        </button>
-                        <button
-                            type="button"
-                            onClick={exportTreeImage}
-                            disabled={exporting || loading || treeData.length === 0}
-                            className="gp-btn gp-btn-ghost disabled:opacity-50"
-                            title="Tai anh SVG de in hoac chia se"
-                        >
-                            <Icon name="photo" size={16} />
-                            {exporting ? 'Dang xuat...' : 'SVG'}
-                        </button>
-                        <button
-                            type="button"
-                            onClick={printTree}
-                            disabled={loading || treeData.length === 0}
-                            className="gp-btn gp-btn-ghost disabled:opacity-50"
-                            title="Mo man hinh in de luu PDF"
-                        >
-                            <Icon name="book" size={16} />
-                            PDF
-                        </button>
-                        {user?.quyen_han === 'quan_ly' && (
-                            <button type="button" onClick={() => router.visit('/gia-pha/thanh-vien')} className="gp-btn gp-btn-primary">
-                                <Icon name="plus" size={16} />
-                                Thêm
+                        {/* ── Export group ── */}
+                        <div className="flex items-center rounded-xl border border-[var(--card-border)] bg-[var(--card-soft)] p-1 shadow-sm">
+                            <button
+                                type="button"
+                                onClick={exportTreeImage}
+                                disabled={exporting || loading || treeData.length === 0}
+                                className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-[11.5px] font-semibold text-[var(--ink-soft)] transition hover:bg-[var(--card)] hover:text-[var(--ink)] disabled:opacity-30"
+                                title="Xuất ảnh SVG"
+                            >
+                                <Icon name="photo" size={13} />
+                                {exporting ? '...' : 'SVG'}
                             </button>
-                        )}
+                            <span className="mx-0.5 h-4 w-px bg-[var(--line)]" />
+                            <button
+                                type="button"
+                                onClick={printTree}
+                                disabled={loading || treeData.length === 0}
+                                className="flex h-7 items-center gap-1.5 rounded-lg px-2 text-[11.5px] font-semibold text-[var(--ink-soft)] transition hover:bg-[var(--card)] hover:text-[var(--ink)] disabled:opacity-30"
+                                title="In / Lưu PDF"
+                            >
+                                <Icon name="book" size={13} />
+                                PDF
+                            </button>
+                        </div>
                     </div>
                 </div>
 
+                {/* ═══════════════════════════════════════════
+                    TREE CANVAS
+                ═══════════════════════════════════════════ */}
                 <div className="relative flex min-h-0 flex-1 overflow-hidden bg-[var(--bg)]">
                     <FamilyTree
                         loading={loading}
@@ -786,10 +915,10 @@ export default function CayGiaPha() {
                     {selectedPerson && (
                         <>
                             <div
-                                className="absolute inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity"
+                                className="absolute inset-0 z-40 bg-black/25 backdrop-blur-[2px] transition-opacity"
                                 onClick={() => setSelectedPerson(null)}
                             />
-                            <aside className="animate-in slide-in-from-right-8 absolute top-0 right-0 bottom-0 z-50 w-[420px] max-w-[90vw] border-l border-[var(--line)] shadow-2xl duration-300">
+                            <aside className="absolute top-0 right-0 bottom-0 z-50 w-[420px] max-w-[92vw] border-l border-[var(--line)] shadow-2xl">
                                 <PersonPanel
                                     person={selectedPerson}
                                     people={people}
@@ -824,5 +953,38 @@ export default function CayGiaPha() {
                 />
             )}
         </AuthenticatedLayout>
+    );
+}
+
+// ─── StatChip helper ───
+function StatChip({
+    color,
+    label,
+    value,
+    pulse,
+}: {
+    color: 'emerald' | 'amber' | 'blue';
+    label: string;
+    value: number;
+    pulse?: boolean;
+}) {
+    const colorMap = {
+        emerald : { border: 'border-emerald-200', bg: 'bg-emerald-50/60', text: 'text-emerald-700', dot: 'bg-emerald-500' },
+        amber   : { border: 'border-amber-200',   bg: 'bg-amber-50/60',   text: 'text-amber-700',   dot: 'bg-amber-400'  },
+        blue    : { border: 'border-sky-200',      bg: 'bg-sky-50/60',     text: 'text-sky-700',     dot: 'bg-sky-400'    },
+    };
+    const c = colorMap[color];
+    return (
+        <div className={`flex items-center gap-1.5 rounded-full border ${c.border} ${c.bg} px-3 py-1 text-[12px] font-medium ${c.text}`}>
+            {pulse ? (
+                <span className="relative flex h-2 w-2">
+                    <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${c.dot} opacity-70`} />
+                    <span className={`relative inline-flex h-2 w-2 rounded-full ${c.dot}`} />
+                </span>
+            ) : (
+                <span className={`h-2 w-2 rounded-full ${c.dot}`} />
+            )}
+            <span className="whitespace-nowrap">{label}: <span className="font-bold">{value}</span></span>
+        </div>
     );
 }

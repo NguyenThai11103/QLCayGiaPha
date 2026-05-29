@@ -59,6 +59,14 @@ class AuthController extends Controller
             ], 401);
         }
 
+        // Kiểm tra xem tài khoản có bị khóa không
+        if (isset($user->trang_thai) && ($user->trang_thai === 0 || $user->trang_thai === '0' || $user->trang_thai === false)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tài khoản của bạn đã bị khóa bởi quản trị viên.'
+            ], 403);
+        }
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -233,6 +241,14 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Không tìm thấy tài khoản người dùng.'
             ], 404);
+        }
+
+        // Kiểm tra xem tài khoản có bị khóa không
+        if (isset($user->trang_thai) && ($user->trang_thai === 0 || $user->trang_thai === '0' || $user->trang_thai === false)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tài khoản của bạn đã bị khóa bởi quản trị viên.'
+            ], 403);
         }
 
         // Tạo Sanctum Token chính thức cho phiên đăng nhập thành công

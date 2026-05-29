@@ -200,6 +200,53 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                                 </div>
                             </div>
 
+                            {/* Mã QR Thành viên */}
+                            <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', padding: 20, boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+                                <div style={{ alignSelf: 'stretch', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+                                    <div style={{ textAlign: 'left' }}>
+                                        <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 3 }}>Mã QR Cá Nhân</div>
+                                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>Tra cứu danh xưng</div>
+                                    </div>
+                                    <Icon name="scroll" size={20} color="var(--gold)" />
+                                </div>
+
+                                {/* QR Image Frame */}
+                                <div style={{ background: '#fff', padding: 12, borderRadius: 12, border: '1px solid var(--line-soft)', display: 'inline-block', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.02)', marginBottom: 14 }}>
+                                    <img
+                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${window.location.origin}/gia-pha/thanh-vien/${tv.id}`)}`}
+                                        alt="Mã QR Thành viên"
+                                        style={{ width: 160, height: 160, display: 'block' }}
+                                    />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${window.location.origin}/gia-pha/thanh-vien/${tv.id}`)}`;
+                                        fetch(qrUrl)
+                                            .then(response => response.blob())
+                                            .then(blob => {
+                                                const blobURL = URL.createObjectURL(blob);
+                                                const link = document.createElement('a');
+                                                link.href = blobURL;
+                                                link.download = `QR_DanhXung_${tv.ten_day_du.replace(/\s+/g, '_')}.png`;
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                document.body.removeChild(link);
+                                                URL.revokeObjectURL(blobURL);
+                                                toast.success('Đã tải xuống mã QR');
+                                            })
+                                            .catch(() => {
+                                                toast.error('Không thể tải mã QR');
+                                            });
+                                    }}
+                                    style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'var(--card-soft)', color: 'var(--ink-soft)', fontWeight: 600, fontSize: 13, textDecoration: 'none', border: '1px solid var(--line)', cursor: 'pointer' }}
+                                >
+                                    <Icon name="download" size={14} />
+                                    Tải mã QR
+                                </button>
+                            </div>
+
                             {/* Tiểu sử */}
                             {tv.tieu_su && (
                                 <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', padding: 20, boxShadow: 'var(--shadow-sm)' }}>

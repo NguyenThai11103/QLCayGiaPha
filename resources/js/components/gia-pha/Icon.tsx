@@ -39,7 +39,8 @@ type IconProps = SVGProps<SVGSVGElement> & {
         | 'copy'
         | 'trash'
         | 'crosshair'
-        | 'clock';
+        | 'clock'
+        | 'download';
     size?: number;
 };
 
@@ -133,5 +134,7 @@ export default function Icon({ name, size = 18, strokeWidth = 1.75, ...props }: 
             return <svg {...common}><circle cx="12" cy="12" r="7" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /><circle cx="12" cy="12" r="1" /></svg>;
         case 'clock':
             return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
+        case 'download':
+            return <svg {...common}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>;
     }
 }

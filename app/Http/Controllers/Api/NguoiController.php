@@ -480,7 +480,7 @@ class NguoiController extends Controller
         if (!$distance) {
             return $this->tinhVoChongCuaToTienTrucHe($nguoi, $nguoiKhac, $map)
                 ?? $this->tinhQuanHeThongGiaTrucHe($nguoi, $nguoiKhac, $map)
-                ?? 'Khong ro';
+                ?? 'Không rõ';
         }
 
         $dist1 = $distance['dA'];
@@ -490,47 +490,47 @@ class NguoiController extends Controller
             if ($dist2 === 1) {
                 return 'Con';
             } elseif ($dist2 === 2) {
-                return 'Chau';
+                return 'Cháu';
             } elseif ($dist2 === 3) {
-                return 'Chat';
+                return 'Chắt';
             } elseif ($dist2 === 4) {
-                return 'Chut';
+                return 'Chút';
             } elseif ($dist2 === 5) {
-                return 'Chit';
+                return 'Chít';
             }
 
-            return 'Hau due doi thu ' . $dist2;
+            return 'Hậu duệ đời thứ ' . $dist2;
         }
 
         if ($dist2 === 0) {
             if ($dist1 === 1) {
-                return $nguoiKhac['gioi_tinh'] === 'nam' ? 'Cha' : 'Me';
+                return $nguoiKhac['gioi_tinh'] === 'nam' ? 'Cha' : 'Mẹ';
             } elseif ($dist1 === 2) {
-                return $nguoiKhac['gioi_tinh'] === 'nam' ? 'Ong' : 'Ba';
+                return $nguoiKhac['gioi_tinh'] === 'nam' ? 'Ông' : 'Bà';
             } elseif ($dist1 === 3) {
-                return 'Cu';
+                return 'Cụ';
             } elseif ($dist1 === 4) {
-                return 'Ky';
+                return 'Kỵ';
             }
 
-            return 'To tien doi thu ' . $dist1;
+            return 'Tổ tiên đời thứ ' . $dist1;
         }
 
         if ($dist1 === $dist2) {
-            return 'Anh/Chi/Em ho';
+            return 'Anh/Chị/Em họ';
         }
 
         if ($dist1 > $dist2) {
             $diff = $dist1 - $dist2;
 
             return $diff === 1
-                ? ($nguoiKhac['gioi_tinh'] === 'nam' ? 'Chu/Bac/Cau' : 'Co/Di/Bac')
-                : 'Ong/Ba ho';
+                ? ($nguoiKhac['gioi_tinh'] === 'nam' ? 'Chú/Bác/Cậu' : 'Cô/Dì/Bác')
+                : 'Ông/Bà họ';
         }
 
         $diff = $dist2 - $dist1;
 
-        return $diff === 1 ? 'Chau ho' : 'Chat/Chut ho';
+        return $diff === 1 ? 'Cháu họ' : 'Chắt/Chút họ';
     }
 
     private function getBloodDistance($idA, $idB, array $map): ?array
@@ -658,16 +658,16 @@ class NguoiController extends Controller
     private function ancestorLabel(array $person, int $distance): string
     {
         if ($distance === 1) {
-            return $person['gioi_tinh'] === 'nam' ? 'Cha' : 'Me';
+            return $person['gioi_tinh'] === 'nam' ? 'Cha' : 'Mẹ';
         } elseif ($distance === 2) {
-            return $person['gioi_tinh'] === 'nam' ? 'Ong' : 'Ba';
+            return $person['gioi_tinh'] === 'nam' ? 'Ông' : 'Bà';
         } elseif ($distance === 3) {
-            return 'Cu';
+            return 'Cụ';
         } elseif ($distance === 4) {
-            return 'Ky';
+            return 'Kỵ';
         }
 
-        return 'To tien doi thu ' . $distance;
+        return 'Tổ tiên đời thứ ' . $distance;
     }
 
     private function descendantLabel(int $distance): string
@@ -675,16 +675,16 @@ class NguoiController extends Controller
         if ($distance === 1) {
             return 'Con';
         } elseif ($distance === 2) {
-            return 'Chau';
+            return 'Cháu';
         } elseif ($distance === 3) {
-            return 'Chat';
+            return 'Chắt';
         } elseif ($distance === 4) {
-            return 'Chut';
+            return 'Chút';
         } elseif ($distance === 5) {
-            return 'Chit';
+            return 'Chít';
         }
 
-        return 'Hau due doi thu ' . $distance;
+        return 'Hậu duệ đời thứ ' . $distance;
     }
 
     private function mapThanhVienToNguoi(Collection $thanhViens): Collection
@@ -748,6 +748,7 @@ class NguoiController extends Controller
                 'vo_chong_ids' => array_values(array_unique($mapVoChong[$tv->id] ?? [])),
                 'tieu_su' => $tv->tieu_su,
                 'anh_dai_dien' => $tv->anh_dai_dien,
+                'doi_thu' => $tv->doi_thu,
             ];
         });
     }

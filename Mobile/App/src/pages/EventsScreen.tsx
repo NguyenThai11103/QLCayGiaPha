@@ -5,27 +5,28 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  StatusBar, Platform, Animated, RefreshControl, ActivityIndicator,
+  StatusBar, Platform, Animated, RefreshControl, ActivityIndicator, Alert,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from '../genaral/api';
 import { STORAGE_TOKEN_KEY } from '../genaral/authService';
-import { colors, borderRadius, fontSize, spacing } from '../config/theme';
+import { colors, borderRadius, fontSize, spacing, rs, rvs, rf } from '../config/theme';
 import { useTheme } from '../context/ThemeContext';
 
 interface SuKien {
   id              : number;
   dong_ho_id      : number;
   ten_su_kien     : string;
-  loai_su_kien    : string;    // 'le_gio', 'tet', 'hop_mat', 'sinh_nhat', ...
-  ngay_duong      : string;    // ISO date
+  loai_su_kien    : string;
+  ngay_duong      : string;
   ngay_am         ?: string | null;
-  lap_lai_hang_nam: number;    // 0|1
+  lap_lai_hang_nam: number;
   dia_diem        ?: string | null;
   mo_ta           ?: string | null;
   created_at      : string;
+  tham_gia        ?: boolean;  // Trạng thái tham gia của user hiện tại
 }
 
 /* Loại sự kiện config */
@@ -58,11 +59,19 @@ const formatDate = (dateStr: string) =>
 const isPast = (dateStr: string) => new Date(dateStr) < new Date();
 
 /* ─── Event Card ─── */
-const EventCard: React.FC<{ item: SuKien; idx: number; theme: ReturnType<typeof useTheme>['theme'] }> = ({ item, idx, theme }) => {
+const EventCard: React.FC<{
+  item           : SuKien;
+  idx            : number;
+  theme          : ReturnType<typeof useTheme>['theme'];
+  onToggleAttend : (id: number, attending: boolean) => void;
+  loadingId      : number | null;
+}> = ({ item, idx, theme, onToggleAttend, loadingId }) => {
   const a   = useRef(new Animated.Value(0)).current;
   const cfg = getCfg(item.loai_su_kien);
   const past = isPast(item.ngay_duong);
   const cd   = countdown(item.ngay_duong);
+  const isAttending = item.tham_gia ?? false;
+  const isThisLoading = loadingId === item.id;
 
   const cardBg = theme.dark ? 'rgba(255,255,255,0.05)' : colors.white;
   const textColor = theme.dark ? '#fff' : colors.gray[800];
@@ -75,7 +84,7 @@ const EventCard: React.FC<{ item: SuKien; idx: number; theme: ReturnType<typeof 
 
   return (
     <Animated.View style={{ opacity: a, transform: [{ translateY: a.interpolate({ inputRange: [0,1], outputRange: [24,0] }) }] }}>
-      <TouchableOpacity style={[ec.card, past && ec.cardPast, { backgroundColor: cardBg, borderColor: cardBorder }]} activeOpacity={0.8}>
+      <TouchableOpacity style={[ec.card, past && ec.cardPast, { backgroundColor: cardBg, borderColor: cardBorder }]} activeOpacity={0.85}>
         {/* Left accent bar */}
         <LinearGradient colors={cfg.grad as any} style={ec.bar} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} />
 
@@ -104,6 +113,36 @@ const EventCard: React.FC<{ item: SuKien; idx: number; theme: ReturnType<typeof 
             ) : null}
           </View>
           {item.mo_ta ? <Text style={[ec.desc, { color: mutedColor }]} numberOfLines={2}>{item.mo_ta}</Text> : null}
+
+          {/* Attend / Leave Button — chỉ hiện với sự kiện sắp tới */}
+          {!past && (
+            <TouchableOpacity
+              style={[
+                ec.attendBtn,
+                isAttending
+                  ? { backgroundColor: 'rgba(239,68,68,0.12)', borderColor: 'rgba(239,68,68,0.35)' }
+                  : { backgroundColor: cfg.color + '18', borderColor: cfg.color + '50' },
+              ]}
+              onPress={() => onToggleAttend(item.id, isAttending)}
+              activeOpacity={0.8}
+              disabled={isThisLoading}
+            >
+              {isThisLoading ? (
+                <ActivityIndicator size="small" color={isAttending ? '#EF4444' : cfg.color} />
+              ) : (
+                <>
+                  <Ionicons
+                    name={isAttending ? 'exit-outline' : 'checkmark-circle-outline'}
+                    size={14}
+                    color={isAttending ? '#EF4444' : cfg.color}
+                  />
+                  <Text style={[ec.attendTxt, { color: isAttending ? '#EF4444' : cfg.color }]}>
+                    {isAttending ? 'Rút lui' : 'Tham gia'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -113,12 +152,13 @@ const EventCard: React.FC<{ item: SuKien; idx: number; theme: ReturnType<typeof 
 /* ─── Main Screen ─── */
 const EventsScreen: React.FC<{ navigation: any }> = () => {
   const { theme } = useTheme();
-  const [events,    setEvents]    = useState<SuKien[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [refreshing,setRefreshing]= useState(false);
-  const [error,     setError]     = useState<string | null>(null);
-  const [tab,       setTab]       = useState<'upcoming' | 'past'>('upcoming');
-  const [loaiFilter,setLoaiFilter]= useState<string>('Tất cả');
+  const [events,     setEvents]     = useState<SuKien[]>([]);
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+  const [tab,        setTab]        = useState<'upcoming' | 'past'>('upcoming');
+  const [loaiFilter, setLoaiFilter] = useState<string>('Tất cả');
+  const [attendLoadingId, setAttendLoadingId] = useState<number | null>(null);
   const tabAnim = useRef(new Animated.Value(0)).current;
 
   // Dùng Set để deduplicate label (vd: le_gio và gio_to cùng label 'Giỗ tổ')
@@ -137,6 +177,31 @@ const EventsScreen: React.FC<{ navigation: any }> = () => {
   }, []);
 
   useEffect(() => { load(); }, []);
+
+  // Toggle tham gia / rút lui sự kiện
+  const handleToggleAttend = useCallback(async (id: number, isAttending: boolean) => {
+    setAttendLoadingId(id);
+    try {
+      const token = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
+      const endpoint = isAttending ? '/su-kien/leave' : '/su-kien/attend';
+      await apiFetch(endpoint, {
+        method: 'POST',
+        body: JSON.stringify({ su_kien_id: id }),
+      }, token ?? undefined);
+      // Cập nhật state optimistic
+      setEvents(prev => prev.map(e =>
+        e.id === id ? { ...e, tham_gia: !isAttending } : e
+      ));
+    } catch (e: any) {
+      Alert.alert(
+        'Không thể thực hiện',
+        e?.message ?? 'Đã có lỗi xảy ra, vui lòng thử lại.',
+        [{ text: 'Đóng' }]
+      );
+    } finally {
+      setAttendLoadingId(null);
+    }
+  }, []);
 
   const switchTab = (t: 'upcoming' | 'past') => {
     setTab(t);
@@ -264,7 +329,15 @@ const EventsScreen: React.FC<{ navigation: any }> = () => {
               <Text style={[es.stateTxt, { color: mutedColor }]}>{tab === 'upcoming' ? 'Không có sự kiện sắp tới' : 'Không có sự kiện đã qua'}</Text>
             </View>
           }
-          renderItem={({ item, index }) => <EventCard item={item} idx={index} theme={theme} />}
+          renderItem={({ item, index }) => (
+            <EventCard
+              item={item}
+              idx={index}
+              theme={theme}
+              onToggleAttend={handleToggleAttend}
+              loadingId={attendLoadingId}
+            />
+          )}
           ListFooterComponent={<View style={{ height: 100 }} />}
         />
       )}
@@ -315,6 +388,12 @@ const ec = StyleSheet.create({
   metaRow   : { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
   metaText  : { fontSize: fontSize.xs, color: 'rgba(255,255,255,0.35)', fontWeight: '500' },
   desc      : { fontSize: fontSize.xs, color: 'rgba(255,255,255,0.35)', marginTop: 6, lineHeight: 18 },
+  attendBtn : {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: rs(5), marginTop: rs(10), paddingVertical: rs(7), paddingHorizontal: rs(14),
+    borderRadius: borderRadius.full, borderWidth: 1, alignSelf: 'flex-start',
+  },
+  attendTxt : { fontSize: rf(12), fontWeight: '700' },
 });
 
 export default EventsScreen;

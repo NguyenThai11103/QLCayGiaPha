@@ -79,6 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('nguoi')->group(function () {
         Route::get('/list', [NguoiController::class, 'index']);
         Route::get('/detail', [NguoiController::class, 'detail']);
+        Route::get('/qr-detail', [NguoiController::class, 'qrDetail']);
         Route::post('/create', [NguoiController::class, 'store'])->middleware('check.permission:quan_ly');
         Route::post('/update', [NguoiController::class, 'update'])->middleware('check.permission:quan_ly');
         Route::post('/delete', [NguoiController::class, 'destroy'])->middleware('check.permission:quan_ly');

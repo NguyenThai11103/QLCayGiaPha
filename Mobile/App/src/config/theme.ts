@@ -2,6 +2,15 @@ import { Dimensions } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
 
+// Standard design baseline sizes (standard mobile screen aspect ratio 375x812)
+const guidelineBaseWidth = 375;
+const guidelineBaseHeight = 812;
+
+export const rs = (size: number) => (width / guidelineBaseWidth) * size;
+export const rvs = (size: number) => (height / guidelineBaseHeight) * size;
+export const rms = (size: number, factor = 0.5) => size + (rs(size) - size) * factor;
+export const rf = (size: number) => rms(size, 0.2); // Smaller scaling factor to keep typography neat
+
 export const screen = { width, height };
 
 export const colors = {
@@ -82,36 +91,36 @@ export const colors = {
 };
 
 export const spacing = {
-  xxs: 2,
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-  xxl: 48,
-  xxxl: 64,
+  xxs: rs(2),
+  xs: rs(4),
+  sm: rs(8),
+  md: rs(16),
+  lg: rs(24),
+  xl: rs(32),
+  xxl: rs(48),
+  xxxl: rs(64),
 };
 
 export const fontSize = {
-  xxs: 10,
-  xs: 12,
-  sm: 14,
-  md: 16,
-  lg: 18,
-  xl: 20,
-  xxl: 24,
-  xxxl: 30,
-  display: 36,
-  hero: 44,
+  xxs: rf(10),
+  xs: rf(12),
+  sm: rf(14),
+  md: rf(16),
+  lg: rf(18),
+  xl: rf(20),
+  xxl: rf(24),
+  xxxl: rf(30),
+  display: rf(36),
+  hero: rf(44),
 };
 
 export const borderRadius = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  xxl: 32,
+  xs: rs(4),
+  sm: rs(8),
+  md: rs(12),
+  lg: rs(16),
+  xl: rs(24),
+  xxl: rs(32),
   full: 9999,
 };
 

@@ -16,6 +16,7 @@
         "laravel/socialite": "*",
         "laravel/tinker": "^2.10.1",
         "laravel/wayfinder": "^0.1.11",
+        "luc-nham/lunar-calendar": "^3.2",
         "maatwebsite/excel": "^3.1",
         "vantran/lunar-calendar": "^3.2"
     },

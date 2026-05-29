@@ -5,7 +5,18 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StatusBar, View } from 'react-native';
+import { ActivityIndicator, StatusBar, View, Text, TextInput } from 'react-native';
+
+// Disable system-level font scaling globally to maintain layout integrity
+if ((Text as any).defaultProps == null) {
+  (Text as any).defaultProps = {};
+}
+(Text as any).defaultProps.allowFontScaling = false;
+
+if ((TextInput as any).defaultProps == null) {
+  (TextInput as any).defaultProps = {};
+}
+(TextInput as any).defaultProps.allowFontScaling = false;
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -23,6 +34,8 @@ import ForgotPasswordScreen from './src/pages/ForgotPasswordScreen';
 import SettingsScreen from './src/pages/SettingsScreen';
 import HelpScreen from './src/pages/HelpScreen';
 import LichAmScreen from './src/pages/LichAmScreen';
+import TaiLieuScreen from './src/pages/TaiLieuScreen';
+import ChangePasswordScreen from './src/pages/ChangePasswordScreen';
 import { RootStackParamList } from './src/config/navigation';
 import { STORAGE_TOKEN_KEY } from './src/genaral/authService';
 import { colors } from './src/config/theme';
@@ -138,6 +151,16 @@ function App(): React.JSX.Element {
             <Stack.Screen
               name="Help"
               component={HelpScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="TaiLieu"
+              component={TaiLieuScreen}
+              options={{ animation: 'slide_from_right' }}
+            />
+            <Stack.Screen
+              name="ChangePassword"
+              component={ChangePasswordScreen}
               options={{ animation: 'slide_from_right' }}
             />
           </Stack.Navigator>

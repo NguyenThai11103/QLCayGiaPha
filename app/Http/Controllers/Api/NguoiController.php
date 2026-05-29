@@ -121,6 +121,84 @@ class NguoiController extends Controller
         ]);
     }
 
+    /**
+     * Tra cứu thông tin cơ bản thành viên qua QR code.
+     * Không kiểm tra quyền dòng họ — bất kỳ thành viên đã đăng nhập đều có thể tra.
+     */
+    public function qrDetail(Request $request)
+    {
+        $id = $request->query('id');
+        if (!$id) {
+            return response()->json(['success' => false, 'message' => 'Thiếu id thành viên.'], 422);
+        }
+
+        $tv = DB::table('thanh_viens')->where('id', $id)->first();
+        if (!$tv) {
+            return response()->json(['success' => false, 'message' => 'Không tìm thấy thành viên trong hệ thống.'], 404);
+        }
+
+        // Lấy tên dòng họ
+        $dongHo = DB::table('dong_hos')->where('id', $tv->dong_ho_id)->value('ten_dong_ho');
+
+        // Xử lý ngày âm lịch
+        $ngaySinhAmFormatted = null;
+        if ($tv->ngay_sinh_am) {
+            try {
+                $carbonAm = \Carbon\Carbon::parse($tv->ngay_sinh_am);
+                $ngaySinhAmFormatted = \App\Support\LunarSolarConverter::formatLunarDate($carbonAm->day, $carbonAm->month, $carbonAm->year);
+            } catch (\Exception $e) {}
+        }
+
+        $ngayMatAmFormatted = null;
+        if ($tv->ngay_mat_am) {
+            try {
+                $carbonMat = \Carbon\Carbon::parse($tv->ngay_mat_am);
+                $ngayMatAmFormatted = \App\Support\LunarSolarConverter::formatLunarDate($carbonMat->day, $carbonMat->month, $carbonMat->year);
+            } catch (\Exception $e) {}
+        }
+
+        // Quan hệ cha/mẹ/vợ chồng
+        $quanHes = DB::table('quan_hes')
+            ->where('node_1_id', $id)
+            ->orWhere('node_2_id', $id)
+            ->get();
+
+        $idCha = null; $idMe = null; $voChongIds = [];
+        foreach ($quanHes as $qh) {
+            if ($qh->loai_quan_he === 'cha_con') {
+                if ($qh->node_1_id == $id) {} else { $idCha = (int) $qh->node_1_id; }
+            } elseif ($qh->loai_quan_he === 'me_con') {
+                if ($qh->node_1_id == $id) {} else { $idMe = (int) $qh->node_1_id; }
+            } elseif ($qh->loai_quan_he === 'vo_chong') {
+                $voChongIds[] = $qh->node_1_id == $id ? (int) $qh->node_2_id : (int) $qh->node_1_id;
+            }
+        }
+
+        $thongTin = [
+            'id'                    => $tv->id,
+            'id_dong_ho'            => $tv->dong_ho_id,
+            'ten_day_du'            => $tv->ho_ten,
+            'gioi_tinh'             => $tv->gioi_tinh,
+            'ngay_sinh'             => $tv->ngay_sinh_duong,
+            'ngay_sinh_am'          => $tv->ngay_sinh_am,
+            'ngay_sinh_am_formatted' => $ngaySinhAmFormatted,
+            'ngay_mat'              => $tv->ngay_mat_am,
+            'ngay_mat_formatted'    => $ngayMatAmFormatted,
+            'da_mat'                => in_array($tv->tinh_trang_song, [0, '0', 'mat'], true),
+            'id_cha'                => $idCha,
+            'id_me'                 => $idMe,
+            'vo_chong_ids'          => array_values(array_unique($voChongIds)),
+            'tieu_su'               => $tv->tieu_su,
+            'anh_dai_dien'          => $tv->anh_dai_dien,
+            'dong_ho'               => $dongHo,
+        ];
+
+        return response()->json([
+            'success' => true,
+            'data'    => ['thong_tin' => $thongTin],
+        ]);
+    }
+
     public function store(CreateNguoiRequest $request)
     {
         $data = $request->validated();

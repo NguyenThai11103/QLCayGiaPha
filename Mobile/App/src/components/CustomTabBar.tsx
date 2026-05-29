@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -196,6 +197,7 @@ const CenterFab: React.FC<{
 //  Main CustomTabBar
 // ─────────────────────────────────────────────────────
 const CustomTabBar: React.FC<{ state: any; navigation: any }> = ({ state, navigation }) => {
+  const insets = useSafeAreaInsets();
   const slideUp = useRef(new Animated.Value(120)).current;
 
   useEffect(() => {
@@ -208,8 +210,11 @@ const CustomTabBar: React.FC<{ state: any; navigation: any }> = ({ state, naviga
     }).start();
   }, []);
 
+  // Compute safe bottom margin dynamically based on safe area insets to prevent cutout overlap
+  const safeBottom = insets.bottom > 0 ? insets.bottom : 12;
+
   return (
-    <Animated.View style={[styles.container, { transform: [{ translateY: slideUp }] }]}>
+    <Animated.View style={[styles.container, { transform: [{ translateY: slideUp }], bottom: safeBottom }]}>
       <View style={styles.bar}>
         {TABS.map((tab, index) => {
           const isFocused = state.index === index;
@@ -259,7 +264,6 @@ const BAR_HEIGHT = 72;
 const styles = StyleSheet.create({
   container: {
     position : 'absolute',
-    bottom   : Platform.OS === 'ios' ? 20 : 12,
     left     : 16,
     right    : 16,
   },

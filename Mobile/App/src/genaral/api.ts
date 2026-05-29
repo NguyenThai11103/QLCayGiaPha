@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─────────────────────────────────────────────
-export const BASE_URL         = 'http://192.168.1.112:8000/api';
+export const BASE_URL         = 'http://192.168.1.113:8000/api';
 export const STORAGE_TOKEN_KEY = 'auth_token';
 export const API_TIMEOUT       = 15000; // 15s
 

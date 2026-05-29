@@ -7,14 +7,20 @@ import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   StatusBar, Platform, Animated, Modal, ScrollView,
   ActivityIndicator, TextInput, KeyboardAvoidingView, Alert, Linking,
+  PermissionsAndroid,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import Ionicons from '@react-native-vector-icons/ionicons/static';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from '../genaral/api';
 import { STORAGE_TOKEN_KEY } from '../genaral/authService';
-import { colors, spacing } from '../config/theme';
+import { colors, spacing, rs, rvs, rf } from '../config/theme';
 import { useTheme } from '../context/ThemeContext';
+
+// ─────────────────────────────────────────────────────────
+//  Goong Maps API key (có thể dời ra config file sau)
+// ─────────────────────────────────────────────────────────
+const GOONG_API_KEY = 'YOUR_GOONG_API_KEY'; // ← Thay key của bạn tại https://account.goong.io
 
 // ─────────────────────────────────────────────────────────
 //  Types
@@ -157,14 +163,247 @@ const MoPhanCard: React.FC<{
 // ─────────────────────────────────────────────────────────
 //  Detail Modal
 // ─────────────────────────────────────────────────────────
-const openMaps = (lat: string, lng: string, label: string) => {
-  const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-  Linking.openURL(url).catch(() => {
-    const fallback = `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(label)})`;
-    Linking.openURL(fallback).catch(() => {
-      Alert.alert('Lỗi', 'Không thể mở bản đồ trên thiết bị này.');
-    });
-  });
+// ─────────────────────────────────────────────────────────
+//  Direction Sheet – Chỉ đường bằng Goong Maps API
+// ─────────────────────────────────────────────────────────
+interface RouteInfo {
+  distance : string;   // ví dụ: "12.3 km"
+  duration : string;   // ví dụ: "18 phút"
+  distanceM: number;   // mét
+  durationS: number;   // giây
+}
+
+const DirectionSheet: React.FC<{
+  visible  : boolean;
+  destLat  : string;
+  destLng  : string;
+  label    : string;
+  onClose  : () => void;
+}> = ({ visible, destLat, destLng, label, onClose }) => {
+  const slide = useRef(new Animated.Value(600)).current;
+  const [loading,   setLoading]   = useState(false);
+  const [route,     setRoute]     = useState<RouteInfo | null>(null);
+  const [userLat,   setUserLat]   = useState<number | null>(null);
+  const [userLng,   setUserLng]   = useState<number | null>(null);
+  const [geoError,  setGeoError]  = useState<string | null>(null);
+  const [vehicle,   setVehicle]   = useState<'car' | 'bike' | 'taxi'>('car');
+
+  const VEHICLES: { key: 'car' | 'bike' | 'taxi'; label: string; icon: string; color: string }[] = [
+    { key: 'car',  label: 'Ô tô',    icon: 'car-outline',          color: '#6C63FF' },
+    { key: 'bike', label: 'Xe máy', icon: 'bicycle-outline',      color: '#10B981' },
+    { key: 'taxi', label: 'Taxi',   icon: 'car-sport-outline',    color: '#F59E0B' },
+  ];
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(slide, { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }).start();
+      getUserLocation();
+    } else {
+      Animated.timing(slide, { toValue: 600, duration: 220, useNativeDriver: true }).start();
+      setRoute(null);
+      setGeoError(null);
+      setUserLat(null);
+      setUserLng(null);
+    }
+  }, [visible]);
+
+  // Tự động gọi lại khi đổi vehicle
+  useEffect(() => {
+    if (userLat !== null && userLng !== null && visible) {
+      fetchRoute(userLat, userLng, vehicle);
+    }
+  }, [vehicle, userLat, userLng]);
+
+  const getUserLocation = async () => {
+    setGeoError(null);
+    setLoading(true);
+    setRoute(null);
+
+    // Xin quyền trên Android
+    if (Platform.OS === 'android') {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title     : 'Quyền truy cập vị trí',
+          message   : 'Ứng dụng cần vị trí của bạn để tính tuyến đường đến mộ phần.',
+          buttonPositive: 'Đồng ý',
+          buttonNegative: 'Từ chối',
+        },
+      );
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        setLoading(false);
+        setGeoError('Bạn chưa cấp quyền vị trí. Vui lòng bật trong Cài đặt.');
+        return;
+      }
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setUserLat(lat);
+        setUserLng(lng);
+        // fetchRoute sẽ được gọi qua useEffect [vehicle, userLat, userLng]
+      },
+      err => {
+        setLoading(false);
+        setGeoError('Không xác định được vị trí của bạn. ' + (err.message ?? ''));
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 10000 },
+    );
+  };
+
+  const fetchRoute = async (oLat: number, oLng: number, v: string) => {
+    setLoading(true);
+    setRoute(null);
+    try {
+      const url = `https://rsapi.goong.io/Direction?origin=${oLat},${oLng}&destination=${destLat},${destLng}&vehicle=${v}&api_key=${GOONG_API_KEY}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      const leg = json?.routes?.[0]?.legs?.[0];
+      if (!leg) throw new Error('Không tìm thấy tuyến đường');
+      setRoute({
+        distance : leg.distance?.text ?? '??',
+        duration : leg.duration?.text ?? '??',
+        distanceM: leg.distance?.value ?? 0,
+        durationS: leg.duration?.value ?? 0,
+      });
+    } catch (e: any) {
+      setGeoError(e?.message ?? 'Không thể tải thông tin tuyến đường');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openGoongMaps = () => {
+    // Goong Maps web — chỉ đường tới destination
+    const origin = userLat && userLng ? `${userLat},${userLng}` : '';
+    const dest   = `${destLat},${destLng}`;
+    const url    = origin
+      ? `https://maps.goong.io/directions?origin=${origin}&destination=${dest}&vehicle=${vehicle}`
+      : `https://maps.goong.io/?q=${dest}`;
+    Linking.openURL(url).catch(() =>
+      Alert.alert('Không thể mở', 'Không tìm thấy Goong Maps trên thiết bị.')
+    );
+  };
+
+  const openGoogleMaps = () => {
+    const origin = userLat && userLng ? `&origin=${userLat},${userLng}` : '';
+    const url = `https://www.google.com/maps/dir/?api=1${origin}&destination=${destLat},${destLng}&travelmode=driving`;
+    Linking.openURL(url).catch(() =>
+      Alert.alert('Không thể mở', 'Không tìm thấy Google Maps trên thiết bị.')
+    );
+  };
+
+  const openAppleMaps = () => {
+    const url = `maps://?daddr=${destLat},${destLng}&q=${encodeURIComponent(label)}`;
+    Linking.openURL(url).catch(() =>
+      Alert.alert('Không hỗ trợ', 'Apple Maps chỉ có trên iOS.')
+    );
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <View style={ds.overlay}>
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} activeOpacity={1} />
+        <Animated.View style={[ds.sheet, { transform: [{ translateY: slide }] }]}>
+          <View style={ds.handle} />
+
+          {/* Header */}
+          <View style={ds.header}>
+            <LinearGradient colors={['#10B981','#059669']} style={ds.headerIcon}>
+              <Ionicons name="navigate" size={rs(20)} color="#fff" />
+            </LinearGradient>
+            <View style={{ flex: 1 }}>
+              <Text style={ds.headerTitle}>Chỉ Đường</Text>
+              <Text style={ds.headerSub} numberOfLines={1}>Đến: {label}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={ds.closeBtn}>
+              <Ionicons name="close" size={rs(18)} color="rgba(255,255,255,0.5)" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Vehicle selector */}
+          <View style={ds.vehicleRow}>
+            {VEHICLES.map(v => (
+              <TouchableOpacity
+                key={v.key}
+                style={[ds.vehicleBtn, vehicle === v.key && { borderColor: v.color, backgroundColor: v.color + '20' }]}
+                onPress={() => setVehicle(v.key)}
+              >
+                <Ionicons name={v.icon as any} size={rs(18)} color={vehicle === v.key ? v.color : 'rgba(255,255,255,0.4)'} />
+                <Text style={[ds.vehicleTxt, { color: vehicle === v.key ? v.color : 'rgba(255,255,255,0.4)' }]}>{v.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Route Info */}
+          {loading ? (
+            <View style={ds.routeBox}>
+              <ActivityIndicator size="large" color="#10B981" />
+              <Text style={ds.routeLoading}>Goong Maps đang tính tuyến đường...</Text>
+            </View>
+          ) : geoError ? (
+            <View style={ds.routeBox}>
+              <Ionicons name="warning-outline" size={rs(36)} color="#F59E0B" />
+              <Text style={ds.routeError}>{geoError}</Text>
+              <TouchableOpacity style={ds.retryBtn} onPress={getUserLocation}>
+                <Ionicons name="refresh" size={rs(14)} color="#10B981" />
+                <Text style={ds.retryTxt}>Thử lại</Text>
+              </TouchableOpacity>
+            </View>
+          ) : route ? (
+            <View style={ds.routeInfoRow}>
+              <LinearGradient colors={['rgba(16,185,129,0.15)','rgba(5,150,105,0.05)']} style={ds.routeCard}>
+                <Ionicons name="speedometer-outline" size={rs(22)} color="#10B981" />
+                <Text style={ds.routeCardNum}>{route.distance}</Text>
+                <Text style={ds.routeCardLabel}>Khoảng cách</Text>
+              </LinearGradient>
+              <LinearGradient colors={['rgba(108,99,255,0.15)','rgba(79,70,229,0.05)']} style={ds.routeCard}>
+                <Ionicons name="time-outline" size={rs(22)} color="#6C63FF" />
+                <Text style={ds.routeCardNum}>{route.duration}</Text>
+                <Text style={ds.routeCardLabel}>Thời gian</Text>
+              </LinearGradient>
+            </View>
+          ) : null}
+
+          {/* Powered by */}
+          <Text style={ds.poweredBy}>Dữ liệu tuyến đường bởi Goong Maps API</Text>
+
+          {/* Action buttons */}
+          <View style={ds.btnGroup}>
+            {/* Goong Maps */}
+            <TouchableOpacity style={ds.mapBtn} onPress={openGoongMaps} activeOpacity={0.85}>
+              <LinearGradient colors={['#10B981','#059669']} style={ds.mapBtnGrad}>
+                <Ionicons name="map-outline" size={rs(18)} color="#fff" />
+                <Text style={ds.mapBtnTxt}>Goong Maps</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Google Maps */}
+            <TouchableOpacity style={ds.mapBtn} onPress={openGoogleMaps} activeOpacity={0.85}>
+              <LinearGradient colors={['#4285F4','#2563EB']} style={ds.mapBtnGrad}>
+                <Ionicons name="navigate-circle-outline" size={rs(18)} color="#fff" />
+                <Text style={ds.mapBtnTxt}>Google Maps</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Apple Maps — chỉ iOS */}
+            {Platform.OS === 'ios' && (
+              <TouchableOpacity style={ds.mapBtn} onPress={openAppleMaps} activeOpacity={0.85}>
+                <LinearGradient colors={['#6B7280','#374151']} style={ds.mapBtnGrad}>
+                  <Ionicons name="logo-apple" size={rs(18)} color="#fff" />
+                  <Text style={ds.mapBtnTxt}>Apple Maps</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Animated.View>
+      </View>
+    </Modal>
+  );
 };
 
 const DetailModal: React.FC<{
@@ -174,6 +413,7 @@ const DetailModal: React.FC<{
   theme : ReturnType<typeof useTheme>['theme'];
 }> = ({ item, onClose, onEdit, theme }) => {
   const slide = useRef(new Animated.Value(500)).current;
+  const [showDirection, setShowDirection] = useState(false);
 
   useEffect(() => {
     if (item) {
@@ -272,7 +512,7 @@ const DetailModal: React.FC<{
             {/* Actions */}
             <View style={dm.actions}>
               {hasCoords && (
-                <TouchableOpacity style={dm.navigateBtn} onPress={() => openMaps(item.vi_do!, item.kinh_do!, item.ten_thanh_vien)}>
+                <TouchableOpacity style={dm.navigateBtn} onPress={() => setShowDirection(true)}>
                   <LinearGradient colors={['#10B981','#059669']} style={dm.navigateBtnInner}>
                     <Ionicons name="navigate" size={18} color="#fff" />
                     <Text style={dm.navigateBtnTxt}>Chỉ đường</Text>
@@ -292,6 +532,17 @@ const DetailModal: React.FC<{
           </Animated.View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Direction Sheet */}
+      {hasCoords && (
+        <DirectionSheet
+          visible={showDirection}
+          destLat={item!.vi_do!}
+          destLng={item!.kinh_do!}
+          label={item!.ten_thanh_vien}
+          onClose={() => setShowDirection(false)}
+        />
+      )}
     </Modal>
   );
 };
@@ -699,4 +950,50 @@ const fm = StyleSheet.create({
   saveBtnTxt: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });
 
+// ─── DirectionSheet Styles ───────────────────────────────
+const ds = StyleSheet.create({
+  overlay     : { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
+  sheet       : {
+    backgroundColor: '#12122A',
+    borderTopLeftRadius: rs(28), borderTopRightRadius: rs(28),
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: spacing.lg,
+    paddingBottom: Platform.OS === 'ios' ? rvs(40) : rvs(24),
+    paddingTop: spacing.md,
+  },
+  handle      : { width: rs(40), height: rs(4), borderRadius: rs(2), backgroundColor: 'rgba(255,255,255,0.15)', alignSelf: 'center', marginBottom: spacing.md },
+  header      : { flexDirection: 'row', alignItems: 'center', gap: rs(12), marginBottom: spacing.lg },
+  headerIcon  : { width: rs(42), height: rs(42), borderRadius: rs(13), justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  headerTitle : { fontSize: rf(17), fontWeight: '800', color: '#fff' },
+  headerSub   : { fontSize: rf(11), color: 'rgba(255,255,255,0.4)', marginTop: rs(2) },
+  closeBtn    : { padding: rs(6), marginLeft: 'auto' },
+  vehicleRow  : { flexDirection: 'row', gap: rs(10), marginBottom: spacing.lg },
+  vehicleBtn  : {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: rs(5), paddingVertical: rvs(9), borderRadius: rs(12),
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  vehicleTxt  : { fontSize: rf(11), fontWeight: '700' },
+  routeBox    : { alignItems: 'center', justifyContent: 'center', gap: rs(8), paddingVertical: rvs(20), marginBottom: spacing.md },
+  routeLoading: { fontSize: rf(13), color: 'rgba(255,255,255,0.5)', fontWeight: '600' },
+  routeError  : { fontSize: rf(12), color: '#F59E0B', textAlign: 'center', paddingHorizontal: rs(20), fontWeight: '600' },
+  retryBtn    : { flexDirection: 'row', alignItems: 'center', gap: rs(5), paddingHorizontal: rs(14), paddingVertical: rvs(7), borderRadius: rs(20), backgroundColor: 'rgba(16,185,129,0.12)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)' },
+  retryTxt    : { fontSize: rf(12), color: '#10B981', fontWeight: '700' },
+  routeInfoRow: { flexDirection: 'row', gap: rs(12), marginBottom: spacing.lg },
+  routeCard   : {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    gap: rs(4), paddingVertical: rvs(14),
+    borderRadius: rs(16), borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)',
+  },
+  routeCardNum  : { fontSize: rf(18), fontWeight: '800', color: '#fff' },
+  routeCardLabel: { fontSize: rf(10), color: 'rgba(255,255,255,0.4)', fontWeight: '600' },
+  poweredBy   : { fontSize: rf(10), color: 'rgba(255,255,255,0.25)', textAlign: 'center', marginBottom: spacing.md, fontWeight: '500' },
+  btnGroup    : { gap: rs(10) },
+  mapBtn      : { borderRadius: rs(14), overflow: 'hidden' },
+  mapBtnGrad  : { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: rs(8), paddingVertical: rvs(14) },
+  mapBtnTxt   : { fontSize: rf(15), fontWeight: '700', color: '#fff' },
+});
+
 export default MoPhanScreen;
+

@@ -158,7 +158,7 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
       const res = await apiFetch<{ data: any[] }>(
-        '/mo-phan/notifications',
+        '/notifications/',
         {},
         token ?? undefined,
       );
@@ -187,7 +187,7 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
     try {
       const token = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
-      await apiFetch('/mo-phan/notifications/read', {
+      await apiFetch('/notifications/read', {
         method: 'POST',
         body: JSON.stringify({ id }),
       }, token ?? undefined);
@@ -198,7 +198,7 @@ const NotificationsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     setNotifs(prev => prev.map(n => ({ ...n, read: true })));
     try {
       const token = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
-      await apiFetch('/mo-phan/notifications/read-all', {
+      await apiFetch('/notifications/read-all', {
         method: 'POST',
       }, token ?? undefined);
     } catch { /* silent */ }

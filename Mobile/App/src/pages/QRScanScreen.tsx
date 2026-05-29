@@ -29,10 +29,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { apiFetch } from '../genaral/api';
 import { STORAGE_TOKEN_KEY } from '../genaral/authService';
-import { borderRadius, fontSize, spacing } from '../config/theme';
+import { borderRadius, fontSize, rs, rvs, rf, screen, spacing } from '../config/theme';
 import { getDualDateDisplay } from '../utils/lunarDate';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // ─────────────────────────────────────────────────────────
 //  Types
@@ -90,7 +90,7 @@ const ScanLine: React.FC = () => {
     ).start();
   }, []);
 
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, 220] });
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [0, rs(220)] });
 
   return (
     <Animated.View style={[styles.scanLine, { transform: [{ translateY }] }]}>
@@ -351,7 +351,7 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
     try {
       const token = await AsyncStorage.getItem(STORAGE_TOKEN_KEY);
       const res   = await apiFetch<{ success: boolean; data: { thong_tin: any } }>(
-        `/nguoi/detail?id=${memberId}`,
+        `/nguoi/qr-detail?id=${memberId}`,
         { method: 'GET' },
         token ?? undefined,
       );
@@ -628,9 +628,9 @@ const QRScanScreen: React.FC<QRScanScreenProps> = ({ navigation }) => {
 // ─────────────────────────────────────────────────────────
 //  Styles
 // ─────────────────────────────────────────────────────────
-const VF_SIZE    = 260;
-const CORNER_LEN = 28;
-const CORNER_W   = 3;
+const VF_SIZE    = rs(260);
+const CORNER_LEN = rs(28);
+const CORNER_W   = rs(3);
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
 
   // Overlay
   overlay          : { ...StyleSheet.absoluteFillObject },
-  overlayTop       : { flex: 1, backgroundColor: 'rgba(7,7,18,0.72)', minHeight: (Platform.OS === 'ios' ? 44 : 56) + 70 + 60 },
+  overlayTop       : { flex: 1, backgroundColor: 'rgba(7,7,18,0.72)', minHeight: rvs(Platform.OS === 'ios' ? 174 : 186) },
   overlayMiddleRow : { flexDirection: 'row', height: VF_SIZE },
   overlaySide      : { flex: 1, backgroundColor: 'rgba(7,7,18,0.72)' },
   overlayBottom    : { flex: 1, backgroundColor: 'rgba(7,7,18,0.72)' },
@@ -677,7 +677,7 @@ const styles = StyleSheet.create({
   // Top bar
   topBar: {
     position       : 'absolute',
-    top            : Platform.OS === 'ios' ? 56 : 44,
+    top            : Platform.OS === 'ios' ? rvs(56) : rvs(44),
     left           : spacing.lg,
     right          : spacing.lg,
     flexDirection  : 'row',
@@ -686,34 +686,34 @@ const styles = StyleSheet.create({
   },
   topBtn     : { borderRadius: borderRadius.full, overflow: 'hidden' },
   topBtnGrad : {
-    width: 44, height: 44, borderRadius: 22,
+    width: rs(44), height: rs(44), borderRadius: rs(22),
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
   },
   topTitleBox  : {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: rs(6),
     backgroundColor: 'rgba(12,10,30,0.82)',
-    paddingHorizontal: spacing.md, paddingVertical: 8,
+    paddingHorizontal: spacing.md, paddingVertical: rvs(8),
     borderRadius: borderRadius.full,
     borderWidth: 1, borderColor: 'rgba(108,99,255,0.3)',
   },
   topTitleText : { fontSize: fontSize.sm, fontWeight: '700', color: '#fff' },
 
   // Hint
-  hintWrap: { position: 'absolute', bottom: 120, left: 0, right: 0, alignItems: 'center' },
+  hintWrap: { position: 'absolute', bottom: rvs(120), left: 0, right: 0, alignItems: 'center' },
   hintBox : {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
+    flexDirection: 'row', alignItems: 'center', gap: rs(6),
     backgroundColor: 'rgba(12,10,30,0.78)',
     borderWidth: 1, borderColor: 'rgba(108,99,255,0.25)',
     borderRadius: borderRadius.full,
-    paddingHorizontal: spacing.md, paddingVertical: 8,
+    paddingHorizontal: spacing.md, paddingVertical: rvs(8),
   },
   hintText: { fontSize: fontSize.xs, color: 'rgba(255,255,255,0.65)', fontWeight: '500' },
 
   // Gallery Picker Button
   galleryButtonWrap: {
     position: 'absolute',
-    bottom: 50,
+    bottom: rvs(50),
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -722,21 +722,21 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.full,
     overflow: 'hidden',
     shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: rs(4) },
     shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowRadius: rs(8),
     elevation: 5,
   },
   galleryBtnGrad: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 22,
-    paddingVertical: 12,
+    paddingHorizontal: rs(22),
+    paddingVertical: rvs(12),
     borderRadius: borderRadius.full,
   },
   galleryBtnTxt: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: rf(14),
     fontWeight: '800',
   },
 
@@ -744,22 +744,22 @@ const styles = StyleSheet.create({
   sheetOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor    : '#0E0A26',
-    borderTopLeftRadius : 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius : rs(28),
+    borderTopRightRadius: rs(28),
     borderWidth        : 1,
     borderColor        : 'rgba(108,99,255,0.25)',
     paddingHorizontal  : spacing.lg,
-    paddingBottom      : Platform.OS === 'ios' ? 40 : 28,
+    paddingBottom      : Platform.OS === 'ios' ? rvs(40) : rvs(28),
     paddingTop         : spacing.md,
     maxHeight          : '85%',
   },
-  sheetHandle      : { width: 40, height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.18)', alignSelf: 'center', marginBottom: spacing.lg },
+  sheetHandle      : { width: rs(40), height: rs(4), borderRadius: rs(2), backgroundColor: 'rgba(255,255,255,0.18)', alignSelf: 'center', marginBottom: spacing.lg },
   sheetCenter      : { alignItems: 'center', paddingVertical: spacing.xxl, gap: spacing.md },
   sheetLoadingText : { fontSize: fontSize.md, color: 'rgba(255,255,255,0.55)' },
   sheetErrTitle    : { fontSize: fontSize.xl, fontWeight: '800', color: '#EF4444' },
   sheetErrSub      : { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.45)', textAlign: 'center' },
   retryBtn         : {
-    flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: spacing.sm,
+    flexDirection: 'row', alignItems: 'center', gap: rs(6), marginTop: spacing.sm,
     paddingHorizontal: spacing.xl, paddingVertical: spacing.sm,
     borderRadius: borderRadius.full,
     backgroundColor: 'rgba(108,99,255,0.2)', borderWidth: 1, borderColor: 'rgba(108,99,255,0.4)',
@@ -769,31 +769,31 @@ const styles = StyleSheet.create({
   // Member Avatar Ring
   sheetAvatarRow : { alignItems: 'center', marginBottom: spacing.sm },
   avatarRing: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
-    borderWidth: 3,
+    width: rs(86),
+    height: rs(86),
+    borderRadius: rs(43),
+    borderWidth: rs(3),
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 3,
+    padding: rs(3),
   },
   deceasedBadge: {
     position: 'absolute',
-    bottom: -6,
+    bottom: rs(-6),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 12,
+    gap: rs(4),
+    paddingHorizontal: rs(10),
+    paddingVertical: rs(3),
+    borderRadius: rs(12),
     shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: rs(2) },
     shadowOpacity: 0.35,
-    shadowRadius: 4,
+    shadowRadius: rs(4),
     elevation: 2,
   },
   deceasedBadgeTxt: {
-    fontSize: 9.5,
+    fontSize: rf(9.5),
     color: '#FFFFFF',
     fontWeight: '900',
   },
@@ -804,28 +804,28 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   memorialPre: {
-    fontSize: 9.5,
+    fontSize: rf(9.5),
     fontWeight: '900',
     color: '#F59E0B',
     letterSpacing: 2,
-    marginBottom: 4,
+    marginBottom: rs(4),
   },
   memorialName: {
-    fontSize: 24,
+    fontSize: rf(24),
     fontWeight: '900',
     color: '#FBBF24',
     textAlign: 'center',
     letterSpacing: -0.5,
   },
   memorialSub: {
-    fontSize: 12,
+    fontSize: rf(12),
     fontWeight: '700',
     fontStyle: 'italic',
     color: 'rgba(255,255,255,0.5)',
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
-    paddingHorizontal: 12,
+    marginTop: rvs(6),
+    lineHeight: rf(18),
+    paddingHorizontal: rs(12),
   },
 
   // Normal header
@@ -851,33 +851,33 @@ const styles = StyleSheet.create({
   },
   infoRow      : { flexDirection: 'row', alignItems: 'center', padding: spacing.md, gap: spacing.md },
   infoRowBorder: { borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' },
-  infoIconWrap : { width: 34, height: 34, borderRadius: 10, backgroundColor: 'rgba(108,99,255,0.15)', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  infoIconWrap : { width: rs(34), height: rs(34), borderRadius: rs(10), backgroundColor: 'rgba(108,99,255,0.15)', justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
   infoLabel    : { fontSize: fontSize.xxs, color: 'rgba(255,255,255,0.35)', fontWeight: '650', textTransform: 'uppercase', letterSpacing: 0.5 },
-  infoValue    : { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.85)', fontWeight: '700', marginTop: 2 },
+  infoValue    : { fontSize: fontSize.sm, color: 'rgba(255,255,255,0.85)', fontWeight: '700', marginTop: rs(2) },
   
   lunarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
+    gap: rs(4),
+    marginTop: rs(4),
   },
   lunarText: {
-    fontSize: 11.5,
+    fontSize: rf(11.5),
     color: '#F59E0B',
     fontWeight: '700',
     fontStyle: 'italic',
   },
   biographyText: {
     fontWeight: '500',
-    lineHeight: 20,
+    lineHeight: rf(20),
     color: 'rgba(255,255,255,0.75)',
   },
 
   // Silhouette graphics
   silhouetteContainer: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: rs(68),
+    height: rs(68),
+    borderRadius: rs(34),
     backgroundColor: '#E2E8F0',
     justifyContent: 'flex-end',
     alignItems: 'center',
@@ -885,45 +885,45 @@ const styles = StyleSheet.create({
   },
   silhouetteHair: {
     position: 'absolute',
-    top: 6,
+    top: rs(6),
     zIndex: 3,
   },
   hairMale: {
-    width: 26,
-    height: 14,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
+    width: rs(26),
+    height: rs(14),
+    borderTopLeftRadius: rs(14),
+    borderTopRightRadius: rs(14),
     backgroundColor: '#1E293B',
   },
   hairFemale: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: rs(32),
+    height: rs(32),
+    borderRadius: rs(16),
     backgroundColor: '#1E293B',
-    top: 5,
+    top: rs(5),
   },
   silhouetteHead: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: rs(24),
+    height: rs(24),
+    borderRadius: rs(12),
     backgroundColor: '#FDBA74',
     position: 'absolute',
-    top: 14,
+    top: rs(14),
     zIndex: 2,
   },
   silhouetteNeck: {
-    width: 8,
-    height: 8,
+    width: rs(8),
+    height: rs(8),
     backgroundColor: '#E59B5F',
     position: 'absolute',
-    top: 32,
+    top: rs(32),
     zIndex: 1,
   },
   silhouetteBody: {
-    width: 58,
-    height: 22,
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
+    width: rs(58),
+    height: rs(22),
+    borderTopLeftRadius: rs(22),
+    borderTopRightRadius: rs(22),
     zIndex: 2,
   },
 

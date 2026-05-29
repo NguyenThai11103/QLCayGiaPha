@@ -2,10 +2,19 @@ import { Head, router } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/auth.context';
 import apiClient from '../../lib/api.client';
-import { tokenStorage } from '../../lib/token.storage';
 import toast from '../../lib/toast.util';
+import { tokenStorage } from '../../lib/token.storage';
 
 const googleCallbackRequests = new Map<string, Promise<any>>();
+
+function saveUserToken(token: string) {
+    tokenStorage.setToken(token, 'user');
+
+    const isHttps = window.location.protocol === 'https:';
+    const secureFlag = isHttps ? '; secure' : '';
+    document.cookie = `user_auth_token=${token}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax${secureFlag}`;
+    document.cookie = 'auth_token=; path=/; max-age=0';
+}
 
 export default function GoogleCallback() {
     const { checkAuth } = useAuth();
@@ -65,13 +74,7 @@ export default function GoogleCallback() {
 
                     const { token: newToken } = response.data.data;
 
-                    // Lưu vào localStorage
-                    tokenStorage.setToken(newToken);
-
-                    // Lưu vào cookie cho middleware backend
-                    const isHttps = window.location.protocol === 'https:';
-                    const secureFlag = isHttps ? '; secure' : '';
-                    document.cookie = `auth_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax${secureFlag}`;
+                    saveUserToken(newToken);
 
                     // Cập nhật state auth và tải lại thông tin
                     await checkAuth();
@@ -110,13 +113,7 @@ export default function GoogleCallback() {
             if (response.data.success) {
                 const { token: newToken } = response.data.data;
 
-                // Lưu vào localStorage
-                tokenStorage.setToken(newToken);
-
-                // Lưu vào cookie cho middleware backend
-                const isHttps = window.location.protocol === 'https:';
-                const secureFlag = isHttps ? '; secure' : '';
-                document.cookie = `auth_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax${secureFlag}`;
+                saveUserToken(newToken);
 
                 // Cập nhật state auth và tải lại thông tin
                 await checkAuth();
@@ -181,10 +178,7 @@ export default function GoogleCallback() {
                     }
 
                     const { token: newToken } = response.data.data;
-                    tokenStorage.setToken(newToken);
-                    const isHttps = window.location.protocol === 'https:';
-                    const secureFlag = isHttps ? '; secure' : '';
-                    document.cookie = `auth_token=${newToken}; path=/; max-age=${60 * 60 * 24 * 30}; samesite=lax${secureFlag}`;
+                    saveUserToken(newToken);
                     await checkAuth();
 
                     toast.success('Đăng nhập thử nghiệm thành công!');
@@ -207,7 +201,16 @@ export default function GoogleCallback() {
                     <div className="w-full max-w-[440px] rounded-[20px] border border-[var(--card-border)] bg-[var(--card)] p-8 shadow-[var(--shadow-xl)] transition-all">
                         <div className="text-center">
                             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--gold-glow)] text-[var(--gold)]">
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg
+                                    width="28"
+                                    height="28"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
                                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                                     <polyline points="22,6 12,13 2,6" />
                                 </svg>
@@ -223,11 +226,21 @@ export default function GoogleCallback() {
 
                         <form onSubmit={handleMockSubmit} className="mt-8 space-y-6">
                             <div>
-                                <label className="mb-2 block text-[12.5px] font-semibold uppercase tracking-[1px] text-[var(--ink-mute)]">
+                                <label className="mb-2 block text-[12.5px] font-semibold tracking-[1px] text-[var(--ink-mute)] uppercase">
                                     Địa chỉ Email Google muốn giả lập
                                 </label>
                                 <div className="relative flex items-center rounded-[12px] border border-[var(--card-border)] bg-[var(--card-soft)] px-4 py-3 transition-all focus-within:border-[var(--gold)] focus-within:bg-[var(--card)] focus-within:shadow-[0_0_0_3px_var(--gold-glow)]">
-                                    <svg className="mr-3 text-[var(--ink-mute)]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg
+                                        className="mr-3 text-[var(--ink-mute)]"
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
                                         <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                                         <polyline points="22,6 12,13 2,6" />
                                     </svg>
@@ -276,7 +289,16 @@ export default function GoogleCallback() {
                         <div className="text-center">
                             {/* Shield Lock SVG Icon */}
                             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--gold-glow)] text-[var(--gold)]">
-                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg
+                                    width="28"
+                                    height="28"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                >
                                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                                     <path d="M12 8v4" />
                                     <path d="M12 16h.01" />
@@ -287,17 +309,27 @@ export default function GoogleCallback() {
                             <p className="mt-3 text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
                                 Một mã xác thực gồm 6 chữ số đã được gửi tới email:
                                 <br />
-                                <strong className="mt-1 inline-block text-[var(--gold)] font-medium">{email}</strong>
+                                <strong className="mt-1 inline-block font-medium text-[var(--gold)]">{email}</strong>
                             </p>
                         </div>
 
                         <form onSubmit={handleVerifyOtp} className="mt-8 space-y-6">
                             <div>
-                                <label className="mb-2 block text-[12.5px] font-semibold uppercase tracking-[1px] text-[var(--ink-mute)]">
+                                <label className="mb-2 block text-[12.5px] font-semibold tracking-[1px] text-[var(--ink-mute)] uppercase">
                                     Mã xác nhận (OTP)
                                 </label>
                                 <div className="relative flex items-center rounded-[12px] border border-[var(--card-border)] bg-[var(--card-soft)] px-4 py-3 transition-all focus-within:border-[var(--gold)] focus-within:bg-[var(--card)] focus-within:shadow-[0_0_0_3px_var(--gold-glow)]">
-                                    <svg className="mr-3 text-[var(--ink-mute)]" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <svg
+                                        className="mr-3 text-[var(--ink-mute)]"
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    >
                                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                                         <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                     </svg>
@@ -362,15 +394,13 @@ export default function GoogleCallback() {
             <div className="flex min-h-screen flex-col items-center justify-center bg-[var(--bg)] text-[var(--ink)]">
                 <div className="text-center">
                     {/* Premium loading spinner */}
-                    <div className="mx-auto relative flex h-20 w-20 items-center justify-center">
+                    <div className="relative mx-auto flex h-20 w-20 items-center justify-center">
                         <div className="absolute h-16 w-16 animate-ping rounded-full bg-[var(--gold-glow)] opacity-75"></div>
-                        <div className="relative h-12 w-12 rounded-full border-t-2 border-b-2 border-[var(--gold)] animate-spin"></div>
+                        <div className="relative h-12 w-12 animate-spin rounded-full border-t-2 border-b-2 border-[var(--gold)]"></div>
                     </div>
 
                     <h2 className="mt-8 font-serif text-[24px] font-semibold tracking-[0.5px]">{statusMessage}</h2>
-                    <p className="mt-2 text-[14px] text-[var(--ink-mute)]">
-                        Hệ thống đang xác thực thông tin và đưa bạn vào không gian gia phả...
-                    </p>
+                    <p className="mt-2 text-[14px] text-[var(--ink-mute)]">Hệ thống đang xác thực thông tin và đưa bạn vào không gian gia phả...</p>
                 </div>
             </div>
         </>

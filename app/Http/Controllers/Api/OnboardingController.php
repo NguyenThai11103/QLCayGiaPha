@@ -3,11 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Onboarding\CreateClanRequest;
 use App\Http\Requests\Onboarding\JoinClanRequest;
 use App\Models\DongHo;
-use App\Models\ThanhVien;
-use App\Support\MaThanhVienHelper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -84,63 +81,13 @@ class OnboardingController extends Controller
     }
 
     /**
-     * Tạo mới một dòng họ (trở thành Quản lý)
+     * Người dùng không được tự tạo dòng họ. Dòng họ mới do admin hệ thống tạo.
      */
-    public function createClan(CreateClanRequest $request)
+    public function createClan(Request $request)
     {
-        $data = $request->validated();
-        $user = $request->user();
-
-        if ($user->dong_ho_id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Bạn đã thuộc về một dòng họ rồi.'
-            ], 400);
-        }
-
-        DB::beginTransaction();
-        try {
-            // 1. Tạo Dòng Họ
-            $dongHo = DongHo::create([
-                'ten_dong_ho' => $data['ten_dong_ho'],
-                'dia_chi_tu_duong' => $data['dia_chi_tu_duong'] ?? null,
-                'mo_ta' => $data['mo_ta'] ?? null,
-                'trang_thai' => true
-            ]);
-
-            // 2. Tạo Thành Viên đại diện cho user (người sáng lập/quản lý)
-            $thanhVien = ThanhVien::create([
-                'dong_ho_id' => $dongHo->id,
-                'ma_thanh_vien' => MaThanhVienHelper::generate($dongHo->id),
-                'ho_ten' => $data['ho_ten_thanh_vien'],
-                'gioi_tinh' => $data['gioi_tinh'],
-                'tinh_trang_song' => 1, // Còn sống
-                // ...các trường mặc định khác
-            ]);
-
-            // 3. Cập nhật User
-            $user->dong_ho_id = $dongHo->id;
-            $user->thanh_vien_id = $thanhVien->id;
-            $user->quyen_han = 'quan_ly';
-            $user->trang_thai_gia_nhap = 'da_duyet'; // Quản lý thì tự duyệt luôn
-            $user->ho_ten = $data['ho_ten_thanh_vien'];
-            $user->save();
-
-            DB::commit();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Tạo dòng họ thành công!',
-                'data' => [
-                    'dong_ho' => $dongHo
-                ]
-            ]);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json([
-                'success' => false,
-                'message' => 'Có lỗi xảy ra khi khởi tạo: ' . $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'success' => false,
+            'message' => 'Chỉ quản trị viên hệ thống mới được tạo dòng họ mới.'
+        ], 403);
     }
 }

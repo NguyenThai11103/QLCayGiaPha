@@ -22,6 +22,11 @@ class DongHo extends Model
         'thuy_to_id',
         'nguoi_tao',
         'theme_color',
+        'trang_thai',
+    ];
+
+    protected $casts = [
+        'trang_thai' => 'boolean',
     ];
 
     // ─── Relationships ─────────────────────────────────────────────────────────

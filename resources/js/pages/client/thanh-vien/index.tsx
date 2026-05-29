@@ -1,5 +1,5 @@
-import { Head, Link } from '@inertiajs/react';
-import { useEffect, useMemo, useState } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import Icon from '../../../components/gia-pha/Icon';
 import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../../services/gia-pha.api';
@@ -30,15 +30,17 @@ export default function ClientDanhSachThanhVien() {
     const { user } = useAuth();
     const [members,      setMembers]      = useState<Nguoi[]>([]);
     const [dongHos,      setDongHos]      = useState<DongHo[]>([]);
-    const [selectedDH,   setSelectedDH]   = useState('');
+    const [selectedDoi,  setSelectedDoi]  = useState('');
     const [loading,      setLoading]      = useState(true);
     const [searchTerm,   setSearchTerm]   = useState('');
     const [viewMode,     setViewMode]     = useState<'grid' | 'table'>('grid');
+    const [visibleCount, setVisibleCount] = useState(12);
+    const loaderRef = useRef<HTMLDivElement>(null);
 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [dhRes, ngRes] = await Promise.all([dongHoApi.list(), nguoiApi.list(selectedDH)]);
+            const [dhRes, ngRes] = await Promise.all([dongHoApi.list(), nguoiApi.list()]);
             setDongHos(dhRes.data || []);
             setMembers(ngRes.data || []);
         } finally {
@@ -48,24 +50,55 @@ export default function ClientDanhSachThanhVien() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => { 
-        if (user?.is_master !== 1 && user?.quyen_han !== 'quan_ly') {
-            void loadData(); 
-        }
-    }, [selectedDH, user?.is_master, user?.quyen_han]);
+        void loadData(); 
+    }, []);
+
+    // Reset visible count when filters or search change
+    useEffect(() => {
+        setVisibleCount(12);
+    }, [selectedDoi, searchTerm]);
+
+    const uniqueDois = useMemo(() => {
+        const dois = members.map(m => m.doi_thu).filter((doi): doi is number => doi !== undefined && doi !== null);
+        return Array.from(new Set(dois)).sort((a, b) => a - b);
+    }, [members]);
 
     const filtered = useMemo(() => {
-        let list = selectedDH ? members.filter(m => String(m.id_dong_ho) === selectedDH) : members;
+        let list = members;
+        if (selectedDoi) {
+            list = list.filter(m => String(m.doi_thu) === selectedDoi);
+        }
         if (searchTerm.trim()) {
             const q = searchTerm.toLowerCase();
             list = list.filter(m => m.ten_day_du.toLowerCase().includes(q));
         }
         return list;
-    }, [members, selectedDH, searchTerm]);
+    }, [members, selectedDoi, searchTerm]);
 
-    // Phân nhánh admin hoặc quản lý (trưởng tộc)
-    if (user?.is_master === 1 || user?.quyen_han === 'quan_ly') {
-        return <AdminDanhSachThanhVien />;
-    }
+    // IntersectionObserver for infinite scroll (robust for nested scroll containers)
+    useEffect(() => {
+        if (loading || visibleCount >= filtered.length) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting) {
+                    setVisibleCount(prev => Math.min(prev + 12, filtered.length));
+                }
+            },
+            { rootMargin: '100px' } // Load slightly before it comes into view for premium seamless feel
+        );
+
+        const currentLoader = loaderRef.current;
+        if (currentLoader) {
+            observer.observe(currentLoader);
+        }
+
+        return () => {
+            if (currentLoader) {
+                observer.unobserve(currentLoader);
+            }
+        };
+    }, [loading, visibleCount, filtered.length]);
 
     const statsNam   = filtered.filter(m => m.gioi_tinh === 'nam').length;
     const statsNu    = filtered.filter(m => m.gioi_tinh === 'nu').length;
@@ -120,14 +153,14 @@ export default function ClientDanhSachThanhVien() {
                         />
                     </div>
 
-                    {/* Dòng họ filter */}
+                    {/* Lọc theo Đời */}
                     <select
-                        value={selectedDH}
-                        onChange={e => setSelectedDH(e.target.value)}
-                        style={{ padding: '9px 36px 9px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-elev)', color: 'var(--ink)', fontSize: 13, cursor: 'pointer', appearance: 'none', minWidth: 180 }}
+                        value={selectedDoi}
+                        onChange={e => setSelectedDoi(e.target.value)}
+                        style={{ padding: '9px 36px 9px 12px', borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-elev)', color: 'var(--ink)', fontSize: 13, cursor: 'pointer', appearance: 'none', minWidth: 150 }}
                     >
-                        <option value="">Tất cả dòng họ</option>
-                        {dongHos.map(dh => <option key={dh.id} value={dh.id}>{dh.ten_dong_ho}</option>)}
+                        <option value="">Tất cả đời</option>
+                        {uniqueDois.map(doi => <option key={doi} value={doi}>Đời thứ {doi}</option>)}
                     </select>
 
                     {/* View toggle */}
@@ -168,7 +201,7 @@ export default function ClientDanhSachThanhVien() {
                 {/* ─── Grid view ───────────────────────────────── */}
                 {!loading && filtered.length > 0 && viewMode === 'grid' && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16, alignItems: 'stretch' }}>
-                        {filtered.map(member => {
+                        {filtered.slice(0, visibleCount).map(member => {
                             const dongHo = dongHos.find(d => d.id === member.id_dong_ho);
                             const spouseNames = (member.vo_chong_ids || []).map(sid => getMemberById(sid)?.ten_day_du).filter(Boolean).join(', ');
 
@@ -211,9 +244,9 @@ export default function ClientDanhSachThanhVien() {
                                                 <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 8%, transparent)' : 'color-mix(in srgb, var(--terracotta) 8%, transparent)', color: member.gioi_tinh === 'nam' ? 'var(--gold-dark)' : 'var(--terracotta)', border: `1px solid ${member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 20%, transparent)' : 'color-mix(in srgb, var(--terracotta) 20%, transparent)'}`, display: 'flex', alignItems: 'center', gap: 4 }}>
                                                     <Icon name={member.gioi_tinh === 'nam' ? 'users' : 'heart'} size={11} /> {member.gioi_tinh === 'nam' ? 'Nam' : 'Nữ'}
                                                 </span>
-                                                {dongHo && (
+                                                {member.doi_thu !== undefined && member.doi_thu !== null && (
                                                     <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: 'var(--bg-base)', color: 'var(--ink-soft)', border: '1px solid var(--line)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140, display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                        <Icon name="scroll" size={11} /> {dongHo.ten_dong_ho}
+                                                        <Icon name="branch" size={11} /> Đời thứ {member.doi_thu}
                                                     </span>
                                                 )}
                                             </div>
@@ -236,18 +269,18 @@ export default function ClientDanhSachThanhVien() {
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                                 <tr style={{ background: 'var(--card-soft)' }}>
-                                    {['Họ và tên', 'Dòng họ', 'Giới tính', 'Ngày sinh', 'Trạng thái', ''].map(col => (
+                                    {['Họ và tên', 'Đời thứ', 'Giới tính', 'Ngày sinh', 'Trạng thái', ''].map(col => (
                                         <th key={col} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: 1.2, textTransform: 'uppercase', color: 'var(--ink-mute)', borderBottom: '1px solid var(--line)' }}>{col}</th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.map((member, i) => {
-                                    const dongHo = dongHos.find(d => d.id === member.id_dong_ho);
+                                {filtered.slice(0, visibleCount).map((member, i) => {
                                     return (
-                                        <tr key={member.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--line-soft)' : 'none' }}
+                                        <tr key={member.id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--line-soft)' : 'none', cursor: 'pointer' }}
                                             onMouseEnter={e => (e.currentTarget.style.background = 'var(--gold-glow)')}
                                             onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                                            onClick={() => router.visit(`/gia-pha/thanh-vien/${member.id}`)}
                                         >
                                             <td style={{ padding: '12px 16px' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -260,7 +293,7 @@ export default function ClientDanhSachThanhVien() {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--ink-soft)' }}>{dongHo?.ten_dong_ho || `#${member.id_dong_ho}`}</td>
+                                            <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--ink-soft)' }}>Đời thứ {member.doi_thu ?? '—'}</td>
                                             <td style={{ padding: '12px 16px' }}>
                                                 <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 12%, transparent)' : 'color-mix(in srgb, var(--terracotta) 12%, transparent)', color: member.gioi_tinh === 'nam' ? 'var(--gold)' : 'var(--terracotta)', border: `1px solid ${member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 25%, transparent)' : 'color-mix(in srgb, var(--terracotta) 25%, transparent)'}` }}>
                                                     {member.gioi_tinh === 'nam' ? 'Nam' : 'Nữ'}
@@ -273,15 +306,27 @@ export default function ClientDanhSachThanhVien() {
                                                 </span>
                                             </td>
                                             <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                                                <Link href={`/gia-pha/thanh-vien/${member.id}`} style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--gold)', textDecoration: 'none' }}>
+                                                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--gold)', textDecoration: 'none' }}>
                                                     Xem →
-                                                </Link>
+                                                </span>
                                             </td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {!loading && filtered.length > visibleCount && (
+                    <div
+                        ref={loaderRef}
+                        onClick={() => setVisibleCount(prev => Math.min(prev + 12, filtered.length))}
+                        style={{ textAlign: 'center', padding: '24px 0', color: 'var(--ink-mute)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer' }}
+                        title="Nhấp để tải thêm thành viên"
+                    >
+                        <div style={{ width: 16, height: 16, border: '2px solid var(--gold-pale)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                        Đang tải thêm thành viên... (hoặc Nhấp để xem thêm)
                     </div>
                 )}
 

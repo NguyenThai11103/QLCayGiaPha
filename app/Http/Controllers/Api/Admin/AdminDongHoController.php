@@ -43,8 +43,24 @@ class AdminDongHoController extends Controller
         }
 
         $data = $request->validated();
+        $oldStatus = $dongHo->trang_thai;
         $dongHo->trang_thai = $data['trang_thai'];
         $dongHo->save();
+
+        if ($dongHo->trang_thai && !$oldStatus) {
+            $creator = $dongHo->nguoiTao;
+            if ($creator && $creator->email) {
+                try {
+                    \Illuminate\Support\Facades\Mail::to($creator->email)->send(new \App\Mail\ClanApprovedMail(
+                        $dongHo->ten_dong_ho,
+                        $creator->ho_ten,
+                        url('/login')
+                    ));
+                } catch (\Exception $e) {
+                    logger()->error('Lỗi gửi mail thông báo duyệt dòng họ: ' . $e->getMessage());
+                }
+            }
+        }
 
         return response()->json([
             'success' => true,

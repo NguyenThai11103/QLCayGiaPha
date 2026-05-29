@@ -37,19 +37,19 @@ export default function AdminDongHoManagement() {
     };
 
     const handleToggleStatus = async (dongHo: AdminDongHo) => {
-        const newStatus = dongHo.trang_thai === 1 ? 0 : 1;
-        const confirmMsg = newStatus === 0 
+        const isActive = !!dongHo.trang_thai;
+        const confirmMsg = isActive 
             ? `Bạn có chắc chắn muốn KHÓA dòng họ "${dongHo.ten_dong_ho}" không? Mọi thành viên trong họ sẽ không thể thao tác.` 
             : `Mở khóa dòng họ "${dongHo.ten_dong_ho}"?`;
             
         if (!window.confirm(confirmMsg)) return;
 
         try {
-            const result = await adminDongHoApi.updateStatus(dongHo.id, newStatus === 1);
+            const result = await adminDongHoApi.updateStatus(dongHo.id, !isActive);
             if (result.success) {
                 toast.success(result.message || 'Cập nhật trạng thái thành công');
                 // Cập nhật state nội bộ để UI phản hồi tức thì
-                setDongHos(prev => prev.map(item => item.id === dongHo.id ? { ...item, trang_thai: newStatus } : item));
+                setDongHos(prev => prev.map(item => item.id === dongHo.id ? { ...item, trang_thai: !isActive ? 1 : 0 } : item));
             } else {
                 toast.error(result.message || 'Không thể cập nhật trạng thái');
             }
@@ -161,7 +161,7 @@ export default function AdminDongHoManagement() {
                                                 {new Date(dongHo.created_at).toLocaleDateString('vi-VN')}
                                             </td>
                                             <td className="whitespace-nowrap px-6 py-4">
-                                                {dongHo.trang_thai === 1 ? (
+                                                {!!dongHo.trang_thai ? (
                                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-800">
                                                         <span className="h-1.5 w-1.5 rounded-full bg-green-600"></span>
                                                         Đang hoạt động
@@ -177,9 +177,9 @@ export default function AdminDongHoManagement() {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleToggleStatus(dongHo)}
-                                                    className={`mr-4 font-semibold ${dongHo.trang_thai === 1 ? 'text-amber-600 hover:text-amber-900' : 'text-green-600 hover:text-green-900'}`}
+                                                    className={`mr-4 font-semibold ${!!dongHo.trang_thai ? 'text-amber-600 hover:text-amber-900' : 'text-green-600 hover:text-green-900'}`}
                                                 >
-                                                    {dongHo.trang_thai === 1 ? 'Khóa' : 'Mở khóa'}
+                                                    {!!dongHo.trang_thai ? 'Khóa' : 'Mở khóa'}
                                                 </button>
                                                 <button
                                                     type="button"

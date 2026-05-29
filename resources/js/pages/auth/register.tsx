@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { FormEvent, ReactNode, useState } from 'react';
+import { FormEvent, ReactNode, useState, useEffect } from 'react';
 import Icon from '../../components/gia-pha/Icon';
 import apiClient from '../../lib/api.client';
 import toast from '../../lib/toast.util';
@@ -17,12 +17,30 @@ export default function Register() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [clanName, setClanName] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [accepted, setAccepted] = useState(true);
     const [errors, setErrors] = useState<Errors>({});
     const [submitting, setSubmitting] = useState(false);
     const [created, setCreated] = useState(false);
+
+    // Dòng họ states
+    const [availableClans, setAvailableClans] = useState<any[]>([]);
+    const [selectedClanId, setSelectedClanId] = useState<number | ''>('');
+    const [createNewClan, setCreateNewClan] = useState(false);
+    const [newClanName, setNewClanName] = useState('');
+    const [newClanAddress, setNewClanAddress] = useState('');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showDropdown, setShowDropdown] = useState(false);
+
+    useEffect(() => {
+        apiClient.get('/auth/clans')
+            .then(res => {
+                if (res.data?.success) {
+                    setAvailableClans(res.data.data || []);
+                }
+            })
+            .catch(err => console.error('Lỗi tải danh sách dòng họ:', err));
+    }, []);
 
     const validate = () => {
         const nextErrors: Errors = {};
@@ -45,6 +63,11 @@ export default function Register() {
 
         if (confirmPassword !== password) {
             nextErrors.confirmPassword = 'Mật khẩu xác nhận chưa khớp.';
+        }
+
+        if (createNewClan && !newClanName.trim()) {
+            toast.error('Vui lòng nhập tên dòng họ muốn tạo mới.');
+            return false;
         }
 
         setErrors(nextErrors);
@@ -83,6 +106,9 @@ export default function Register() {
                 ho_ten: name.trim(),
                 email: email.trim(),
                 password,
+                dong_ho_id: createNewClan ? undefined : selectedClanId || undefined,
+                new_clan_name: createNewClan ? newClanName.trim() : undefined,
+                new_clan_address: createNewClan ? newClanAddress.trim() : undefined,
             });
 
             if (response.data?.success) {
@@ -176,15 +202,109 @@ export default function Register() {
                             />
                         </AuthField>
 
-                        <AuthField label="Tên dòng họ (không bắt buộc)">
-                            <Icon name="branch" size={17} className="text-[var(--ink-mute)]" />
-                            <input
-                                value={clanName}
-                                onChange={(event) => setClanName(event.target.value)}
-                                className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-mute)]"
-                                placeholder="vd: Họ Nguyễn - Tiên Điền"
-                            />
-                        </AuthField>
+                        <div className="space-y-3">
+                            <div className="flex gap-2 p-1 bg-[var(--card-soft)] rounded-xl border border-[var(--card-border)]">
+                                <button
+                                    type="button"
+                                    onClick={() => { setCreateNewClan(false); setSelectedClanId(''); setSearchTerm(''); }}
+                                    className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${!createNewClan ? 'bg-white text-[var(--gold)] shadow-sm' : 'text-[var(--ink-soft)] hover:text-[var(--ink)]'}`}
+                                >
+                                    Chọn dòng họ có sẵn
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setCreateNewClan(true); setSelectedClanId(''); setSearchTerm(''); }}
+                                    className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${createNewClan ? 'bg-white text-[var(--gold)] shadow-sm' : 'text-[var(--ink-soft)] hover:text-[var(--ink)]'}`}
+                                >
+                                    Đăng ký dòng họ mới
+                                </button>
+                            </div>
+
+                            {!createNewClan ? (
+                                <div className="relative">
+                                    <AuthField label="Chọn dòng họ từ danh sách">
+                                        <Icon name="search" size={17} className="text-[var(--ink-mute)]" />
+                                        <input
+                                            type="text"
+                                            value={searchTerm}
+                                            onChange={(e) => {
+                                                setSearchTerm(e.target.value);
+                                                setShowDropdown(true);
+                                                setSelectedClanId('');
+                                            }}
+                                            onFocus={() => setShowDropdown(true)}
+                                            className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-mute)]"
+                                            placeholder="Tìm tên dòng họ... (Ví dụ: Họ Nguyễn)"
+                                        />
+                                        {searchTerm && (
+                                            <button
+                                                type="button"
+                                                onClick={() => { setSearchTerm(''); setSelectedClanId(''); }}
+                                                className="text-xs text-[var(--ink-mute)] hover:text-[var(--ink)]"
+                                            >
+                                                Xóa
+                                            </button>
+                                        )}
+                                    </AuthField>
+
+                                    {showDropdown && (
+                                        <div className="absolute z-10 left-0 right-0 mt-1 max-h-52 overflow-y-auto rounded-xl border border-[var(--card-border)] bg-white shadow-xl">
+                                            {availableClans.filter(c =>
+                                                c.ten_dong_ho.toLowerCase().includes(searchTerm.toLowerCase())
+                                            ).length > 0 ? (
+                                                <ul className="divide-y divide-[var(--line-soft)]">
+                                                    {availableClans
+                                                        .filter(c => c.ten_dong_ho.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                        .map((c) => (
+                                                            <li
+                                                                key={c.id}
+                                                                onClick={() => {
+                                                                    setSelectedClanId(c.id);
+                                                                    setSearchTerm(c.ten_dong_ho);
+                                                                    setShowDropdown(false);
+                                                                }}
+                                                                className="p-3 cursor-pointer transition hover:bg-[var(--bg-soft)] text-left"
+                                                            >
+                                                                <div className="text-[13.5px] font-semibold text-[var(--ink)]">{c.ten_dong_ho}</div>
+                                                                {c.dia_chi_tu_duong && (
+                                                                    <div className="text-[11.5px] text-[var(--ink-mute)] mt-0.5">{c.dia_chi_tu_duong}</div>
+                                                                )}
+                                                            </li>
+                                                        ))}
+                                                </ul>
+                                            ) : (
+                                                <div className="p-4 text-center text-xs text-[var(--ink-mute)]">
+                                                    Không tìm thấy dòng họ nào phù hợp.
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="space-y-3 animate-[fadeIn_0.2s_ease-out]">
+                                    <AuthField label="Tên dòng họ mới *">
+                                        <Icon name="branch" size={17} className="text-[var(--ink-mute)]" />
+                                        <input
+                                            value={newClanName}
+                                            onChange={(event) => setNewClanName(event.target.value)}
+                                            className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-mute)]"
+                                            placeholder="vd: Họ Nguyễn - Tiên Điền"
+                                            required
+                                        />
+                                    </AuthField>
+
+                                    <AuthField label="Địa chỉ từ đường">
+                                        <Icon name="link" size={17} className="text-[var(--ink-mute)]" />
+                                        <input
+                                            value={newClanAddress}
+                                            onChange={(event) => setNewClanAddress(event.target.value)}
+                                            className="min-w-0 flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--ink-mute)]"
+                                            placeholder="vd: Tiên Điền, Nghi Xuân, Hà Tĩnh"
+                                        />
+                                    </AuthField>
+                                </div>
+                            )}
+                        </div>
 
                         <label className="flex cursor-pointer items-start gap-2 text-[12.5px] leading-5 text-[var(--ink-mute)]">
                             <span

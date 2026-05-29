@@ -22,6 +22,7 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::prefix('auth')->group(function () {
+    Route::get('/clans', [AuthController::class, 'publicClans']);
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::get('/google/url', [AuthController::class, 'googleUrl']);

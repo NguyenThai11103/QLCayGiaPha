@@ -38,18 +38,18 @@ export default function AdminNguoiDungManagement() {
     };
 
     const handleToggleStatus = async (user: AdminNguoiDung) => {
-        const newStatus = user.trang_thai === 1 ? 0 : 1;
-        const confirmMsg = newStatus === 0 
+        const isActive = !!user.trang_thai;
+        const confirmMsg = isActive 
             ? `KHÓA tài khoản "${user.email}"? Họ sẽ bị văng ra khỏi hệ thống và không thể đăng nhập.` 
             : `MỞ KHÓA tài khoản "${user.email}"?`;
             
         if (!window.confirm(confirmMsg)) return;
 
         try {
-            const result = await adminNguoiDungApi.updateStatus(user.id, newStatus === 1);
+            const result = await adminNguoiDungApi.updateStatus(user.id, !isActive);
             if (result.success) {
                 toast.success(result.message || 'Cập nhật trạng thái thành công');
-                setNguoiDungs(prev => prev.map(item => item.id === user.id ? { ...item, trang_thai: newStatus } : item));
+                setNguoiDungs(prev => prev.map(item => item.id === user.id ? { ...item, trang_thai: !isActive ? 1 : 0 } : item));
             } else {
                 toast.error(result.message || 'Không thể cập nhật trạng thái');
             }
@@ -179,7 +179,7 @@ export default function AdminNguoiDungManagement() {
                                                 )}
                                             </td>
                                             <td className="whitespace-nowrap px-6 py-4">
-                                                {user.trang_thai === 1 ? (
+                                                {!!user.trang_thai ? (
                                                     <span className="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-800">
                                                         <span className="h-1.5 w-1.5 rounded-full bg-green-600"></span>
                                                         Active
@@ -195,9 +195,9 @@ export default function AdminNguoiDungManagement() {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleToggleStatus(user)}
-                                                    className={`mr-4 font-semibold ${user.trang_thai === 1 ? 'text-amber-600 hover:text-amber-900' : 'text-green-600 hover:text-green-900'}`}
+                                                    className={`mr-4 font-semibold ${!!user.trang_thai ? 'text-amber-600 hover:text-amber-900' : 'text-green-600 hover:text-green-900'}`}
                                                 >
-                                                    {user.trang_thai === 1 ? 'Khóa' : 'Mở khóa'}
+                                                    {!!user.trang_thai ? 'Khóa' : 'Mở khóa'}
                                                 </button>
                                                 <button
                                                     type="button"

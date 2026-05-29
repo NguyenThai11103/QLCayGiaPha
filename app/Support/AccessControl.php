@@ -49,6 +49,12 @@ class AccessControl
             return true;
         }
 
+        // Kiểm tra xem dòng họ có bị khóa (trang_thai = 0/false) hay không
+        $trangThai = DB::table('dong_hos')->where('id', $familyId)->value('trang_thai');
+        if ($trangThai === 0 || $trangThai === '0' || $trangThai === false || $trangThai === null) {
+            return false;
+        }
+
         return self::familyId($user) === (int) $familyId;
     }
 
@@ -64,6 +70,14 @@ class AccessControl
         }
 
         $familyId = self::familyId($user);
+
+        if ($familyId) {
+            // Nếu dòng họ bị khóa thì không cho phép lấy bất kỳ dữ liệu nào
+            $trangThai = DB::table('dong_hos')->where('id', $familyId)->value('trang_thai');
+            if ($trangThai === 0 || $trangThai === '0' || $trangThai === false || $trangThai === null) {
+                return $query->whereRaw('1 = 0');
+            }
+        }
 
         return $familyId
             ? $query->where($column, $familyId)

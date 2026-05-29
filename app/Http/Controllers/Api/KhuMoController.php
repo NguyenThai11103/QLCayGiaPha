@@ -112,42 +112,158 @@ class KhuMoController extends Controller
     public function direction(Request $request)
     {
         $data = $request->validate([
-            'origin' => ['required', 'string', 'regex:/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/'],
-            'destination' => ['required', 'string', 'regex:/^-?\d+(\.\d+)?,-?\d+(\.\d+)?(?:;-?\d+(\.\d+)?,-?\d+(\.\d+)?)*$/'],
-            'vehicle' => 'nullable|in:car,bike,motor,taxi,truck,walking',
+            'origin'       => ['required', 'string', 'regex:/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/'],
+            'destination'  => ['required', 'string', 'regex:/^-?\d+(\.\d+)?,-?\d+(\.\d+)?(?:;-?\d+(\.\d+)?,-?\d+(\.\d+)?)*$/'],
+            'vehicle'      => 'nullable|in:car,bike,motor,taxi,truck,walking',
             'alternatives' => 'nullable|in:true,false,1,0',
-            'admin_v2' => 'nullable|in:true,false,1,0',
+            'admin_v2'     => 'nullable|in:true,false,1,0',
         ]);
 
+        $vehicle = $data['vehicle'] ?? 'motor';
+
+        // ═══════════════════════════════════════
+        // PRIMARY: OpenMap.vn Direction API
+        // ═══════════════════════════════════════
         $apiKey = config('services.openmap.api_key');
-        if (!$apiKey) {
-            return response()->json(['success' => false, 'message' => 'Chưa cấu hình OPENMAP_API_KEY'], 422);
+        if ($apiKey) {
+            try {
+                $omResponse = Http::timeout(10)->get(
+                    rtrim(config('services.openmap.base_url'), '/') . '/direction',
+                    [
+                        'origin'       => $data['origin'],
+                        'destination'  => $data['destination'],
+                        'vehicle'      => $vehicle,
+                        'alternatives' => $request->boolean('alternatives') ? 'true' : 'false',
+                        'admin_v2'     => $request->boolean('admin_v2', false) ? 'true' : 'false',
+                        'apikey'       => $apiKey,
+                    ]
+                );
+
+                if ($omResponse->successful() && $omResponse->json('routes')) {
+                    return response()->json([
+                        'success'  => true,
+                        'data'     => $omResponse->json(),
+                        'provider' => 'openmap',
+                    ]);
+                }
+                // Nếu OpenMap fail (403, quota...) → tiếp tục fallback sang OSRM
+            } catch (\Exception) {
+                // Timeout hoặc lỗi mạng → fallback OSRM
+            }
         }
 
-        $response = Http::timeout(12)->get(rtrim(config('services.openmap.base_url'), '/') . '/direction', [
-            'origin' => $data['origin'],
-            'destination' => $data['destination'],
-            'vehicle' => $data['vehicle'] ?? 'car',
-            'alternatives' => $request->boolean('alternatives') ? 'true' : 'false',
-            'admin_v2' => $request->boolean('admin_v2') ? 'true' : 'false',
-            'apikey' => $apiKey,
+        // ═══════════════════════════════════════
+        // FALLBACK: OSRM (Open Source Routing Machine)
+        //           Miễn phí, không cần API key
+        // ═══════════════════════════════════════
+        $vehicleMap = [
+            'car'     => 'driving',
+            'motor'   => 'driving',
+            'taxi'    => 'driving',
+            'truck'   => 'driving',
+            'bike'    => 'cycling',
+            'walking' => 'foot',
+        ];
+        $profile = $vehicleMap[$vehicle] ?? 'driving';
+
+        // OSRM nhận tọa độ dạng "lng,lat" (đảo ngược so với lat,lng)
+        [$originLat, $originLng] = explode(',', $data['origin']);
+        [$destLat, $destLng]     = explode(',', $data['destination']);
+        $coordinates             = "{$originLng},{$originLat};{$destLng},{$destLat}";
+
+        $osrmUrl  = "https://router.project-osrm.org/route/v1/{$profile}/{$coordinates}";
+        $response = Http::timeout(15)->get($osrmUrl, [
+            'overview'    => 'full',
+            'steps'       => 'true',
+            'annotations' => 'false',
+            'geometries'  => 'polyline',
         ]);
 
-        if (!$response->successful()) {
-            $providerMessage = $response->json('message') ?: $response->body();
-            $message = $response->status() === 403
-                ? 'OPENMAP_API_KEY chưa có quyền dùng Direction API. Vui lòng bật dịch vụ Routing/Direction trong OpenMap.vn.'
-                : 'Không thể lấy chỉ đường OpenMap.vn';
+        if (!$response->successful() || $response->json('code') !== 'Ok') {
+            $code    = $response->json('code') ?? 'ERROR';
+            $message = $code === 'NoRoute'
+                ? 'Không tìm được tuyến đường giữa hai điểm này.'
+                : 'Không thể lấy chỉ đường. Vui lòng thử lại.';
 
             return response()->json([
-                'success' => false,
-                'message' => $message,
-                'provider_status' => $response->status(),
-                'provider_message' => $providerMessage,
+                'success'          => false,
+                'message'          => $message,
+                'provider_status'  => $response->status(),
+                'provider_message' => $code,
             ], 502);
         }
 
-        return response()->json(['success' => true, 'data' => $response->json()]);
+        $json  = $response->json();
+        $route = $json['routes'][0];
+        $leg   = $route['legs'][0];
+
+        // Tính khoảng cách & thời gian
+        $distanceM   = $route['distance'] ?? 0;
+        $durationS   = $route['duration'] ?? 0;
+        $distanceKm  = round($distanceM / 1000, 1);
+        $durationMin = (int) ceil($durationS / 60);
+        $distText    = $distanceKm >= 1 ? "{$distanceKm} km" : "{$distanceM} m";
+        $durText     = $durationMin >= 60
+            ? floor($durationMin / 60) . ' giờ ' . ($durationMin % 60) . ' phút'
+            : "{$durationMin} phút";
+
+        // Normalize OSRM steps về format OpenMap (html_instructions + distance/duration object)
+        $steps = [];
+        foreach ($leg['steps'] ?? [] as $step) {
+            $modifier     = $step['maneuver']['modifier'] ?? null;
+            $maneuverType = $step['maneuver']['type'] ?? 'turn';
+            $instruction  = $this->buildStepInstruction($maneuverType, $modifier, $step['name'] ?? '');
+            $stepDist     = $step['distance'] ?? 0;
+            $stepDur      = $step['duration'] ?? 0;
+            $steps[] = [
+                'html_instructions' => $instruction,
+                'distance'          => ['text' => $stepDist >= 1000 ? round($stepDist / 1000, 1) . ' km' : round($stepDist) . ' m', 'value' => $stepDist],
+                'duration'          => ['text' => ceil($stepDur / 60) . ' phút', 'value' => $stepDur],
+                'maneuver'          => $modifier,
+                'location'          => $step['maneuver']['location'] ?? null,
+            ];
+        }
+
+        // Format giống OpenMap để frontend directionSummary() xử lý chung
+        $normalized = [
+            'routes' => [[
+                'legs' => [[
+                    'distance'      => ['text' => $distText, 'value' => $distanceM],
+                    'duration'      => ['text' => $durText, 'value' => $durationS],
+                    'start_address' => null,
+                    'end_address'   => null,
+                    'steps'         => $steps,
+                ]],
+                'overview_polyline' => ['points' => $route['geometry'] ?? null],
+            ]],
+        ];
+
+        return response()->json([
+            'success'  => true,
+            'data'     => $normalized,
+            'provider' => 'osrm',
+        ]);
+    }
+
+    private function buildStepInstruction(string $type, ?string $modifier, string $name): string
+    {
+        $roadName = $name ? " vào {$name}" : '';
+        $map = [
+            'depart'           => "Bắt đầu xuất phát{$roadName}",
+            'arrive'           => 'Đã đến nơi',
+            'turn left'        => "Rẽ trái{$roadName}",
+            'turn right'       => "Rẽ phải{$roadName}",
+            'turn slight left'  => "Nhẹ nhàng rẽ trái{$roadName}",
+            'turn slight right' => "Nhẹ nhàng rẽ phải{$roadName}",
+            'turn sharp left'  => "Rẽ gấp trái{$roadName}",
+            'turn sharp right' => "Rẽ gấp phải{$roadName}",
+            'turn uturn'       => "Quay đầu{$roadName}",
+            'roundabout left'  => "Vào vòng xuyến, rẽ trái{$roadName}",
+            'roundabout right' => "Vào vòng xuyến, rẽ phải{$roadName}",
+        ];
+
+        $key = $modifier ? "{$type} {$modifier}" : $type;
+        return $map[$key] ?? "Tiếp tục di chuyển{$roadName}";
     }
 
     private function baseQuery()

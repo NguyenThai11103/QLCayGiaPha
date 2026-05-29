@@ -289,6 +289,7 @@ export interface OpenMapDirectionSummary {
         distanceText: string;
         durationText: string;
         maneuver?: string;
+        location?: [number, number]; // [lng, lat]
     }>;
     overviewPolyline?: string;
     raw: any;
@@ -353,10 +354,11 @@ function directionSummary(raw: any): OpenMapDirectionSummary {
     const duration = leg?.duration?.text || route?.duration?.text || (typeof route?.duration === 'number' ? `${Math.round(route.duration / 60)} phút` : 'Chưa rõ');
     const steps = Array.isArray(leg?.steps)
         ? leg.steps.map((step: any) => ({
-            instruction: String(step?.html_instructions || step?.instruction || 'Tiếp tục di chuyển').replace(/<[^>]*>/g, ''),
-            distanceText: step?.distance?.text || 'Chưa rõ',
-            durationText: step?.duration?.text || 'Chưa rõ',
-            maneuver: step?.maneuver || undefined,
+            instruction  : String(step?.html_instructions || step?.instruction || 'Tiếp tục di chuyển').replace(/<[^>]*>/g, ''),
+            distanceText : step?.distance?.text || 'Chưa rõ',
+            durationText : step?.duration?.text || 'Chưa rõ',
+            maneuver     : step?.maneuver || undefined,
+            location     : step?.location || step?.maneuver?.location || undefined,
         }))
         : [];
 
@@ -366,7 +368,7 @@ function directionSummary(raw: any): OpenMapDirectionSummary {
         startAddress: leg?.start_address || undefined,
         endAddress: leg?.end_address || undefined,
         steps,
-        overviewPolyline: route?.overview_polyline?.points || undefined,
+        overviewPolyline: route?.overview_polyline?.points || route?.geometry || undefined,
         raw,
     };
 }

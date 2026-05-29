@@ -20,6 +20,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AuthController extends Controller
@@ -406,8 +407,18 @@ class AuthController extends Controller
         DB::beginTransaction();
         try {
             // Cập nhật thông tin trên tài khoản người dùng
+            $avatarUrl = array_key_exists('anh_dai_dien', $data)
+                ? ($data['anh_dai_dien'] ?: null)
+                : $user->avatar;
+
+            if ($request->hasFile('anh_dai_dien_file')) {
+                $this->deleteLocalProfileAvatar($user->avatar);
+                $avatarUrl = $this->storeProfileAvatar($request, $user->id);
+            }
+
             $user->update([
                 'ho_ten' => $data['ho_ten'],
+                'avatar' => $avatarUrl,
             ]);
 
             // Nếu tài khoản đã liên kết với một thành viên trong gia phả
@@ -416,7 +427,7 @@ class AuthController extends Controller
                 if ($thanhVien) {
                     $thanhVien->update([
                         'ho_ten'       => $data['ho_ten'],
-                        'anh_dai_dien' => $data['anh_dai_dien'] ?? null,
+                        'anh_dai_dien' => $avatarUrl,
                         'tieu_su'      => $data['tieu_su'] ?? null,
                     ]);
                 }
@@ -461,5 +472,21 @@ class AuthController extends Controller
             'success' => true,
             'message' => 'Đổi mật khẩu thành công. Vui lòng đăng nhập lại nếu cần.',
         ]);
+    }
+
+    private function storeProfileAvatar(UpdateProfileRequest $request, int $userId): string
+    {
+        $path = $request->file('anh_dai_dien_file')->store('anh-dai-dien/' . $userId, 'public');
+
+        return '/storage/' . $path;
+    }
+
+    private function deleteLocalProfileAvatar(?string $avatar): void
+    {
+        if (!$avatar || !Str::startsWith($avatar, '/storage/anh-dai-dien/')) {
+            return;
+        }
+
+        Storage::disk('public')->delete(Str::after($avatar, '/storage/'));
     }
 }

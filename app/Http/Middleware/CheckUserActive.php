@@ -34,6 +34,29 @@ class CheckUserActive
 
                 return redirect('/login')->withErrors(['email' => 'Tài khoản của bạn đã bị khóa bởi quản trị viên.']);
             }
+
+            // Kiểm tra xem dòng họ có bị khóa hoặc chưa được phê duyệt không
+            if ($user->dong_ho_id) {
+                $dongHo = \App\Models\DongHo::find($user->dong_ho_id);
+                if ($dongHo && !$dongHo->trang_thai) {
+                    try {
+                        if ($request->user()->currentAccessToken()) {
+                            $request->user()->currentAccessToken()->delete();
+                        }
+                    } catch (\Exception $e) {}
+                    
+                    Auth::guard('web')->logout();
+
+                    if ($request->expectsJson() || $request->is('api/*')) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Dòng họ của bạn chưa được phê duyệt hoặc đang bị khóa.'
+                        ], 403);
+                    }
+
+                    return redirect('/login')->withErrors(['email' => 'Dòng họ của bạn chưa được phê duyệt hoặc đang bị khóa.']);
+                }
+            }
         }
 
         return $next($request);

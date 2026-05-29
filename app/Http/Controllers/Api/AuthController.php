@@ -25,25 +25,103 @@ use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
+    public function publicClans()
+    {
+        $clans = \App\Models\DongHo::where('trang_thai', true)
+            ->select('id', 'ten_dong_ho', 'dia_chi_tu_duong')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $clans,
+        ]);
+    }
+
     public function register(RegisterRequest $request)
     {
         $data = $request->validated();
 
-        $user = NguoiDung::create([
-            'ho_ten'    => $data['ho_ten'],
-            'email'     => $data['email'],
-            'password'  => Hash::make($data['password']),
-            'quyen_han' => 'thanh_vien',
-        ]);
+        return DB::transaction(function () use ($data) {
+            $dongHoId = null;
+            $quyenHan = 'thanh_vien';
+            $trangThaiGiaNhap = 'da_duyet';
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Tao tai khoan thanh cong',
-            'data'    => [
-                'id'    => $user->id,
-                'email' => $user->email,
-            ],
-        ], 201);
+            if (!empty($data['new_clan_name'])) {
+                $dongHo = \App\Models\DongHo::create([
+                    'ten_dong_ho'      => $data['new_clan_name'],
+                    'dia_chi_tu_duong' => $data['new_clan_address'] ?? null,
+                    'trang_thai'       => false,
+                ]);
+
+                $dongHoId = $dongHo->id;
+                $quyenHan = 'quan_ly';
+                $trangThaiGiaNhap = 'da_duyet';
+            } elseif (!empty($data['dong_ho_id'])) {
+                $dongHoId = $data['dong_ho_id'];
+                $hasUsers = NguoiDung::where('dong_ho_id', $dongHoId)->exists();
+                if (!$hasUsers) {
+                    $quyenHan = 'quan_ly';
+                    $trangThaiGiaNhap = 'da_duyet';
+                } else {
+                    $quyenHan = 'thanh_vien';
+                    $trangThaiGiaNhap = 'cho_duyet';
+                }
+            }
+
+            $user = NguoiDung::create([
+                'ho_ten'              => $data['ho_ten'],
+                'email'               => $data['email'],
+                'password'            => Hash::make($data['password']),
+                'dong_ho_id'          => $dongHoId,
+                'quyen_han'           => $quyenHan,
+                'trang_thai_gia_nhap' => $trangThaiGiaNhap,
+            ]);
+
+            if ($quyenHan === 'quan_ly' && $dongHoId) {
+                $thanhVien = \App\Models\ThanhVien::create([
+                    'dong_ho_id'      => $dongHoId,
+                    'ho_ten'          => $user->ho_ten,
+                    'gioi_tinh'       => 'nam',
+                    'doi_thu'         => 1,
+                    'thu_tu_sinh'     => 1,
+                    'tinh_trang_song' => 1,
+                ]);
+
+                $user->update(['thanh_vien_id' => $thanhVien->id]);
+
+                $clan = \App\Models\DongHo::find($dongHoId);
+                if ($clan && !$clan->thuy_to_id) {
+                    $clan->update(['thuy_to_id' => $thanhVien->id]);
+                }
+            }
+
+            if (!empty($data['new_clan_name']) && isset($dongHo)) {
+                $dongHo->update(['nguoi_tao' => $user->id]);
+
+                $admins = \App\Models\Admin::where('trang_thai', true)->get();
+                foreach ($admins as $admin) {
+                    try {
+                        Mail::to($admin->email)->send(new \App\Mail\ClanRequestMail(
+                            $dongHo->ten_dong_ho,
+                            $dongHo->dia_chi_tu_duong ?? '',
+                            $user->ho_ten,
+                            $user->email
+                        ));
+                    } catch (\Exception $e) {
+                        logger()->error('Lỗi gửi mail yêu cầu tạo dòng họ: ' . $e->getMessage());
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Tao tai khoan thanh cong',
+                'data'    => [
+                    'id'    => $user->id,
+                    'email' => $user->email,
+                ],
+            ], 201);
+        });
     }
 
     public function login(LoginRequest $request)
@@ -65,6 +143,17 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Tài khoản của bạn đã bị khóa bởi quản trị viên.'
             ], 403);
+        }
+
+        // Kiểm tra xem dòng họ có bị khóa hoặc chưa được phê duyệt không
+        if ($user->dong_ho_id) {
+            $dongHo = \App\Models\DongHo::find($user->dong_ho_id);
+            if ($dongHo && !$dongHo->trang_thai) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Dòng họ của bạn chưa được phê duyệt hoặc đang bị khóa.'
+                ], 403);
+            }
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -249,6 +338,17 @@ class AuthController extends Controller
                 'success' => false,
                 'message' => 'Tài khoản của bạn đã bị khóa bởi quản trị viên.'
             ], 403);
+        }
+
+        // Kiểm tra xem dòng họ có bị khóa hoặc chưa được phê duyệt không
+        if ($user->dong_ho_id) {
+            $dongHo = \App\Models\DongHo::find($user->dong_ho_id);
+            if ($dongHo && !$dongHo->trang_thai) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Dòng họ của bạn chưa được phê duyệt hoặc đang bị khóa.'
+                ], 403);
+            }
         }
 
         // Tạo Sanctum Token chính thức cho phiên đăng nhập thành công

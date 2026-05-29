@@ -7,23 +7,24 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-
 use Illuminate\Contracts\Queue\ShouldQueue;
 
-class WelcomeEmail extends Mailable implements ShouldQueue
+class ClanApprovedMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
-    public string $hoTen;
+    public string $clanName;
+    public string $creatorName;
     public string $loginUrl;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(string $hoTen, string $loginUrl)
+    public function __construct(string $clanName, string $creatorName, string $loginUrl)
     {
-        $this->hoTen    = $hoTen;
-        $this->loginUrl = $loginUrl;
+        $this->clanName    = $clanName;
+        $this->creatorName = $creatorName;
+        $this->loginUrl    = $loginUrl;
     }
 
     /**
@@ -32,7 +33,7 @@ class WelcomeEmail extends Mailable implements ShouldQueue
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Chào mừng bạn đến với Gia Phả Số',
+            subject: 'Dòng họ ' . $this->clanName . ' đã được phê duyệt thành công!',
         );
     }
 
@@ -42,7 +43,7 @@ class WelcomeEmail extends Mailable implements ShouldQueue
     public function content(): Content
     {
         return new Content(
-            view: 'emails.welcome',
+            view: 'emails.clan_approved',
         );
     }
 

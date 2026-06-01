@@ -444,11 +444,40 @@ class NguoiController extends Controller
             return AccessControl::forbidden();
         }
 
-        DB::table('thanh_viens')->where('id', $data['id'])->delete();
+        DB::transaction(function () use ($data) {
+            // 1. Xử lý tài khoản người dùng liên kết
+            $linkedUser = \App\Models\NguoiDung::where('thanh_vien_id', $data['id'])->first();
+            if ($linkedUser) {
+                // Thu hồi tất cả tokens hiện có để buộc đăng xuất
+                try {
+                    $linkedUser->tokens()->delete();
+                } catch (\Exception $e) {}
+
+                // Cập nhật trạng thái khóa tài khoản và gỡ liên kết
+                $linkedUser->update([
+                    'trang_thai'          => 0,
+                    'thanh_vien_id'       => null,
+                    'dong_ho_id'          => null,
+                    'trang_thai_gia_nhap' => 'tu_choi',
+                ]);
+            }
+
+            // 2. Dọn dẹp mối quan hệ (quan_hes)
+            DB::table('quan_hes')
+                ->where('node_1_id', $data['id'])
+                ->orWhere('node_2_id', $data['id'])
+                ->delete();
+
+            // 3. Dọn dẹp mộ phần (mo_phans)
+            DB::table('mo_phans')->where('thanh_vien_id', $data['id'])->delete();
+
+            // 4. Xóa thành viên
+            DB::table('thanh_viens')->where('id', $data['id'])->delete();
+        });
 
         return response()->json([
             'success' => true,
-            'message' => 'Xoa thanh cong',
+            'message' => 'Xóa thành viên thành công.',
         ]);
     }
 

@@ -1395,7 +1395,26 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ dongHoId, initialDate, on
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Ngày dương lịch</span>
-                            <input type="date" value={form.ngay_duong} onChange={e => f('ngay_duong', e.target.value)} className="gp-input" />
+                            <input
+                                type="date"
+                                value={form.ngay_duong}
+                                onChange={async (e) => {
+                                    const val = e.target.value;
+                                    f('ngay_duong', val);
+                                    if (val) {
+                                        try {
+                                            const { suKienApi } = await import('../../../services/gia-pha.api');
+                                            const res = await suKienApi.solarToLunar(val);
+                                            if (res.success && res.data?.lunar_date) {
+                                                f('ngay_am', res.data.lunar_date);
+                                            }
+                                        } catch (err) {
+                                            console.error("Lỗi chuyển đổi âm lịch", err);
+                                        }
+                                    }
+                                }}
+                                className="gp-input"
+                            />
                         </label>
                         <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-soft)' }}>Ngày âm lịch</span>

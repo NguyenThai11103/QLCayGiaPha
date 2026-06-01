@@ -87,6 +87,10 @@ Route::get('/profile', function () {
     return Inertia::render('profile/index');
 });
 
+Route::get('/admin/profile', function () {
+    return Inertia::render('profile/index');
+});
+
 Route::get('/gia-pha/tai-lieu', function () {
     return Inertia::render('client/tai-lieu/index');
 });

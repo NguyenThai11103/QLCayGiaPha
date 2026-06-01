@@ -196,4 +196,32 @@ class SuKienController extends Controller
             'message' => 'Đã hủy tham dự sự kiện'
         ]);
     }
+
+    public function solarToLunar(Request $request)
+    {
+        $solarDate = $request->query('solar_date');
+        if (!$solarDate) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Thiếu ngày dương lịch',
+            ], 400);
+        }
+
+        try {
+            $lunar = LunarSolarConverter::solarToLunar($solarDate);
+            $lunarDateStr = sprintf('%04d-%02d-%02d', $lunar['year'], $lunar['month'], $lunar['day']);
+            return response()->json([
+                'success' => true,
+                'data'    => [
+                    'lunar_date' => $lunarDateStr,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi chuyển đổi: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
 }
+

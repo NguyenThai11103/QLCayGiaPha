@@ -75,11 +75,22 @@ class AdminNguoiDungController extends Controller
             ], 404);
         }
 
-        $nguoiDung->delete();
+        // Thu hồi toàn bộ tokens hoạt động để buộc đăng xuất
+        try {
+            $nguoiDung->tokens()->delete();
+        } catch (\Exception $e) {}
+
+        // Thực hiện khóa tài khoản và gỡ toàn bộ liên kết
+        $nguoiDung->update([
+            'trang_thai'          => 0,
+            'thanh_vien_id'       => null,
+            'dong_ho_id'          => null,
+            'trang_thai_gia_nhap' => 'tu_choi',
+        ]);
 
         return response()->json([
             'success' => true,
-            'message' => 'Đã xóa người dùng khỏi hệ thống.'
+            'message' => 'Đã khóa tài khoản và xóa người dùng khỏi hệ thống.'
         ]);
     }
 }

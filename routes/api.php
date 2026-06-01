@@ -32,7 +32,7 @@ Route::prefix('auth')->group(function () {
     Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserActive::class])->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/logout', [AuthController::class, 'logout']);
         Route::post('/update-profile', [AuthController::class, 'updateProfile']);
@@ -45,11 +45,15 @@ Route::prefix('admin/auth')->group(function () {
     Route::post('/login', [AdminAuthController::class, 'login']);
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [AdminAuthController::class, 'me']);
+        Route::post('/update-profile', [AdminAuthController::class, 'updateProfile']);
+        Route::post('/change-password', [AdminAuthController::class, 'changePassword']);
         Route::post('/logout', [AdminAuthController::class, 'logout']);
     });
 });
 
 Route::prefix('admin')->middleware(['auth:sanctum', 'check.admin.system'])->group(function () {
+    Route::get('/dashboard/stats', [\App\Http\Controllers\Api\Admin\AdminDashboardController::class, 'stats']);
+
     Route::prefix('dong-ho')->group(function () {
         Route::get('/list', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'index']);
         Route::patch('/{id}/status', [\App\Http\Controllers\Api\Admin\AdminDongHoController::class, 'updateStatus']);
@@ -63,7 +67,7 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.admin.system'])->grou
     });
 });
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserActive::class])->group(function () {
     Route::get('/global-search', GlobalSearchController::class);
     
     Route::prefix('onboarding')->group(function () {
@@ -102,6 +106,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::prefix('su-kien')->group(function () {
         Route::get('/list', [SuKienController::class, 'index']);
+        Route::get('/solar-to-lunar', [SuKienController::class, 'solarToLunar']);
         Route::post('/create', [SuKienController::class, 'store'])->middleware('check.permission:quan_ly');
         Route::post('/update', [SuKienController::class, 'update'])->middleware('check.permission:quan_ly');
         Route::post('/delete', [SuKienController::class, 'destroy'])->middleware('check.permission:quan_ly');

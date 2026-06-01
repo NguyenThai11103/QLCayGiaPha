@@ -57,6 +57,39 @@ class CheckUserActive
                     return redirect('/login')->withErrors(['email' => 'Dòng họ của bạn chưa được phê duyệt hoặc đang bị khóa.']);
                 }
             }
+
+            // Kiểm tra xem tài khoản có đang ở trạng thái chờ duyệt hay không
+            if (($user->trang_thai_gia_nhap ?? 'da_duyet') === 'cho_duyet') {
+                $allowedPaths = [
+                    'onboarding',
+                    'api/onboarding',
+                    'auth/me',
+                    'api/auth/me',
+                    'auth/logout',
+                    'api/auth/logout',
+                    'login',
+                    'logout'
+                ];
+
+                $isAllowed = false;
+                foreach ($allowedPaths as $path) {
+                    if ($request->is($path) || $request->is($path . '/*')) {
+                        $isAllowed = true;
+                        break;
+                    }
+                }
+
+                if (!$isAllowed) {
+                    if ($request->expectsJson() || $request->is('api/*')) {
+                        return response()->json([
+                            'success' => false,
+                            'message' => 'Tài khoản của bạn đang ở trạng thái chờ duyệt gia nhập dòng họ.'
+                        ], 403);
+                    }
+
+                    return redirect('/onboarding');
+                }
+            }
         }
 
         return $next($request);

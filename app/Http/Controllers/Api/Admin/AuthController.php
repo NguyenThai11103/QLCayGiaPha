@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\Auth\LoginRequest;
+use App\Http\Requests\Admin\Auth\UpdateProfileRequest;
+use App\Http\Requests\Admin\Auth\ChangePasswordRequest;
 use App\Models\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -47,6 +49,45 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'data'    => $request->user(),
+        ]);
+    }
+
+    public function updateProfile(UpdateProfileRequest $request)
+    {
+        $data = $request->validated();
+        $admin = $request->user();
+
+        $admin->update([
+            'ho_ten' => $data['ho_ten'],
+            'email'  => $data['email'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cập nhật hồ sơ cá nhân thành công',
+            'data'    => $admin,
+        ]);
+    }
+
+    public function changePassword(ChangePasswordRequest $request)
+    {
+        $data = $request->validated();
+        $admin = $request->user();
+
+        if (!Hash::check($data['current_password'], $admin->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mật khẩu hiện tại không chính xác.',
+            ], 422);
+        }
+
+        $admin->update([
+            'password' => Hash::make($data['new_password']),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đổi mật khẩu thành công.',
         ]);
     }
 

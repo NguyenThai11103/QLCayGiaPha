@@ -5,6 +5,7 @@ import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import Icon from '../../../components/gia-pha/Icon';
 import toast from '../../../lib/toast.util';
 import { MoPhan, moPhanApi } from '../../../services/gia-pha.api';
+import { useAuth } from '../../../contexts/auth.context';
 
 interface ThongTinNguoi {
     id          : number;
@@ -83,11 +84,37 @@ function xungHoColor(xungHo: string): string {
 }
 
 export default function ChiTietThanhVien({ id }: { id: number | string }) {
+    const { user } = useAuth();
     const [data,    setData]    = useState<DetailData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error,   setError]   = useState('');
     const [moPhan, setMoPhan] = useState<MoPhan | null>(null);
     const [moPhanLoading, setMoPhanLoading] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+
+    const handleDelete = async () => {
+        if (!tv) return;
+
+        const isConfirmed = window.confirm(
+            `Bạn có chắc chắn muốn xóa thành viên "${tv.ten_day_du}" khỏi gia phả không?\nLưu ý: Hành động này không thể hoàn tác!`
+        );
+        if (!isConfirmed) return;
+
+        setDeleting(true);
+        try {
+            const res = await apiClient.post('/nguoi/delete', { id: tv.id });
+            if (res.data.success) {
+                toast.success(res.data.message || 'Xóa thành viên thành công.');
+                window.location.href = '/gia-pha/thanh-vien';
+            } else {
+                toast.error(res.data.message || 'Không thể xóa thành viên.');
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi xóa thành viên.');
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     useEffect(() => {
         apiClient.get(`/nguoi/detail?id=${id}`)
@@ -272,15 +299,28 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                             )}
 
                             {/* Actions */}
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <Link href="/gia-pha/thanh-vien" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'var(--card-soft)', color: 'var(--ink-soft)', fontWeight: 600, fontSize: 13, textDecoration: 'none', border: '1px solid var(--line)' }}>
-                                    <Icon name="chevron-down" size={14} style={{ transform: 'rotate(90deg)' }} />
-                                    Danh sách
-                                </Link>
-                                <Link href={`/gia-pha/cay-gia-pha`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'linear-gradient(135deg, var(--gold), var(--brown-soft))', color: 'white', fontWeight: 600, fontSize: 13, textDecoration: 'none' }}>
-                                    <Icon name="users" size={14} />
-                                    Xem cây
-                                </Link>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <Link href="/gia-pha/thanh-vien" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'var(--card-soft)', color: 'var(--ink-soft)', fontWeight: 600, fontSize: 13, textDecoration: 'none', border: '1px solid var(--line)' }}>
+                                        <Icon name="chevron-down" size={14} style={{ transform: 'rotate(90deg)' }} />
+                                        Danh sách
+                                    </Link>
+                                    <Link href={`/gia-pha/cay-gia-pha`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'linear-gradient(135deg, var(--gold), var(--brown-soft))', color: 'white', fontWeight: 600, fontSize: 13, textDecoration: 'none' }}>
+                                        <Icon name="users" size={14} />
+                                        Xem cây
+                                    </Link>
+                                </div>
+                                {user?.quyen_han === 'quan_ly' && (
+                                    <button
+                                        type="button"
+                                        onClick={handleDelete}
+                                        disabled={deleting}
+                                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'color-mix(in srgb, var(--crimson) 8%, transparent)', color: 'var(--crimson)', fontWeight: 600, fontSize: 13, border: '1px solid color-mix(in srgb, var(--crimson) 25%, transparent)', cursor: 'pointer', transition: 'all 0.15s' }}
+                                    >
+                                        <Icon name="trash" size={14} />
+                                        {deleting ? 'Đang xóa...' : 'Xóa thành viên'}
+                                    </button>
+                                )}
                             </div>
                         </div>
 

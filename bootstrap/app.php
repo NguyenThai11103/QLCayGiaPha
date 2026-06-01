@@ -18,10 +18,12 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             \App\Http\Middleware\CheckUserActive::class,
+            \App\Http\Middleware\XssProtection::class,
         ]);
 
         $middleware->api(append: [
             \App\Http\Middleware\CheckUserActive::class,
+            \App\Http\Middleware\XssProtection::class,
         ]);
 
         // Exclude auth_token from cookie encryption (set from JavaScript)

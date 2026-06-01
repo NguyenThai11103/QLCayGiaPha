@@ -124,6 +124,7 @@ export default function AdminDashboard() {
     const [form, setForm] = useState<FormState>(emptyForm);
     const [saving, setSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'info' | 'culture' | 'branding'>('info');
+    const [dashboardData, setDashboardData] = useState<any>(null);
 
     // Tự động thiết lập thành viên giả lập mặc định nếu chưa liên kết thực tế
     useEffect(() => {
@@ -147,9 +148,18 @@ export default function AdminDashboard() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [dh, ng] = await Promise.all([dongHoApi.list(), nguoiApi.list()]);
+            const [dh, ng, statsRes] = await Promise.all([
+                dongHoApi.list(),
+                nguoiApi.list(),
+                apiClient.get('/admin/dashboard/stats')
+            ]);
             setDongHos(dh.data || []);
             setMembers(ng.data || []);
+            if (statsRes.data?.success) {
+                setDashboardData(statsRes.data.data);
+            }
+        } catch (err) {
+            console.error("Lỗi tải thống kê hệ thống", err);
         } finally {
             setLoading(false);
         }
@@ -177,10 +187,10 @@ export default function AdminDashboard() {
     const primaryClan = withStats[0];
 
     const stats = [
-        { label: 'Tổng thành viên', value: members.length, delta: `+${Math.min(12, Math.max(0, members.length))} tháng này`, icon: 'users', accent: 'gold' },
-        { label: 'Đời sâu nhất', value: maxGeneration || 1, delta: 'Từ dữ liệu hiện có', icon: 'layers', accent: 'jade' },
-        { label: 'Dòng họ', value: dongHos.length, delta: `${withStats.filter((clan) => clan.soThanhVien > 0).length} đang có thành viên`, icon: 'branch', accent: 'terracotta' },
-        { label: 'Sự kiện sắp tới', value: 4, delta: 'Giỗ Tổ trong 12 ngày', icon: 'calendar', accent: 'crimson' },
+        { label: 'Tổng thành viên', value: dashboardData?.total_members ?? members.length, delta: 'Trong hệ thống', icon: 'users', accent: 'gold' },
+        { label: 'Tổng người dùng', value: dashboardData?.total_users ?? 0, delta: 'Tài khoản đăng ký', icon: 'layers', accent: 'jade' },
+        { label: 'Tổng dòng họ', value: dashboardData?.total_clans ?? dongHos.length, delta: 'Không gian số', icon: 'branch', accent: 'terracotta' },
+        { label: 'Chờ duyệt gia nhập', value: dashboardData?.pending_approvals ?? 0, delta: 'Yêu cầu phê duyệt', icon: 'calendar', accent: 'crimson' },
     ] as const;
 
     const openCreate = () => {
@@ -322,31 +332,25 @@ export default function AdminDashboard() {
 
                         <section className="gp-card p-[22px]">
                             <div className="mb-2 flex items-center justify-between">
-                                <h2 className="text-[16px] font-semibold text-[var(--ink)]">Hoạt động gần đây</h2>
-                                <button type="button" className="text-[12.5px] font-semibold text-[var(--gold)]">Xem tất cả</button>
+                                <h2 className="text-[16px] font-semibold text-[var(--ink)]">Tài khoản đăng ký gần đây</h2>
                             </div>
                             <div>
-                                {activities.map(([icon, who, action, target, time, accent]) => (
-                                    <div key={`${who}-${time}`} className="flex items-start gap-3 border-b border-[var(--line-soft)] py-3 last:border-b-0">
-                                        <div
-                                            className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border"
-                                            style={{
-                                                background: `color-mix(in srgb, var(--${accent}) 14%, transparent)`,
-                                                borderColor: `color-mix(in srgb, var(--${accent}) 22%, transparent)`,
-                                                color: `var(--${accent})`,
-                                            }}
-                                        >
-                                            <Icon name={icon} size={15} />
+                                {dashboardData?.recent_users?.map((ru: any) => (
+                                    <div key={ru.id} className="flex items-start gap-3 border-b border-[var(--line-soft)] py-3 last:border-b-0">
+                                        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border bg-[var(--gold-glow)] text-[var(--gold)]">
+                                            <Icon name="users" size={15} />
                                         </div>
                                         <div className="min-w-0">
                                             <p className="text-[13.5px] leading-6 text-[var(--ink-soft)]">
-                                                <span className="font-semibold text-[var(--ink)]">{who}</span> {action}{' '}
-                                                <span className="font-medium text-[var(--brown)]">{target}</span>
+                                                Người dùng <span className="font-semibold text-[var(--ink)]">{ru.ho_ten}</span> ({ru.email}) đăng ký dòng họ <span className="font-medium text-[var(--brown)]">{ru.dong_ho?.ten_dong_ho || 'Chưa liên kết'}</span>
                                             </p>
-                                            <div className="mt-0.5 text-[11.5px] text-[var(--ink-mute)]">{time}</div>
+                                            <div className="mt-0.5 text-[11.5px] text-[var(--ink-mute)]">Trạng thái phê duyệt: <span className="font-semibold text-[var(--gold)]">{ru.trang_thai_gia_nhap}</span></div>
                                         </div>
                                     </div>
                                 ))}
+                                {(!dashboardData?.recent_users || dashboardData.recent_users.length === 0) && (
+                                    <p className="text-sm text-[var(--ink-mute)] py-4 text-center">Chưa có người dùng mới đăng ký.</p>
+                                )}
                             </div>
                         </section>
 

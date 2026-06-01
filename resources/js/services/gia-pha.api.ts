@@ -151,6 +151,13 @@ export const suKienApi = {
         const response = await apiClient.post<ApiResponse>('/su-kien/leave', { id });
         return response.data;
     },
+
+    async solarToLunar(solarDate: string) {
+        const response = await apiClient.get<ApiResponse<{ lunar_date: string }>>('/su-kien/solar-to-lunar', {
+            params: { solar_date: solarDate }
+        });
+        return response.data;
+    },
 };
 
 // ─── Tài Liệu ────────────────────────────────────────────────────────────────

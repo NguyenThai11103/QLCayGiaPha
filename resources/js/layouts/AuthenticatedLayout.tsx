@@ -330,7 +330,7 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
         });
     }
     const activeItem = currentNavigation.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`));
-    const displayName = user?.ho_va_ten || 'Minh Anh';
+    const displayName = user?.ho_ten || user?.ho_va_ten || 'Minh Anh';
 
     let role = 'Thành viên';
     if (user?.quyen_han === 'admin') role = 'Quản trị viên Hệ thống';
@@ -447,7 +447,7 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
                         className={`mb-3 flex w-full items-center gap-3 rounded-xl p-2 text-left transition hover:bg-[var(--card-soft)] ${
                             sidebarCollapsed ? 'md:justify-center md:px-0' : ''
                         }`}
-                        onClick={() => visit('/profile')}
+                        onClick={() => visit(user?.quyen_han === 'admin' ? '/admin/profile' : '/profile')}
                         title={displayName}
                     >
                         <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[linear-gradient(135deg,var(--gold-soft),var(--terracotta))] text-sm font-bold text-white">

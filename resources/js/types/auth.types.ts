@@ -7,7 +7,8 @@ export interface NhanVien {
     ten_goi_nho: string;
     so_dien_thoai: string;
     anh_dai_dien: string | null;
-    quyen_han: 'admin' | 'quan_ly' | 'thanh_vien' | string | null;
+    tieu_su?: string | null;
+    quyen_han: 'admin' | 'truong_toc' | 'quan_ly' | 'thanh_vien' | string | null;
     is_master?: number | boolean | null;
     dong_ho_id?: number | null;
     trang_thai_gia_nhap?: string | null;

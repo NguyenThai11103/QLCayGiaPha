@@ -85,7 +85,7 @@ export default function MoPhanPage() {
     const [directionTarget, setDirectionTarget] = useState<{ title: string; lat: number; lng: number } | null>(null);
 
     const familyId = user?.dong_ho_id || user?.dong_ho?.id;
-    const canDelete = user?.quyen_han === 'quan_ly';
+    const canDelete = ['truong_toc', 'quan_ly'].includes(user?.quyen_han || '');
 
     const loadData = async () => {
         setLoading(true);

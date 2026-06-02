@@ -53,7 +53,7 @@ export default function ChoDuyetIndex() {
     };
 
     useEffect(() => {
-        if (user?.quyen_han === 'quan_ly') {
+        if (['truong_toc', 'quan_ly'].includes(user?.quyen_han || '')) {
             void loadData();
             void loadMembers();
         }

@@ -6,10 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\NguoiDung\CreateNguoiDungRequest;
 use App\Http\Requests\NguoiDung\UpdateNguoiDungRequest;
 use App\Http\Requests\NguoiDung\DeleteNguoiDungRequest;
+use App\Http\Requests\NguoiDung\ProvisionMemberAccountRequest;
+use App\Http\Requests\NguoiDung\UpdateNguoiDungRoleRequest;
+use App\Jobs\SendMemberAccountProvisionedMailJob;
 use App\Support\AccessControl;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class NguoiDungController extends Controller
 {
@@ -79,6 +83,62 @@ class NguoiDungController extends Controller
         ]);
     }
 
+    public function provisionMemberAccount(ProvisionMemberAccountRequest $request)
+    {
+        $data = $request->validated();
+        $user = $request->user();
+
+        $member = DB::table('thanh_viens')->where('id', $data['thanh_vien_id'])->first();
+        if (!$member) {
+            return response()->json(['success' => false, 'message' => 'Không tìm thấy thành viên.'], 404);
+        }
+
+        if (!AccessControl::canManageFamily($user, $member->dong_ho_id)) {
+            return AccessControl::forbidden();
+        }
+
+        if (DB::table('nguoi_dungs')->where('thanh_vien_id', $member->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Thành viên này đã có tài khoản truy cập hệ thống.',
+            ], 422);
+        }
+
+        $temporaryPassword = $this->generateTemporaryPassword();
+        $dongHoName = DB::table('dong_hos')->where('id', $member->dong_ho_id)->value('ten_dong_ho');
+
+        $id = DB::transaction(function () use ($data, $member, $temporaryPassword) {
+            return DB::table('nguoi_dungs')->insertGetId([
+                'dong_ho_id' => $member->dong_ho_id,
+                'ho_ten' => $member->ho_ten,
+                'email' => $data['email'],
+                'password' => Hash::make($temporaryPassword),
+                'thanh_vien_id' => $member->id,
+                'quyen_han' => 'thanh_vien',
+                'trang_thai_gia_nhap' => 'da_duyet',
+                'trang_thai' => true,
+                'avatar' => $member->anh_dai_dien,
+                'tieu_su' => $member->tieu_su,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+
+        SendMemberAccountProvisionedMailJob::dispatch(
+            $data['email'],
+            $member->ho_ten,
+            $temporaryPassword,
+            url('/login'),
+            $dongHoName,
+        )->afterCommit();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Đã cấp tài khoản và đưa email thông báo vào hàng đợi gửi.',
+            'id' => $id,
+        ]);
+    }
+
     public function update(UpdateNguoiDungRequest $request)
     {
         $data = $request->validated();
@@ -135,6 +195,65 @@ class NguoiDungController extends Controller
         ]);
     }
 
+    public function updateRole(UpdateNguoiDungRoleRequest $request)
+    {
+        $data = $request->validated();
+        $user = $request->user();
+        $target = DB::table('nguoi_dungs')->where('id', $data['id'])->first();
+
+        if (!$target) {
+            return response()->json(['success' => false, 'message' => 'Không tìm thấy tài khoản thành viên.'], 404);
+        }
+
+        if (!AccessControl::canManageFamily($user, $target->dong_ho_id) || !AccessControl::isFamilyRoleManager($user)) {
+            return AccessControl::forbidden('Bạn không có quyền cập nhật vai trò thành viên.');
+        }
+
+        if ((int) ($target->id ?? 0) === (int) ($user->id ?? 0) && get_class($user) === \App\Models\NguoiDung::class) {
+            return AccessControl::forbidden('Không thể tự thay đổi vai trò của chính mình.');
+        }
+
+        if (empty($target->thanh_vien_id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Chỉ có thể phân quyền cho tài khoản đã liên kết với thành viên trong gia phả.',
+            ], 422);
+        }
+
+        if (in_array($target->quyen_han, ['admin', 'truong_toc'], true)) {
+            return AccessControl::forbidden('Không thể thay đổi vai trò của tài khoản cấp cao hơn.');
+        }
+
+        if ($target->quyen_han === 'quan_ly' && $data['quyen_han'] === 'thanh_vien') {
+            $remainingManagers = DB::table('nguoi_dungs')
+                ->where('dong_ho_id', $target->dong_ho_id)
+                ->where('id', '!=', $target->id)
+                ->whereIn('quyen_han', ['truong_toc', 'quan_ly'])
+                ->count();
+
+            if ($remainingManagers === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không thể thu hồi người quản lý cuối cùng của dòng họ.',
+                ], 422);
+            }
+        }
+
+        DB::table('nguoi_dungs')
+            ->where('id', $target->id)
+            ->update([
+                'quyen_han' => $data['quyen_han'],
+                'updated_at' => now(),
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => $data['quyen_han'] === 'quan_ly'
+                ? 'Đã cấp quyền quản lý cho thành viên.'
+                : 'Đã thu hồi quyền quản lý của thành viên.',
+        ]);
+    }
+
     public function destroy(DeleteNguoiDungRequest $request)
     {
         $data = $request->validated();
@@ -163,5 +282,10 @@ class NguoiDungController extends Controller
             'success'   => true,
             'message'   => 'Xóa người dùng thành công'
         ]);
+    }
+
+    private function generateTemporaryPassword(): string
+    {
+        return Str::upper(Str::random(4)) . '-' . Str::random(4) . '-' . random_int(1000, 9999);
     }
 }

@@ -100,6 +100,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserActive::class])
     Route::prefix('nguoi-dung')->middleware('check.permission:quan_ly')->group(function () {
         Route::get('/list', [NguoiDungController::class, 'index']);
         Route::post('/create', [NguoiDungController::class, 'store']);
+        Route::post('/provision-account', [NguoiDungController::class, 'provisionMemberAccount']);
+        Route::post('/update-role', [NguoiDungController::class, 'updateRole']);
         Route::post('/update', [NguoiDungController::class, 'update']);
         Route::post('/delete', [NguoiDungController::class, 'destroy']);
     });

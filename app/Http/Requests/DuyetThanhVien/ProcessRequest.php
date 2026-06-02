@@ -11,7 +11,7 @@ class ProcessRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user() && $this->user()->quyen_han === 'quan_ly';
+        return $this->user() && in_array($this->user()->quyen_han, ['truong_toc', 'quan_ly'], true);
     }
 
     /**

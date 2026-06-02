@@ -19,6 +19,7 @@ class NguoiDung extends Authenticatable
         'password',
         'google_id',
         'avatar',
+        'tieu_su',
         'thanh_vien_id',
         'quyen_han',
         'trang_thai_gia_nhap',
@@ -58,7 +59,11 @@ class NguoiDung extends Authenticatable
 
     public function getTenChucVuAttribute()
     {
-        return in_array($this->quyen_han, ['quan_ly']) ? 'Quản trị dòng họ' : 'Thành viên';
+        return match ($this->quyen_han) {
+            'truong_toc' => 'Trưởng tộc',
+            'quan_ly' => 'Quản lý dòng họ',
+            default => 'Thành viên',
+        };
     }
 
     public function getMaThanhVienAttribute()

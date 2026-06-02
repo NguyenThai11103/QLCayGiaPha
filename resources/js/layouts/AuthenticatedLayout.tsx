@@ -318,7 +318,7 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
     }
 
     let currentNavigation = user?.quyen_han === 'admin' ? adminNavigation : [...navigation];
-    if (user?.quyen_han === 'quan_ly') {
+    if (['truong_toc', 'quan_ly'].includes(user?.quyen_han || '')) {
         currentNavigation.splice(3, 0, {
             name: 'Duyệt thành viên',
             href: '/gia-pha/cho-duyet',
@@ -334,6 +334,7 @@ export default function AuthenticatedLayout({ children, fullBleed = false }: Aut
 
     let role = 'Thành viên';
     if (user?.quyen_han === 'admin') role = 'Quản trị viên Hệ thống';
+    else if (user?.quyen_han === 'truong_toc') role = 'Trưởng tộc';
     else if (user?.quyen_han === 'quan_ly') role = 'Quản trị dòng họ';
     else if (user?.ten_chuc_vu) role = user.ten_chuc_vu;
 

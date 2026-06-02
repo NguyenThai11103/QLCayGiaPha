@@ -1,10 +1,19 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import Icon from '../../../components/gia-pha/Icon';
-import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../../services/gia-pha.api';
+import { DongHo, dongHoApi, Nguoi, nguoiApi, NguoiDung, nguoiDungApi } from '../../../services/gia-pha.api';
 import { useAuth } from '../../../contexts/auth.context';
-import AdminDanhSachThanhVien from '../../admin/thanh-vien/index';
+import toast from '../../../lib/toast.util';
+import MemberFormModal from '../gia-pha/components/MemberFormModal';
+import {
+    buildPayload,
+    canBeParentPair,
+    canSelectAsSpouse,
+    findSpouseIdFromChildren,
+    getMemberById,
+} from '../gia-pha/helpers/family-tree';
+import { emptyForm, FormState, QuickAddMode } from '../gia-pha/types';
 
 // Gradient avatar theo họ tên
 function avatarGrad(name: string): string {
@@ -35,14 +44,35 @@ export default function ClientDanhSachThanhVien() {
     const [searchTerm,   setSearchTerm]   = useState('');
     const [viewMode,     setViewMode]     = useState<'grid' | 'table'>('grid');
     const [visibleCount, setVisibleCount] = useState(12);
+    const [formOpen,     setFormOpen]     = useState(false);
+    const [form,         setForm]         = useState<FormState>(emptyForm);
+    const [isDauRe,      setIsDauRe]      = useState(false);
+    const [quickAddMode, setQuickAddMode] = useState<QuickAddMode>('none');
+    const [selectedParentId, setSelectedParentId] = useState('');
+    const [saving,       setSaving]       = useState(false);
+    const [accountModalOpen, setAccountModalOpen] = useState(false);
+    const [accountSaving, setAccountSaving] = useState(false);
+    const [accountEmail, setAccountEmail] = useState('');
+    const [selectedAccountMemberId, setSelectedAccountMemberId] = useState('');
+    const [memberAccounts, setMemberAccounts] = useState<NguoiDung[]>([]);
+    const [roleModalOpen, setRoleModalOpen] = useState(false);
+    const [roleSaving, setRoleSaving] = useState(false);
+    const [selectedRoleAccountId, setSelectedRoleAccountId] = useState('');
+    const [selectedRole, setSelectedRole] = useState<'quan_ly' | 'thanh_vien'>('quan_ly');
     const loaderRef = useRef<HTMLDivElement>(null);
+    const canManage = ['truong_toc', 'quan_ly'].includes(user?.quyen_han || '');
 
     const loadData = async () => {
         setLoading(true);
         try {
-            const [dhRes, ngRes] = await Promise.all([dongHoApi.list(), nguoiApi.list()]);
+            const [dhRes, ngRes, ndRes] = await Promise.all([
+                dongHoApi.list(),
+                nguoiApi.list(),
+                canManage ? nguoiDungApi.list() : Promise.resolve({ data: { data: [] } }),
+            ]);
             setDongHos(dhRes.data || []);
             setMembers(ngRes.data || []);
+            setMemberAccounts(ndRes.data?.data || []);
         } finally {
             setLoading(false);
         }
@@ -104,8 +134,208 @@ export default function ClientDanhSachThanhVien() {
     const statsNu    = filtered.filter(m => m.gioi_tinh === 'nu').length;
     const statsMat   = filtered.filter(m => Boolean(m.da_mat)).length;
     const statsAlive = filtered.length - statsMat;
+    const provisionedMemberIds = useMemo(
+        () => new Set(memberAccounts.map((account) => account.thanh_vien_id).filter((memberId): memberId is number => Boolean(memberId))),
+        [memberAccounts],
+    );
+    const membersWithoutAccount = useMemo(
+        () => members.filter((member) => !provisionedMemberIds.has(member.id)),
+        [members, provisionedMemberIds],
+    );
+    const roleAssignableAccounts = useMemo(
+        () => memberAccounts.filter((account) => Boolean(account.thanh_vien_id) && !['admin', 'truong_toc'].includes(account.quyen_han || '')),
+        [memberAccounts],
+    );
+    const currentManagers = useMemo(
+        () => memberAccounts.filter((account) => ['truong_toc', 'quan_ly'].includes(account.quyen_han || '')),
+        [memberAccounts],
+    );
 
-    const getMemberById = (id: number) => members.find(m => m.id === id);
+    const defaultDongHoId = () => {
+        if (user?.dong_ho_id) {
+            return String(user.dong_ho_id);
+        }
+
+        if (dongHos.length === 1) {
+            return String(dongHos[0].id);
+        }
+
+        return '';
+    };
+
+    const openCreateForm = () => {
+        setIsDauRe(false);
+        setQuickAddMode('none');
+        setSelectedParentId('');
+        setForm({ ...emptyForm, id_dong_ho: defaultDongHoId() });
+        setFormOpen(true);
+    };
+
+    const closeForm = () => {
+        setFormOpen(false);
+        setForm(emptyForm);
+        setIsDauRe(false);
+        setQuickAddMode('none');
+        setSelectedParentId('');
+    };
+
+    const openAccountModal = (memberId?: number) => {
+        setSelectedAccountMemberId(memberId ? String(memberId) : '');
+        setAccountEmail('');
+        setAccountModalOpen(true);
+    };
+
+    const closeAccountModal = () => {
+        setAccountModalOpen(false);
+        setSelectedAccountMemberId('');
+        setAccountEmail('');
+    };
+
+    const closeRoleModal = () => {
+        setRoleModalOpen(false);
+        setSelectedRoleAccountId('');
+        setSelectedRole('quan_ly');
+    };
+
+    const getAccountMemberName = (account: NguoiDung) => {
+        const member = members.find((item) => item.id === account.thanh_vien_id);
+        return member?.ten_day_du || account.ho_ten || account.email;
+    };
+
+    const getRoleLabel = (role?: string | null) => {
+        if (role === 'truong_toc') return 'Trưởng tộc';
+        if (role === 'quan_ly') return 'Quản lý';
+        if (role === 'admin') return 'Quản trị hệ thống';
+        return 'Thành viên';
+    };
+
+    const handleParentChange = (field: 'id_cha' | 'id_me', value: string) => {
+        setForm((currentForm) => {
+            if (field === 'id_cha') {
+                const autoMotherId = findSpouseIdFromChildren(members, value, 'id_me');
+                const currentMotherId = canBeParentPair(members, value, currentForm.id_me) ? currentForm.id_me : '';
+
+                return { ...currentForm, id_cha: value, id_me: autoMotherId || currentMotherId };
+            }
+
+            const autoFatherId = findSpouseIdFromChildren(members, value, 'id_cha');
+            const currentFatherId = canBeParentPair(members, currentForm.id_cha, value) ? currentForm.id_cha : '';
+
+            return { ...currentForm, id_me: value, id_cha: autoFatherId || currentFatherId };
+        });
+    };
+
+    const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!form.id_dong_ho) {
+            toast.error('Vui lòng chọn dòng họ.');
+            return;
+        }
+
+        if (!canBeParentPair(members, form.id_cha, form.id_me)) {
+            toast.error('Cha và mẹ không được là tổ tiên hoặc con cháu của nhau.');
+            return;
+        }
+
+        if (form.id_vo_chong_list.length > 0) {
+            const invalidSpouse = form.id_vo_chong_list.some((spouseId) => {
+                const spouse = getMemberById(members, spouseId);
+                return spouse && !canSelectAsSpouse(members, spouse, form);
+            });
+
+            if (invalidSpouse) {
+                toast.error('Có vợ/chồng không hợp lệ.');
+                return;
+            }
+        }
+
+        setSaving(true);
+        try {
+            const result = await nguoiApi.create(buildPayload(form, isDauRe));
+
+            if (result.success) {
+                toast.success(result.message || 'Thêm thành viên thành công.');
+                closeForm();
+                await loadData();
+            } else {
+                toast.error(result.message || 'Không thể thêm thành viên.');
+            }
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleProvisionAccount = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!selectedAccountMemberId) {
+            toast.error('Vui lòng chọn thành viên cần cấp tài khoản.');
+            return;
+        }
+
+        if (!accountEmail.trim()) {
+            toast.error('Vui lòng nhập email của thành viên.');
+            return;
+        }
+
+        setAccountSaving(true);
+        try {
+            const response = await nguoiDungApi.provisionMemberAccount({
+                thanh_vien_id: Number(selectedAccountMemberId),
+                email: accountEmail.trim(),
+            });
+            const result = response.data;
+
+            if (result.success) {
+                toast.success(result.message || 'Đã cấp tài khoản cho thành viên.');
+                closeAccountModal();
+                await loadData();
+            } else {
+                toast.error(result.message || 'Không thể cấp tài khoản.');
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cấp tài khoản.');
+        } finally {
+            setAccountSaving(false);
+        }
+    };
+
+    const updateMemberRole = async (accountId: number, role: 'quan_ly' | 'thanh_vien') => {
+        setRoleSaving(true);
+        try {
+            const response = await nguoiDungApi.updateRole({ id: accountId, quyen_han: role });
+            const result = response.data;
+
+            if (result.success) {
+                toast.success(result.message || 'Đã cập nhật vai trò thành viên.');
+                await loadData();
+                return true;
+            }
+
+            toast.error(result.message || 'Không thể cập nhật vai trò thành viên.');
+            return false;
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật vai trò.');
+            return false;
+        } finally {
+            setRoleSaving(false);
+        }
+    };
+
+    const handleRoleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!selectedRoleAccountId) {
+            toast.error('Vui lòng chọn tài khoản thành viên.');
+            return;
+        }
+
+        const updated = await updateMemberRole(Number(selectedRoleAccountId), selectedRole);
+        if (updated) {
+            closeRoleModal();
+        }
+    };
 
     return (
         <AuthenticatedLayout>
@@ -115,8 +345,40 @@ export default function ClientDanhSachThanhVien() {
                 {/* ─── Header ──────────────────────────────────── */}
                 <div style={{ marginBottom: 24 }}>
                     <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 4 }}>Gia phả · Thành viên</div>
-                    <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--ink)', margin: '0 0 8px', fontFamily: 'Cormorant Garamond, serif' }}>Danh sách thành viên</h1>
-                    <p style={{ fontSize: 13.5, color: 'var(--ink-mute)', margin: 0 }}>Tất cả các thành viên trong dòng họ được ghi chép trong gia phả.</p>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                        <div>
+                            <h1 style={{ fontSize: 28, fontWeight: 700, color: 'var(--ink)', margin: '0 0 8px', fontFamily: 'Cormorant Garamond, serif' }}>Danh sách thành viên</h1>
+                            <p style={{ fontSize: 13.5, color: 'var(--ink-mute)', margin: 0 }}>Tất cả các thành viên trong dòng họ được ghi chép trong gia phả.</p>
+                        </div>
+                        {canManage && (
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => setRoleModalOpen(true)}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 10, border: '1px solid var(--gold-soft)', background: 'var(--gold-glow)', color: 'var(--gold-dark)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
+                                >
+                                    <Icon name="users" size={15} />
+                                    Phân quyền
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => openAccountModal()}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-elev)', color: 'var(--ink)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
+                                >
+                                    <Icon name="users" size={15} />
+                                    Cấp tài khoản
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={openCreateForm}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: 'none', borderRadius: 10, background: 'linear-gradient(135deg, var(--gold), var(--terracotta))', color: 'white', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
+                                >
+                                    <Icon name="add-user" size={15} />
+                                    Thêm thành viên
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 {/* ─── Stats Row ───────────────────────────────── */}
@@ -203,7 +465,7 @@ export default function ClientDanhSachThanhVien() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16, alignItems: 'stretch' }}>
                         {filtered.slice(0, visibleCount).map(member => {
                             const dongHo = dongHos.find(d => d.id === member.id_dong_ho);
-                            const spouseNames = (member.vo_chong_ids || []).map(sid => getMemberById(sid)?.ten_day_du).filter(Boolean).join(', ');
+                            const spouseNames = (member.vo_chong_ids || []).map(sid => getMemberById(members, sid)?.ten_day_du).filter(Boolean).join(', ');
 
                             return (
                                 <Link key={member.id} href={`/gia-pha/thanh-vien/${member.id}`} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -225,7 +487,7 @@ export default function ClientDanhSachThanhVien() {
                                             <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at right top, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at left bottom, rgba(0,0,0,0.15) 0%, transparent 50%)' }} />
                                             {member.da_mat && (
                                                 <div style={{ position: 'absolute', top: 12, right: 12, fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: 'rgba(0,0,0,0.4)', color: 'rgba(255,255,255,0.95)', border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                                                    <Icon name="moon" size={10} /> Đã mất
+                                                    <Icon name="clock" size={10} /> Đã mất
                                                 </div>
                                             )}
                                         </div>
@@ -331,6 +593,223 @@ export default function ClientDanhSachThanhVien() {
                 )}
 
             </div>
+
+            {roleModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <form
+                        onSubmit={handleRoleSubmit}
+                        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg-elev)] text-[var(--ink)] shadow-2xl"
+                    >
+                        <div className="px-6 py-4" style={{ background: 'linear-gradient(135deg, var(--brown), var(--gold))' }}>
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">Phân quyền quản lý</h3>
+                                    <p className="mt-0.5 text-xs text-white/75">Cấp hoặc thu hồi quyền quản lý cho tài khoản thành viên trong dòng họ.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closeRoleModal}
+                                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                                >
+                                    <Icon name="x" size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-5 p-6">
+                            <div className="grid gap-4 md:grid-cols-[1fr_180px]">
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">
+                                        Tài khoản thành viên <span className="text-red-500">*</span>
+                                    </span>
+                                    <select
+                                        value={selectedRoleAccountId}
+                                        onChange={(event) => {
+                                            const account = roleAssignableAccounts.find((item) => String(item.id) === event.target.value);
+                                            setSelectedRoleAccountId(event.target.value);
+                                            setSelectedRole(account?.quyen_han === 'quan_ly' ? 'thanh_vien' : 'quan_ly');
+                                        }}
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 focus:outline-none"
+                                        required
+                                    >
+                                        <option value="">-- Chọn tài khoản cần phân quyền --</option>
+                                        {roleAssignableAccounts.map((account) => (
+                                            <option key={account.id} value={account.id}>
+                                                {getAccountMemberName(account)} - {getRoleLabel(account.quyen_han)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">
+                                        Vai trò mới
+                                    </span>
+                                    <select
+                                        value={selectedRole}
+                                        onChange={(event) => setSelectedRole(event.target.value as 'quan_ly' | 'thanh_vien')}
+                                        className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 focus:outline-none"
+                                    >
+                                        <option value="quan_ly">Quản lý</option>
+                                        <option value="thanh_vien">Thành viên</option>
+                                    </select>
+                                </label>
+                            </div>
+
+                            <div className="rounded-xl border border-[var(--line)] bg-[var(--card-soft)]">
+                                <div className="border-b border-[var(--line)] px-4 py-3 text-sm font-bold text-[var(--ink)]">
+                                    Người đang có quyền quản lý ({currentManagers.length})
+                                </div>
+                                <div className="max-h-72 divide-y divide-[var(--line-soft)] overflow-auto">
+                                    {currentManagers.length === 0 && (
+                                        <div className="px-4 py-4 text-sm text-[var(--ink-mute)]">Chưa có tài khoản quản lý nào trong dòng họ.</div>
+                                    )}
+                                    {currentManagers.map((account) => {
+                                        const canRevoke = account.quyen_han === 'quan_ly';
+
+                                        return (
+                                            <div key={account.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                                                <div className="min-w-0">
+                                                    <div className="truncate text-sm font-semibold text-[var(--ink)]">{getAccountMemberName(account)}</div>
+                                                    <div className="truncate text-xs text-[var(--ink-mute)]">{account.email} · {getRoleLabel(account.quyen_han)}</div>
+                                                </div>
+                                                {canRevoke && (
+                                                    <button
+                                                        type="button"
+                                                        disabled={roleSaving}
+                                                        onClick={() => void updateMemberRole(account.id, 'thanh_vien')}
+                                                        className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                                    >
+                                                        Thu hồi
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {roleAssignableAccounts.length === 0 && (
+                                <div className="rounded-xl border border-[var(--gold-soft)] bg-[var(--gold-glow)] px-4 py-3 text-[12.5px] leading-5 text-[var(--ink-soft)]">
+                                    Chưa có tài khoản thành viên có thể phân quyền. Hãy cấp tài khoản cho thành viên trước.
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button type="button" onClick={closeRoleModal} className="rounded-lg border border-[var(--line)] bg-[var(--card)] px-4 py-2 font-semibold text-[var(--ink-soft)] transition hover:bg-[var(--card-soft)]">
+                                    Hủy
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={roleSaving || roleAssignableAccounts.length === 0}
+                                    className="rounded-lg px-5 py-2 font-semibold text-white shadow transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    style={{ background: 'linear-gradient(135deg, var(--gold), var(--terracotta))' }}
+                                >
+                                    {roleSaving ? 'Đang cập nhật...' : 'Cập nhật vai trò'}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {accountModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <form
+                        onSubmit={handleProvisionAccount}
+                        className="w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg-elev)] text-[var(--ink)] shadow-2xl"
+                    >
+                        <div className="px-6 py-4" style={{ background: 'linear-gradient(135deg, var(--brown), var(--gold))' }}>
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">Cấp tài khoản thành viên</h3>
+                                    <p className="mt-0.5 text-xs text-white/75">Hệ thống sẽ tạo mật khẩu ngẫu nhiên và gửi email thông báo cho thành viên.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closeAccountModal}
+                                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                                >
+                                    <Icon name="x" size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 p-6">
+                            <label className="block">
+                                <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">
+                                    Thành viên <span className="text-red-500">*</span>
+                                </span>
+                                <select
+                                    value={selectedAccountMemberId}
+                                    onChange={(event) => setSelectedAccountMemberId(event.target.value)}
+                                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 focus:outline-none"
+                                    required
+                                >
+                                    <option value="">-- Chọn thành viên chưa có tài khoản --</option>
+                                    {membersWithoutAccount.map((member) => (
+                                        <option key={member.id} value={member.id}>
+                                            {member.ten_day_du} {member.doi_thu ? `(Đời ${member.doi_thu})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                                {membersWithoutAccount.length === 0 && (
+                                    <p className="mt-1 text-xs text-[var(--ink-mute)]">Tất cả thành viên hiện đã có tài khoản liên kết.</p>
+                                )}
+                            </label>
+
+                            <label className="block">
+                                <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">
+                                    Email đăng nhập <span className="text-red-500">*</span>
+                                </span>
+                                <input
+                                    type="email"
+                                    value={accountEmail}
+                                    onChange={(event) => setAccountEmail(event.target.value)}
+                                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 focus:outline-none"
+                                    placeholder="thanhvien@example.com"
+                                    required
+                                />
+                            </label>
+
+                            <div className="rounded-xl border border-[var(--gold-soft)] bg-[var(--gold-glow)] px-4 py-3 text-[12.5px] leading-5 text-[var(--ink-soft)]">
+                                Sau khi cấp, thành viên sẽ nhận email gồm tài khoản, mật khẩu tạm và link đăng nhập. Thành viên nên đổi mật khẩu trong mục Hồ sơ sau lần đăng nhập đầu tiên.
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button type="button" onClick={closeAccountModal} className="rounded-lg border border-[var(--line)] bg-[var(--card)] px-4 py-2 font-semibold text-[var(--ink-soft)] transition hover:bg-[var(--card-soft)]">
+                                    Hủy
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={accountSaving || membersWithoutAccount.length === 0}
+                                    className="rounded-lg px-5 py-2 font-semibold text-white shadow transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    style={{ background: 'linear-gradient(135deg, var(--gold), var(--terracotta))' }}
+                                >
+                                    {accountSaving ? 'Đang cấp...' : 'Cấp tài khoản'}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {formOpen && (
+                <MemberFormModal
+                    form={form}
+                    setForm={setForm}
+                    dongHos={dongHos}
+                    people={members}
+                    isDauRe={isDauRe}
+                    setIsDauRe={setIsDauRe}
+                    quickAddMode={quickAddMode}
+                    selectedParentId={selectedParentId}
+                    saving={saving}
+                    onClose={closeForm}
+                    onSubmit={handleSubmit}
+                    onParentChange={handleParentChange}
+                />
+            )}
         </AuthenticatedLayout>
     );
 }

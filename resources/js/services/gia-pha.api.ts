@@ -291,6 +291,7 @@ export interface KhuMo {
     kinh_do: number;
     mo_ta: string | null;
     anh_khu_mo_url?: string | null;
+    anh_khu_mo_urls?: string[];
     nguoi_cap_nhat_id?: number | null;
     ten_nguoi_cap_nhat?: string | null;
     so_mo_phan?: number | null;
@@ -306,7 +307,7 @@ export interface KhuMoPayload {
     vi_do: number;
     kinh_do: number;
     mo_ta?: string | null;
-    anh_khu_mo?: File | null;
+    anh_khu_mo?: File[] | File | null;
 }
 
 export interface OpenMapDirectionSummary {
@@ -340,6 +341,13 @@ function formDataFromObject(payload: Record<string, unknown>) {
     const formData = new FormData();
     Object.entries(payload).forEach(([key, value]) => {
         if (value === undefined || value === null) return;
+        if (Array.isArray(value)) {
+            value.forEach((item) => {
+                if (item === undefined || item === null) return;
+                formData.append(`${key}[]`, item instanceof File ? item : String(item));
+            });
+            return;
+        }
         formData.append(key, value instanceof File ? value : String(value));
     });
     return formData;

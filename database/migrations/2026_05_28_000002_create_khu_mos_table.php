@@ -18,6 +18,7 @@ return new class extends Migration
             $table->text('mo_ta')->nullable();
             $table->string('anh_khu_mo_path')->nullable();
             $table->string('anh_khu_mo_disk', 50)->nullable();
+            $table->json('anh_khu_mo_paths')->nullable();
             $table->foreignId('nguoi_cap_nhat_id')->nullable()->constrained('nguoi_dungs')->nullOnDelete();
             $table->timestamps();
 

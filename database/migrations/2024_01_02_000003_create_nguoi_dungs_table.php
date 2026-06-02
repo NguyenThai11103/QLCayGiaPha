@@ -15,6 +15,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->string('google_id')->nullable()->unique();
             $table->string('avatar')->nullable();
+            $table->text('tieu_su')->nullable();
             $table->string('password');
             $table->foreignId('thanh_vien_id')->nullable()->constrained('thanh_viens')->nullOnDelete();
             $table->string('quyen_han')->default('thanh_vien');

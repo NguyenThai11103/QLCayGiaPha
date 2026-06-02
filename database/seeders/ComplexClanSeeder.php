@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Carbon\Carbon;
 use Faker\Factory as Faker;
@@ -67,10 +68,15 @@ class ComplexClanSeeder extends Seeder
         $this->dongHoId = DB::table('dong_hos')->insertGetId([
             'ten_dong_ho' => 'Dòng họ ' . $this->ho,
             'mo_ta' => 'Dòng họ ' . $this->ho . ' lớn nhất tại Đà Nẵng với lịch sử 6 đời liên tiếp.',
+            'gia_huan' => 'Con cháu họ Võ Quốc giữ đạo hiếu, kính trên nhường dưới, học hành chăm chỉ và cùng nhau gìn giữ từ đường.',
+            'loi_gioi_thieu' => 'Không gian số hóa gia phả, sự kiện, mộ phần và tài liệu của dòng họ Võ Quốc tại Đà Nẵng.',
             'dia_chi_tu_duong' => 'TP Đà Nẵng',
+            'anh_tu_duong_path' => 'tu-duong/vo-quoc/tu-duong.svg',
+            'theme_color' => 'bronze',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        $this->createTuDuongPhoto();
 
         // Trưởng tộc (Quản lý)
         $hoTenTruongToc = 'Võ Quốc Trưởng';
@@ -83,7 +89,8 @@ class ComplexClanSeeder extends Seeder
                 'ho_ten' => $hoTenTruongToc,
                 'email' => Str::slug($hoTenTruongToc, '') . '@gmail.com',
                 'password' => Hash::make('111111'),
-                'quyen_han' => 'quan_ly',
+                'quyen_han' => 'truong_toc',
+                'tieu_su' => 'Trưởng tộc dòng họ Võ Quốc, phụ trách thông tin chung và phân quyền quản lý cho các thành viên.',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -92,7 +99,8 @@ class ComplexClanSeeder extends Seeder
                 'ho_ten' => $hoTenS,
                 'email' => Str::slug($hoTenS, '') . '1980@gmail.com',
                 'password' => Hash::make('111111'),
-                'quyen_han' => 'thanh_vien',
+                'quyen_han' => 'quan_ly',
+                'tieu_su' => 'Quản lý phụ trách cập nhật cây gia phả, mộ phần và sự kiện của nhánh trưởng.',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -102,6 +110,7 @@ class ComplexClanSeeder extends Seeder
                 'email' => Str::slug($hoTenV, '') . '@gmail.com',
                 'password' => Hash::make('111111'),
                 'quyen_han' => 'thanh_vien',
+                'tieu_su' => 'Thành viên dòng họ, tài khoản mẫu để kiểm thử luồng đăng nhập và cập nhật hồ sơ.',
                 'created_at' => now(),
                 'updated_at' => now(),
             ]
@@ -109,8 +118,12 @@ class ComplexClanSeeder extends Seeder
 
         // Cụ thủy tổ (Đời 1)
         $namSinhCuto = rand(1850, 1860);
-        $cuTo = $this->createThanhVien($this->generateTenChinhHuyet('nam'), 'nam', 1, 1, $namSinhCuto);
+        $cuTo = $this->createThanhVien($hoTenTruongToc, 'nam', 1, 1, $namSinhCuto);
         $voCuTo = $this->createThanhVien($this->generateName('nu'), 'nu', 1, 1, $namSinhCuto + rand(-3, 5));
+        DB::table('nguoi_dungs')
+            ->where('dong_ho_id', $this->dongHoId)
+            ->where('ho_ten', $hoTenTruongToc)
+            ->update(['thanh_vien_id' => $cuTo['id'], 'updated_at' => now()]);
         
         $this->linkVoChong($cuTo['id'], $voCuTo['id']);
 
@@ -120,11 +133,19 @@ class ComplexClanSeeder extends Seeder
         // KỊCH BẢN ĐẶC BIỆT: Trưởng nam đời 2 có 3 vợ (Để biểu diễn tính năng xếp chồng và chia nhánh theo mẹ)
         $namSinhTruongNam = $namSinhCuto + 25;
         $truongNam = $this->createThanhVien('Võ Quốc Sơn', 'nam', 2, 1, $namSinhTruongNam);
+        DB::table('nguoi_dungs')
+            ->where('dong_ho_id', $this->dongHoId)
+            ->where('ho_ten', $hoTenS)
+            ->update(['thanh_vien_id' => $truongNam['id'], 'updated_at' => now()]);
         $this->linkChaCon($cuTo['id'], $truongNam['id']);
         $this->linkMeCon($voCuTo['id'], $truongNam['id']);
 
         // Vợ 1: Trần Kim Vy (2 con)
         $vo1 = $this->createThanhVien('Trần Kim Vy', 'nu', 2, 1, $namSinhTruongNam - 2);
+        DB::table('nguoi_dungs')
+            ->where('dong_ho_id', $this->dongHoId)
+            ->where('ho_ten', $hoTenV)
+            ->update(['thanh_vien_id' => $vo1['id'], 'updated_at' => now()]);
         $this->linkVoChong($truongNam['id'], $vo1['id']);
         for ($i = 1; $i <= 2; $i++) {
             $conV1 = $this->createThanhVien($this->generateTenChinhHuyet('nam'), 'nam', 3, $i, $namSinhTruongNam + 20 + $i*2);
@@ -268,6 +289,7 @@ class ComplexClanSeeder extends Seeder
             'ngay_mat_am' => $ngayMatAm,
             'nghe_nghiep' => $tuoi > 22 && $tuoi < 65 ? $this->faker->jobTitle : null,
             'dia_chi' => $this->faker->randomElement($this->diaChi),
+            'tieu_su' => "Thành viên đời {$doiThu} của dòng họ {$this->ho}, dữ liệu mẫu phục vụ tra cứu gia phả.",
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -352,5 +374,29 @@ class ComplexClanSeeder extends Seeder
                 'updated_at' => now(),
             ]
         ]);
+    }
+
+    private function createTuDuongPhoto(): void
+    {
+        $path = 'tu-duong/vo-quoc/tu-duong.svg';
+        if (Storage::disk('public')->exists($path)) {
+            return;
+        }
+
+        $svg = <<<SVG
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+  <rect width="1200" height="720" fill="#f7f0df"/>
+  <rect x="120" y="490" width="960" height="68" rx="34" fill="#d7be86"/>
+  <path d="M180 362 L600 160 L1020 362 Z" fill="#8b5a2b"/>
+  <path d="M260 362 L600 214 L940 362 Z" fill="#b8902c"/>
+  <rect x="270" y="362" width="660" height="180" rx="22" fill="#fff8e8" stroke="#8b5a2b" stroke-width="12"/>
+  <rect x="548" y="402" width="104" height="140" rx="12" fill="#8b5a2b"/>
+  <rect x="344" y="410" width="118" height="76" rx="14" fill="#d7be86"/>
+  <rect x="738" y="410" width="118" height="76" rx="14" fill="#d7be86"/>
+  <text x="600" y="630" text-anchor="middle" font-family="serif" font-size="54" font-weight="700" fill="#5c3a1e">Từ đường dòng họ Võ Quốc</text>
+</svg>
+SVG;
+
+        Storage::disk('public')->put($path, $svg);
     }
 }

@@ -39,7 +39,7 @@ class MoPhanSeeder extends Seeder
         foreach ($thanhViensDaMatTheoDongHo as $dongHoId => $thanhViens) {
             $nguoiCapNhatId = DB::table('nguoi_dungs')
                 ->where('dong_ho_id', $dongHoId)
-                ->orderByRaw("CASE WHEN quyen_han = 'quan_ly' THEN 0 ELSE 1 END")
+                ->orderByRaw("CASE WHEN quyen_han = 'truong_toc' THEN 0 WHEN quyen_han = 'quan_ly' THEN 1 ELSE 2 END")
                 ->orderBy('id')
                 ->value('id');
 
@@ -163,13 +163,15 @@ SVG;
 
         $ids = [];
         foreach ($items as $index => $item) {
-            $photoPath = $this->createKhuMoPhoto($dongHoId, $index + 1, $item['ten_khu_mo']);
+            $photoPaths = $this->createKhuMoPhotos($dongHoId, $index + 1, $item['ten_khu_mo']);
+            $primaryPhotoPath = $photoPaths[0] ?? null;
             DB::table('khu_mos')->updateOrInsert(
                 ['dong_ho_id' => $dongHoId, 'ten_khu_mo' => $item['ten_khu_mo']],
                 [
                     ...$item,
-                    'anh_khu_mo_path' => $photoPath,
+                    'anh_khu_mo_path' => $primaryPhotoPath,
                     'anh_khu_mo_disk' => 'public',
+                    'anh_khu_mo_paths' => json_encode($photoPaths),
                     'nguoi_cap_nhat_id' => $nguoiCapNhatId,
                     'created_at' => now(),
                     'updated_at' => now(),
@@ -185,25 +187,37 @@ SVG;
         return array_filter($ids);
     }
 
-    private function createKhuMoPhoto(int $dongHoId, int $index, string $name): string
+    private function createKhuMoPhotos(int $dongHoId, int $index, string $name): array
     {
-        $path = "khu-mo/{$dongHoId}/seed-khu-{$index}.svg";
+        return [
+            $this->createKhuMoPhoto($dongHoId, $index, $name, 'toan-canh', 'Toàn cảnh khu mộ', '#f7f0df', '#d7be86'),
+            $this->createKhuMoPhoto($dongHoId, $index, $name, 'cong-vao', 'Cổng vào và lối chính', '#eef4e6', '#8ba66f'),
+            $this->createKhuMoPhoto($dongHoId, $index, $name, 'moc-nhan-dien', 'Mốc nhận diện gần khu mộ', '#f3ece2', '#b8902c'),
+        ];
+    }
+
+    private function createKhuMoPhoto(int $dongHoId, int $index, string $name, string $view, string $caption, string $background, string $accent): string
+    {
+        $path = "khu-mo/{$dongHoId}/seed-khu-{$index}-{$view}.svg";
         if (Storage::disk('public')->exists($path)) {
             return $path;
         }
 
         $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+        $safeCaption = htmlspecialchars($caption, ENT_QUOTES, 'UTF-8');
         $svg = <<<SVG
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
-  <rect width="900" height="520" fill="#f7f0df"/>
-  <rect x="70" y="330" width="760" height="78" rx="39" fill="#d7be86"/>
+  <rect width="900" height="520" fill="{$background}"/>
+  <rect x="70" y="330" width="760" height="78" rx="39" fill="{$accent}" opacity="0.78"/>
   <g fill="#8b5a2b">
     <rect x="180" y="170" width="90" height="180" rx="16"/>
     <rect x="315" y="130" width="110" height="220" rx="18"/>
     <rect x="475" y="155" width="94" height="195" rx="16"/>
     <rect x="615" y="190" width="86" height="160" rx="14"/>
   </g>
-  <text x="450" y="455" text-anchor="middle" font-family="serif" font-size="42" font-weight="700" fill="#5c3a1e">{$safeName}</text>
+  <path d="M118 118 C196 76 285 80 351 132 C429 194 514 194 590 134 C655 82 742 78 812 116" fill="none" stroke="{$accent}" stroke-width="18" stroke-linecap="round" opacity="0.35"/>
+  <text x="450" y="438" text-anchor="middle" font-family="serif" font-size="42" font-weight="700" fill="#5c3a1e">{$safeName}</text>
+  <text x="450" y="480" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="700" fill="#8b5a2b">{$safeCaption}</text>
 </svg>
 SVG;
 

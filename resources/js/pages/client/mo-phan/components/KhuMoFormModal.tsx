@@ -9,7 +9,7 @@ interface KhuMoFormState {
     vi_do: string;
     kinh_do: string;
     mo_ta: string;
-    anh_khu_mo: File | null;
+    anh_khu_mo: File[];
 }
 
 interface KhuMoFormModalProps {
@@ -34,12 +34,12 @@ export default function KhuMoFormModal({ dongHoId, editing, onClose, onSaved }: 
         vi_do       : editing ? String(editing.vi_do) : '',
         kinh_do     : editing ? String(editing.kinh_do) : '',
         mo_ta       : editing?.mo_ta || '',
-        anh_khu_mo  : null,
+        anh_khu_mo  : [],
     });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
 
-    const setField = (key: keyof KhuMoFormState, value: string | File | null) => setForm((current) => ({ ...current, [key]: value }));
+    const setField = (key: keyof KhuMoFormState, value: string | File[]) => setForm((current) => ({ ...current, [key]: value }));
 
     const useCurrentLocation = () => {
         if (!navigator.geolocation) {
@@ -132,13 +132,23 @@ export default function KhuMoFormModal({ dongHoId, editing, onClose, onSaved }: 
                         <input
                             type="file"
                             accept="image/*"
-                            onChange={(event) => setField('anh_khu_mo', event.target.files?.[0] || null)}
+                            multiple
+                            onChange={(event) => setField('anh_khu_mo', Array.from(event.target.files || []))}
                             className="gp-input"
                         />
-                        {editing?.anh_khu_mo_url && !form.anh_khu_mo && (
-                            <a href={editing.anh_khu_mo_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--gold)', fontWeight: 700, textDecoration: 'none' }}>
-                                Xem ảnh hiện tại
-                            </a>
+                        <div style={{ fontSize: 12, color: 'var(--ink-mute)' }}>
+                            {form.anh_khu_mo.length > 0
+                                ? `Đã chọn ${form.anh_khu_mo.length} ảnh mới. Ảnh mới sẽ được thêm vào bộ ảnh hiện có.`
+                                : 'Có thể chọn nhiều ảnh để mô tả cổng vào, lối đi, mốc nhận diện và toàn cảnh khu mộ.'}
+                        </div>
+                        {editing?.anh_khu_mo_urls && editing.anh_khu_mo_urls.length > 0 && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginTop: 4 }}>
+                                {editing.anh_khu_mo_urls.slice(0, 8).map((url, index) => (
+                                    <a key={url} href={url} target="_blank" rel="noreferrer" title={`Ảnh khu mộ ${index + 1}`} style={{ height: 64, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--line)', background: 'var(--card-soft)' }}>
+                                        <img src={url} alt={`Ảnh khu mộ ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                    </a>
+                                ))}
+                            </div>
                         )}
                     </label>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 6 }}>

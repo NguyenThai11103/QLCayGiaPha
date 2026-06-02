@@ -29,7 +29,8 @@ class NguoiDungSeeder extends Seeder
                 'email' => Str::slug(str_replace('(Trưởng Tộc)', '', 'Nguyễn Bá Bình'), '') . '@gmail.com',
                 'password' => Hash::make('111111'),
                 'thanh_vien_id' => $tv1['Nguyễn Bá Bình'] ?? null,
-                'quyen_han' => 'quan_ly',
+                'quyen_han' => 'truong_toc',
+                'tieu_su' => 'Trưởng tộc dòng họ Nguyễn Bá, phụ trách điều phối gia phả, sự kiện và hồ sơ dòng họ.',
                 'created_at' => now(), 'updated_at' => now(),
             ],
             [ 
@@ -38,7 +39,8 @@ class NguoiDungSeeder extends Seeder
                 'email' => Str::slug('Nguyễn Bá Cường', '') . '@gmail.com',
                 'password' => Hash::make('111111'),
                 'thanh_vien_id' => $tv1['Nguyễn Bá Cường'] ?? null,
-                'quyen_han' => 'thanh_vien',
+                'quyen_han' => 'quan_ly',
+                'tieu_su' => 'Quản lý phụ trách cập nhật thành viên, mộ phần và tài liệu của nhánh trẻ.',
                 'created_at' => now(), 'updated_at' => now(),
             ],
             [
@@ -48,6 +50,7 @@ class NguoiDungSeeder extends Seeder
                 'password' => Hash::make('111111'),
                 'thanh_vien_id' => $tv1['Nguyễn Thị Lan'] ?? null,
                 'quyen_han' => 'thanh_vien',
+                'tieu_su' => 'Thành viên dòng họ Nguyễn Bá, sử dụng tài khoản để cập nhật hồ sơ cá nhân.',
                 'created_at' => now(), 'updated_at' => now(),
             ],
 
@@ -58,7 +61,8 @@ class NguoiDungSeeder extends Seeder
                 'email' => Str::slug(str_replace('(Trưởng Tộc)', '', 'Trần Lê Kỷ'), '') . '@gmail.com',
                 'password' => Hash::make('111111'),
                 'thanh_vien_id' => $tv2['Trần Lê Kỷ'] ?? null,
-                'quyen_han' => 'quan_ly',
+                'quyen_han' => 'truong_toc',
+                'tieu_su' => 'Trưởng tộc Trần Lê hiện tại, đại diện quản lý thông tin chung của dòng họ.',
                 'created_at' => now(), 'updated_at' => now(),
             ],
             [
@@ -67,7 +71,8 @@ class NguoiDungSeeder extends Seeder
                 'email' => 'nguyenvanky20005@gmail.com', // Email dùng để test nhận thông báo ngày Giỗ
                 'password' => Hash::make('111111'),
                 'thanh_vien_id' => $tv2['Trần Lê Gia Bảo'] ?? null,
-                'quyen_han' => 'thanh_vien',
+                'quyen_han' => 'quan_ly',
+                'tieu_su' => 'Quản lý phụ trách nhắc giỗ, sự kiện và hỗ trợ cập nhật thông tin thành viên.',
                 'created_at' => now(), 'updated_at' => now(),
             ],
             [
@@ -77,6 +82,7 @@ class NguoiDungSeeder extends Seeder
                 'password' => Hash::make('111111'),
                 'thanh_vien_id' => $tv2['Trần Lê Minh Anh'] ?? null,
                 'quyen_han' => 'thanh_vien',
+                'tieu_su' => 'Thành viên dòng họ Trần Lê, có thể đăng nhập để xem gia phả và cập nhật hồ sơ.',
                 'created_at' => now(), 'updated_at' => now(),
             ],
         ]);

@@ -1,10 +1,10 @@
 import { Head, Link } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import apiClient from '../../../lib/api.client';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import Icon from '../../../components/gia-pha/Icon';
 import toast from '../../../lib/toast.util';
-import { MoPhan, moPhanApi } from '../../../services/gia-pha.api';
+import { MoPhan, moPhanApi, NguoiDung, nguoiDungApi } from '../../../services/gia-pha.api';
 import { useAuth } from '../../../contexts/auth.context';
 
 interface ThongTinNguoi {
@@ -91,6 +91,11 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
     const [moPhan, setMoPhan] = useState<MoPhan | null>(null);
     const [moPhanLoading, setMoPhanLoading] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [memberAccount, setMemberAccount] = useState<NguoiDung | null>(null);
+    const [accountLoading, setAccountLoading] = useState(false);
+    const [accountModalOpen, setAccountModalOpen] = useState(false);
+    const [accountEmail, setAccountEmail] = useState('');
+    const [accountSaving, setAccountSaving] = useState(false);
 
     const handleDelete = async () => {
         if (!tv) return;
@@ -127,6 +132,22 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
     }, [id]);
 
     const tv = data?.thong_tin;
+    const canManage = ['truong_toc', 'quan_ly'].includes(user?.quyen_han || '');
+
+    const loadMemberAccount = async (memberId: number) => {
+        if (!canManage) return;
+
+        setAccountLoading(true);
+        try {
+            const res = await nguoiDungApi.list();
+            const accounts = res.data?.data || [];
+            setMemberAccount(accounts.find((account: NguoiDung) => account.thanh_vien_id === memberId) || null);
+        } catch {
+            setMemberAccount(null);
+        } finally {
+            setAccountLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!tv || !tv.da_mat) {
@@ -140,6 +161,56 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
             .catch(() => setMoPhan(null))
             .finally(() => setMoPhanLoading(false));
     }, [tv?.id, tv?.da_mat]);
+
+    useEffect(() => {
+        if (!tv?.id || !canManage) {
+            setMemberAccount(null);
+            return;
+        }
+
+        void loadMemberAccount(tv.id);
+    }, [tv?.id, canManage]);
+
+    const openAccountModal = () => {
+        setAccountEmail('');
+        setAccountModalOpen(true);
+    };
+
+    const closeAccountModal = () => {
+        setAccountModalOpen(false);
+        setAccountEmail('');
+    };
+
+    const handleProvisionAccount = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        if (!tv) return;
+
+        if (!accountEmail.trim()) {
+            toast.error('Vui lòng nhập email của thành viên.');
+            return;
+        }
+
+        setAccountSaving(true);
+        try {
+            const response = await nguoiDungApi.provisionMemberAccount({
+                thanh_vien_id: tv.id,
+                email: accountEmail.trim(),
+            });
+            const result = response.data;
+
+            if (result.success) {
+                toast.success(result.message || 'Đã cấp tài khoản cho thành viên.');
+                closeAccountModal();
+                await loadMemberAccount(tv.id);
+            } else {
+                toast.error(result.message || 'Không thể cấp tài khoản.');
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cấp tài khoản.');
+        } finally {
+            setAccountSaving(false);
+        }
+    };
 
     return (
         <AuthenticatedLayout>
@@ -232,6 +303,16 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                                         {tv.da_mat && <InfoRow icon="scroll" label="Ngày mất" value={formatDate(tv.ngay_mat)} sub={calcAge(tv.ngay_sinh, tv.ngay_mat) ?? undefined} />}
                                         {tv.doi_thu && <InfoRow icon="users" label="Đời thứ" value={`Đời ${tv.doi_thu}`} />}
                                     </div>
+
+                                    <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line-soft)' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                            <Icon name="book" size={15} color="var(--gold)" />
+                                            <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase' }}>Tiểu sử thành viên</div>
+                                        </div>
+                                        <p style={{ fontSize: 13.5, color: tv.tieu_su ? 'var(--ink-soft)' : 'var(--ink-mute)', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line', fontStyle: tv.tieu_su ? 'normal' : 'italic' }}>
+                                            {tv.tieu_su?.trim() || 'Chưa cập nhật tiểu sử cho thành viên này.'}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
@@ -282,14 +363,6 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                                 </button>
                             </div>
 
-                            {/* Tiểu sử */}
-                            {tv.tieu_su && (
-                                <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', padding: 20, boxShadow: 'var(--shadow-sm)' }}>
-                                    <div style={{ fontSize: 10.5, letterSpacing: 2, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 10 }}>Tiểu sử</div>
-                                    <p style={{ fontSize: 13.5, color: 'var(--ink-soft)', lineHeight: 1.7, margin: 0 }}>{tv.tieu_su}</p>
-                                </div>
-                            )}
-
                             {tv.da_mat && (
                                 <MoPhanSummaryCard
                                     memberId={tv.id}
@@ -310,16 +383,43 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                                         Xem cây
                                     </Link>
                                 </div>
-                                {user?.quyen_han === 'quan_ly' && (
-                                    <button
-                                        type="button"
-                                        onClick={handleDelete}
-                                        disabled={deleting}
-                                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'color-mix(in srgb, var(--crimson) 8%, transparent)', color: 'var(--crimson)', fontWeight: 600, fontSize: 13, border: '1px solid color-mix(in srgb, var(--crimson) 25%, transparent)', cursor: 'pointer', transition: 'all 0.15s' }}
-                                    >
-                                        <Icon name="trash" size={14} />
-                                        {deleting ? 'Đang xóa...' : 'Xóa thành viên'}
-                                    </button>
+                                {canManage && (
+                                    <>
+                                        <div style={{ borderRadius: 12, border: '1px solid var(--line)', background: 'var(--bg-elev)', padding: 12 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                                                <div>
+                                                    <div style={{ fontSize: 10.5, letterSpacing: 1.4, fontWeight: 700, color: 'var(--gold)', textTransform: 'uppercase', marginBottom: 4 }}>Tài khoản truy cập</div>
+                                                    <div style={{ fontSize: 12.5, color: memberAccount ? 'var(--ink-soft)' : 'var(--ink-mute)', lineHeight: 1.5 }}>
+                                                        {accountLoading
+                                                            ? 'Đang kiểm tra tài khoản...'
+                                                            : memberAccount
+                                                              ? `Đã cấp cho ${memberAccount.email}`
+                                                              : 'Thành viên này chưa có tài khoản hệ thống.'}
+                                                    </div>
+                                                </div>
+                                                {!accountLoading && !memberAccount && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={openAccountModal}
+                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: 'none', borderRadius: 9, background: 'linear-gradient(135deg, var(--gold), var(--terracotta))', color: 'white', padding: '9px 12px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                                    >
+                                                        <Icon name="users" size={13} />
+                                                        Cấp tài khoản
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleDelete}
+                                            disabled={deleting}
+                                            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'color-mix(in srgb, var(--crimson) 8%, transparent)', color: 'var(--crimson)', fontWeight: 600, fontSize: 13, border: '1px solid color-mix(in srgb, var(--crimson) 25%, transparent)', cursor: 'pointer', transition: 'all 0.15s' }}
+                                        >
+                                            <Icon name="trash" size={14} />
+                                            {deleting ? 'Đang xóa...' : 'Xóa thành viên'}
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -383,6 +483,65 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                     </div>
                 )}
             </div>
+
+            {accountModalOpen && tv && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <form
+                        onSubmit={handleProvisionAccount}
+                        className="w-full max-w-md overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg-elev)] text-[var(--ink)] shadow-2xl"
+                    >
+                        <div className="px-6 py-4" style={{ background: 'linear-gradient(135deg, var(--brown), var(--gold))' }}>
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">Cấp tài khoản</h3>
+                                    <p className="mt-0.5 text-xs text-white/75">{tv.ten_day_du}</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closeAccountModal}
+                                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                                >
+                                    <Icon name="x" size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 p-6">
+                            <label className="block">
+                                <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">
+                                    Email đăng nhập <span className="text-red-500">*</span>
+                                </span>
+                                <input
+                                    type="email"
+                                    value={accountEmail}
+                                    onChange={(event) => setAccountEmail(event.target.value)}
+                                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 focus:outline-none"
+                                    placeholder="thanhvien@example.com"
+                                    required
+                                />
+                            </label>
+
+                            <div className="rounded-xl border border-[var(--gold-soft)] bg-[var(--gold-glow)] px-4 py-3 text-[12.5px] leading-5 text-[var(--ink-soft)]">
+                                Hệ thống sẽ tạo tài khoản liên kết với thành viên này, sinh mật khẩu tạm và gửi email hướng dẫn đăng nhập, cập nhật hồ sơ, đổi mật khẩu.
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button type="button" onClick={closeAccountModal} className="rounded-lg border border-[var(--line)] bg-[var(--card)] px-4 py-2 font-semibold text-[var(--ink-soft)] transition hover:bg-[var(--card-soft)]">
+                                    Hủy
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={accountSaving}
+                                    className="rounded-lg px-5 py-2 font-semibold text-white shadow transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    style={{ background: 'linear-gradient(135deg, var(--gold), var(--terracotta))' }}
+                                >
+                                    {accountSaving ? 'Đang cấp...' : 'Cấp tài khoản'}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            )}
         </AuthenticatedLayout>
     );
 }

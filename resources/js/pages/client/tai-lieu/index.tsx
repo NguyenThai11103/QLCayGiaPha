@@ -114,7 +114,7 @@ export default function TaiLieuPage() {
         return c;
     }, [enriched]);
 
-    const canManage = user?.quyen_han === 'quan_ly';
+    const canManage = ['truong_toc', 'quan_ly'].includes(user?.quyen_han || '');
 
     const openCreate = () => {
         setEditing(null);

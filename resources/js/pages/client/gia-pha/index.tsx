@@ -674,7 +674,7 @@ export default function CayGiaPha() {
                                 <StatChip color="blue" label="Thành viên" value={people.length} />
                             </div>
 
-                            {user?.quyen_han === 'quan_ly' && (
+                            {['truong_toc', 'quan_ly'].includes(user?.quyen_han || '') && (
                                 <button
                                     type="button"
                                     onClick={() => router.visit('/gia-pha/thanh-vien')}
@@ -902,7 +902,7 @@ export default function CayGiaPha() {
                         bloodlineOnly={bloodlineOnly}
                         selectedPerson={selectedPerson}
                         isDraggingTree={isDraggingTree}
-                        canManage={user?.quyen_han === 'quan_ly'}
+                        canManage={['truong_toc', 'quan_ly'].includes(user?.quyen_han || '')}
                         treeViewportRef={treeViewportRef}
                         treeScaleRef={treeScaleRef}
                         onMouseDown={handleMouseDown}
@@ -922,7 +922,7 @@ export default function CayGiaPha() {
                                 <PersonPanel
                                     person={selectedPerson}
                                     people={people}
-                                    isMaster={user?.quyen_han === 'quan_ly'}
+                                    isMaster={['truong_toc', 'quan_ly'].includes(user?.quyen_han || '')}
                                     onClose={() => setSelectedPerson(null)}
                                     onAddChild={handleAddChildQuick}
                                     onAddSpouse={handleAddSpouseQuick}

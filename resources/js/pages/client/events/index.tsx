@@ -23,6 +23,7 @@ import axios from 'axios';
 import IconBase from '../../../components/gia-pha/Icon';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import { useAuth } from '../../../contexts/auth.context';
+import toast from '../../../lib/toast.util';
 
 // ============================================================
 // External shared modules — adjust import paths to your codebase
@@ -74,6 +75,78 @@ export interface FamilyEvent {
     /** Mark high-importance events (Giỗ Tổ, Vu Lan) */
     pinned?: boolean;
 }
+
+const toICSDate = (isoDate: string): string => isoDate.replaceAll('-', '');
+
+const escapeICSText = (value: string): string =>
+    value
+        .replace(/\\/g, '\\\\')
+        .replace(/;/g, '\\;')
+        .replace(/,/g, '\\,')
+        .replace(/\r?\n/g, '\\n');
+
+const buildEventUrl = (event: FamilyEvent): string => {
+    if (typeof window === 'undefined') return `/gia-pha/events?event_id=${encodeURIComponent(event.id)}`;
+
+    const url = new URL('/gia-pha/events', window.location.origin);
+    url.searchParams.set('event_id', event.id);
+    return url.toString();
+};
+
+const downloadEventICS = (event: FamilyEvent): void => {
+    if (typeof document === 'undefined') return;
+
+    const start = toICSDate(event.date);
+    const endDate = new Date(`${event.date}T00:00:00`);
+    endDate.setDate(endDate.getDate() + 1);
+    const end = toICSDate(endDate.toISOString().slice(0, 10));
+    const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+    const fileName = `${event.title.toLowerCase().replace(/[^a-z0-9\u00C0-\u1EF9]+/gi, '-').replace(/^-|-$/g, '') || 'su-kien'}.ics`;
+    const ics = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//QLCayGiaPha//Family Events//VI',
+        'CALSCALE:GREGORIAN',
+        'BEGIN:VEVENT',
+        `UID:family-event-${event.id}@qlcaygiapha.local`,
+        `DTSTAMP:${now}`,
+        `DTSTART;VALUE=DATE:${start}`,
+        `DTEND;VALUE=DATE:${end}`,
+        `SUMMARY:${escapeICSText(event.title)}`,
+        `LOCATION:${escapeICSText(event.location || '')}`,
+        `DESCRIPTION:${escapeICSText(event.description || 'Sự kiện dòng họ')}`,
+        `URL:${buildEventUrl(event)}`,
+        'END:VEVENT',
+        'END:VCALENDAR',
+    ].join('\r\n');
+
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(href);
+};
+
+const shareEvent = async (event: FamilyEvent): Promise<void> => {
+    const url = buildEventUrl(event);
+    const text = `${event.title}${event.lunarDate ? ` · ${event.lunarDate}` : ''}${event.location ? ` · ${event.location}` : ''}`;
+
+    if (typeof navigator !== 'undefined' && 'share' in navigator) {
+        await navigator.share({ title: event.title, text, url });
+        return;
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+        return;
+    }
+
+    throw new Error('Trình duyệt không hỗ trợ chia sẻ hoặc sao chép liên kết.');
+};
 
 export interface Member {
     id: string;
@@ -368,9 +441,13 @@ interface NextEventHeroProps {
     event: FamilyEvent;
     honoree: any | null;
     today: string;
+    attending: boolean;
+    onAttend: (event: FamilyEvent) => void;
+    onAddToCalendar: (event: FamilyEvent) => void;
+    onShare: (event: FamilyEvent) => void;
 }
 
-const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) => {
+const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today, attending, onAttend, onAddToCalendar, onShare }) => {
     const meta = EVENT_META[event.type];
     const { d, m } = parseISO(event.date);
 
@@ -536,15 +613,21 @@ const NextEventHero: React.FC<NextEventHeroProps> = ({ event, honoree, today }) 
                         {honoree && <Stat icon="heart" label={`Người được tưởng nhớ: ${honoree.name}`} />}
                     </div>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                        <button className="btn btn-primary">
-                            <Icon name="plus" size={14} />
-                            Xác nhận tham dự
+                        <button
+                            type="button"
+                            className={`btn ${event.isAttending ? 'btn-ghost' : 'btn-primary'}`}
+                            onClick={() => onAttend(event)}
+                            disabled={attending}
+                            style={{ opacity: attending ? 0.65 : 1, color: event.isAttending ? 'var(--crimson)' : undefined }}
+                        >
+                            <Icon name={event.isAttending ? 'x' : 'plus'} size={14} />
+                            {event.isAttending ? 'Huỷ tham dự' : 'Xác nhận tham dự'}
                         </button>
-                        <button className="btn btn-ghost">
+                        <button type="button" className="btn btn-ghost" onClick={() => onAddToCalendar(event)}>
                             <Icon name="calendar" size={14} />
                             Thêm vào lịch
                         </button>
-                        <button className="btn btn-ghost">
+                        <button type="button" className="btn btn-ghost" onClick={() => onShare(event)}>
                             <Icon name="link" size={14} />
                             Chia sẻ
                         </button>
@@ -1459,6 +1542,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
     const [loading,      setLoading]      = React.useState(true);
     const [showAddModal, setShowAddModal] = React.useState(false);
     const [addModalInitialDate, setAddModalInitialDate] = React.useState<string | undefined>();
+    const [attendingEventId, setAttendingEventId] = React.useState<string | null>(null);
 
     const [filter, setFilter] = React.useState<FilterValue>('all');
     const [viewMonth, setViewMonth] = React.useState<{ y: number; m: number }>({
@@ -1484,8 +1568,77 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
 
     React.useEffect(() => { void loadEvents(); }, [loadEvents]);
 
+    const handleAttendEvent = React.useCallback(async (event: FamilyEvent) => {
+        setAttendingEventId(event.id);
+        try {
+            const { suKienApi } = await import('../../../services/gia-pha.api');
+
+            if (event.isAttending) {
+                const confirmed = window.confirm(`Bạn muốn huỷ đăng ký tham dự "${event.title}"?`);
+                if (!confirmed) return;
+
+                const res = await suKienApi.leave(Number(event.id));
+                if (res.success) {
+                    toast.success(res.message || 'Đã huỷ tham dự sự kiện.');
+                    await loadEvents();
+                } else {
+                    toast.error(res.message || 'Không thể huỷ tham dự.');
+                }
+                return;
+            }
+
+            const answer = window.prompt('Bạn có đi cùng ai không? Nhập số người đi cùng, hoặc để 0 nếu đi một mình.', '0');
+            if (answer === null) return;
+
+            const companionCount = Math.max(0, Number.parseInt(answer, 10) || 0);
+            const res = await suKienApi.attend(Number(event.id), companionCount);
+            if (res.success) {
+                toast.success(res.message || 'Đã xác nhận tham dự.');
+                await loadEvents();
+            } else {
+                toast.error(res.message || 'Không thể xác nhận tham dự.');
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật tham dự.');
+        } finally {
+            setAttendingEventId(null);
+        }
+    }, [loadEvents]);
+
+    const handleAddToCalendar = React.useCallback((event: FamilyEvent) => {
+        try {
+            downloadEventICS(event);
+            toast.success('Đã tải file lịch. Mở file để thêm vào ứng dụng lịch của bạn.');
+        } catch (error: any) {
+            toast.error(error.message || 'Không thể tạo file lịch.');
+        }
+    }, []);
+
+    const handleShareEvent = React.useCallback(async (event: FamilyEvent) => {
+        try {
+            await shareEvent(event);
+            toast.success('Đã chia sẻ hoặc sao chép liên kết sự kiện.');
+        } catch (error: any) {
+            toast.error(error.message || 'Không thể chia sẻ sự kiện.');
+        }
+    }, []);
+
     // Xoá mockup EVENTS_2026
     const events = rawEvents;
+
+    React.useEffect(() => {
+        if (typeof window === 'undefined' || rawEvents.length === 0) return;
+
+        const sharedEventId = new URLSearchParams(window.location.search).get('event_id');
+        if (!sharedEventId) return;
+
+        const sharedEvent = rawEvents.find((event) => event.id === sharedEventId);
+        if (!sharedEvent) return;
+
+        setSelectedDate(sharedEvent.date);
+        const parsed = parseISO(sharedEvent.date);
+        setViewMonth({ y: parsed.y, m: parsed.m });
+    }, [rawEvents]);
 
     const filtered = React.useMemo<FamilyEvent[]>(() => events.filter((e) => filter === 'all' || e.type === filter), [events, filter]);
 
@@ -1534,7 +1687,7 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
         import('@inertiajs/react').then(({ router }) => router.visit(href));
     });
 
-    const isMaster = user?.is_master === 1 || user?.quyen_han === 'quan_ly';
+    const isMaster = user?.is_master === 1 || ['truong_toc', 'quan_ly'].includes(user?.quyen_han || '');
 
     return (
         <AuthenticatedLayout>
@@ -1577,7 +1730,15 @@ export const EventsPage: React.FC<EventsPageProps> = ({ onNav, events: initialEv
                 ) : (
                     <>
                         {nextEvent && (
-                            <NextEventHero event={nextEvent} honoree={nextEvent.honoree ?? null} today={today} />
+                            <NextEventHero
+                                event={nextEvent}
+                                honoree={nextEvent.honoree ?? null}
+                                today={today}
+                                attending={attendingEventId === nextEvent.id}
+                                onAttend={handleAttendEvent}
+                                onAddToCalendar={handleAddToCalendar}
+                                onShare={handleShareEvent}
+                            />
                         )}
 
                         <FilterBar active={filter} onChange={setFilter} counts={counts} />

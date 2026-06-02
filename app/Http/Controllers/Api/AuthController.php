@@ -535,6 +535,7 @@ class AuthController extends Controller
             $user->update([
                 'ho_ten' => $data['ho_ten'],
                 'avatar' => $avatarUrl,
+                'tieu_su' => $data['tieu_su'] ?? null,
             ]);
 
             // Nếu tài khoản đã liên kết với một thành viên trong gia phả

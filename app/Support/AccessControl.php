@@ -29,7 +29,16 @@ class AccessControl
             return true;
         }
 
-        return ($user->quyen_han ?? null) === 'quan_ly';
+        return in_array($user->quyen_han ?? null, ['truong_toc', 'quan_ly'], true);
+    }
+
+    public static function isFamilyRoleManager(?Authenticatable $user): bool
+    {
+        if (self::isSystemAdmin($user)) {
+            return true;
+        }
+
+        return in_array($user->quyen_han ?? null, ['truong_toc', 'quan_ly'], true);
     }
 
     public static function familyId(?Authenticatable $user): ?int

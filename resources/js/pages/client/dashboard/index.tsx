@@ -6,13 +6,40 @@ import { useAuth } from '../../../contexts/auth.context';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import apiClient from '../../../lib/api.client';
 import toast from '../../../lib/toast.util';
-import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../../services/gia-pha.api';
+import { DongHo, DongHoUpdatePayload, dongHoApi, Nguoi, nguoiApi } from '../../../services/gia-pha.api';
 
 const events = [
     ['15', 'Tháng 3 ÂL', '2026', 'Giỗ Tổ - Cụ Nguyễn Văn Trường', 'Từ đường Tiên Điền', '47 người dự', 12, 'scroll', 'brown'],
     ['20', 'Tháng 4', '2026', 'Lễ cưới Nguyễn Đức Long & Phạm Thúy Quỳnh', 'Hà Nội', '120 người dự', 28, 'heart', 'terracotta'],
     ['10', 'Tháng 5 ÂL', '2026', 'Giỗ Cụ Bà Trần Thị Lan', 'Từ đường Tiên Điền', '35 người dự', 51, 'lotus', 'jade'],
 ] as const;
+
+const emptyClanForm = {
+    ten_dong_ho: '',
+    mo_ta: '',
+    gia_huan: '',
+    loi_gioi_thieu: '',
+    dia_chi_tu_duong: '',
+    logo_path: '',
+    anh_tu_duong_path: '',
+    theme_color: 'gold' as NonNullable<DongHo['theme_color']>,
+};
+
+const clanInfoSuggestions = [
+    'Nguồn gốc họ tộc, nơi phát tích, thủy tổ và các đời đầu.',
+    'Địa chỉ từ đường, ngày giỗ tổ, nghi lễ thường niên và người phụ trách.',
+    'Gia huấn, tộc ước, quy ước đặt tên, vai vế, ngành chi và truyền thống nổi bật.',
+    'Danh sách chi phái, địa bàn cư trú, nghề nghiệp/truyền thống học hành qua các đời.',
+    'Tư liệu lưu trữ: ảnh từ đường, sắc phong, bia mộ, gia phả giấy, câu chuyện nhân vật tiêu biểu.',
+];
+
+const themeOptions: { key: NonNullable<DongHo['theme_color']>; label: string; className: string }[] = [
+    { key: 'gold', label: 'Vàng gia phả', className: 'bg-[#b8902c]' },
+    { key: 'crimson', label: 'Đỏ son', className: 'bg-[#8b2a1f]' },
+    { key: 'jade', label: 'Ngọc lục', className: 'bg-[#2f5d3a]' },
+    { key: 'indigo', label: 'Chàm', className: 'bg-[#315c86]' },
+    { key: 'bronze', label: 'Đồng cổ', className: 'bg-[#8b5a2b]' },
+];
 
 export default function ClientDashboard() {
     const { user, checkAuth } = useAuth();
@@ -25,6 +52,12 @@ export default function ClientDashboard() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [profileModalOpen, setProfileModalOpen] = useState(false);
+    const [clanModalOpen, setClanModalOpen] = useState(false);
+    const [clanSaving, setClanSaving] = useState(false);
+    const [clanForm, setClanForm] = useState(emptyClanForm);
+
+    const activeClan = dongHos.find((item) => item.id === (user?.dong_ho_id || user?.dong_ho?.id)) || dongHos[0] || user?.dong_ho || null;
+    const canManageClan = ['truong_toc', 'quan_ly'].includes(user?.quyen_han || '') && Boolean(activeClan?.id);
 
     // Tự động thiết lập thành viên giả lập mặc định nếu chưa liên kết thực tế
     useEffect(() => {
@@ -53,6 +86,31 @@ export default function ClientDashboard() {
             });
         }
     }, [activeMember, user]);
+
+    useEffect(() => {
+        if (!activeClan) return;
+
+        setClanForm({
+            ten_dong_ho: activeClan.ten_dong_ho || '',
+            mo_ta: activeClan.mo_ta || '',
+            gia_huan: activeClan.gia_huan || '',
+            loi_gioi_thieu: activeClan.loi_gioi_thieu || '',
+            dia_chi_tu_duong: activeClan.dia_chi_tu_duong || '',
+            logo_path: activeClan.logo_path || '',
+            anh_tu_duong_path: activeClan.anh_tu_duong_path || '',
+            theme_color: activeClan.theme_color || 'gold',
+        });
+    }, [
+        activeClan?.id,
+        activeClan?.ten_dong_ho,
+        activeClan?.mo_ta,
+        activeClan?.gia_huan,
+        activeClan?.loi_gioi_thieu,
+        activeClan?.dia_chi_tu_duong,
+        activeClan?.logo_path,
+        activeClan?.anh_tu_duong_path,
+        activeClan?.theme_color,
+    ]);
 
     const getGreeting = () => {
         const hour = new Date().getHours();
@@ -114,6 +172,66 @@ export default function ClientDashboard() {
         }
     };
 
+    const openClanProfileModal = () => {
+        if (!activeClan) return;
+
+        setClanForm({
+            ten_dong_ho: activeClan.ten_dong_ho || '',
+            mo_ta: activeClan.mo_ta || '',
+            gia_huan: activeClan.gia_huan || '',
+            loi_gioi_thieu: activeClan.loi_gioi_thieu || '',
+            dia_chi_tu_duong: activeClan.dia_chi_tu_duong || '',
+            logo_path: activeClan.logo_path || '',
+            anh_tu_duong_path: activeClan.anh_tu_duong_path || '',
+            theme_color: activeClan.theme_color || 'gold',
+        });
+        setClanModalOpen(true);
+    };
+
+    const handleClanSubmit = async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        if (!activeClan?.id) {
+            toast.error('Không tìm thấy dòng họ để cập nhật.');
+            return;
+        }
+
+        if (!clanForm.ten_dong_ho.trim()) {
+            toast.error('Vui lòng nhập tên dòng họ.');
+            return;
+        }
+
+        const payload: DongHoUpdatePayload = {
+            id: activeClan.id,
+            ten_dong_ho: clanForm.ten_dong_ho.trim(),
+            mo_ta: clanForm.mo_ta.trim() || null,
+            gia_huan: clanForm.gia_huan.trim() || null,
+            loi_gioi_thieu: clanForm.loi_gioi_thieu.trim() || null,
+            dia_chi_tu_duong: clanForm.dia_chi_tu_duong.trim() || null,
+            logo_path: clanForm.logo_path.trim() || null,
+            anh_tu_duong_path: clanForm.anh_tu_duong_path.trim() || null,
+            theme_color: clanForm.theme_color || 'gold',
+        };
+
+        setClanSaving(true);
+        try {
+            const res = await dongHoApi.update(payload);
+            if (res.success) {
+                toast.success(res.message || 'Cập nhật hồ sơ dòng họ thành công.');
+                setClanModalOpen(false);
+                await loadData();
+                if (typeof checkAuth === 'function') {
+                    await checkAuth();
+                }
+            } else {
+                toast.error(res.message || 'Không thể cập nhật hồ sơ dòng họ.');
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Có lỗi xảy ra khi cập nhật dòng họ.');
+        } finally {
+            setClanSaving(false);
+        }
+    };
+
     const loadData = async () => {
         setLoading(true);
         try {
@@ -133,6 +251,27 @@ export default function ClientDashboard() {
     const aliveCount = members.filter((member) => !Boolean(member.da_mat)).length;
     const deceasedCount = members.length - aliveCount;
     const maxGeneration = generations.length ? Math.max(...generations.map((item) => item.generation)) : 0;
+    const clanProfileChecks = useMemo(
+        () => [
+            { label: 'Mô tả ngắn', done: Boolean(activeClan?.mo_ta?.trim()) },
+            { label: 'Lời giới thiệu', done: Boolean(activeClan?.loi_gioi_thieu?.trim()) },
+            { label: 'Gia huấn', done: Boolean(activeClan?.gia_huan?.trim()) },
+            { label: 'Địa chỉ từ đường', done: Boolean(activeClan?.dia_chi_tu_duong?.trim()) },
+            { label: 'Logo', done: Boolean(activeClan?.logo_path?.trim()) },
+            { label: 'Ảnh từ đường', done: Boolean(activeClan?.anh_tu_duong_path?.trim()) },
+        ],
+        [
+            activeClan?.mo_ta,
+            activeClan?.loi_gioi_thieu,
+            activeClan?.gia_huan,
+            activeClan?.dia_chi_tu_duong,
+            activeClan?.logo_path,
+            activeClan?.anh_tu_duong_path,
+        ],
+    );
+    const completedClanFields = clanProfileChecks.filter((item) => item.done).length;
+    const clanProfilePercent = Math.round((completedClanFields / clanProfileChecks.length) * 100);
+    const missingClanFields = clanProfileChecks.filter((item) => !item.done);
 
     return (
         <AuthenticatedLayout>
@@ -141,9 +280,9 @@ export default function ClientDashboard() {
                 {/* Banner Dòng Họ hoành tráng */}
                 <div className="relative mb-8 flex h-[200px] items-end overflow-hidden rounded-2xl border border-[var(--gold-soft)] bg-[var(--bg-elev)] shadow-lg md:h-[260px]">
                     {/* Ảnh nền từ đường */}
-                    {user?.dong_ho?.anh_tu_duong_path ? (
+                    {activeClan?.anh_tu_duong_path ? (
                         <img
-                            src={user.dong_ho.anh_tu_duong_path}
+                            src={activeClan.anh_tu_duong_path}
                             alt="Từ đường dòng tộc"
                             className="absolute inset-0 h-full w-full object-cover brightness-75 filter transition-all duration-300"
                         />
@@ -160,10 +299,10 @@ export default function ClientDashboard() {
                     <div className="absolute right-6 bottom-6 left-6 z-10 flex flex-col items-center justify-between gap-4 md:flex-row md:items-end">
                         <div className="flex flex-col items-center gap-4 text-center text-white md:flex-row md:items-end md:gap-6 md:text-left">
                             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--gold-pale)] bg-[var(--bg-elev)] shadow-lg md:h-20 md:w-20">
-                                {user?.dong_ho?.logo_path ? (
-                                    <img src={user.dong_ho.logo_path} alt="Logo" className="h-full w-full object-cover" />
+                                {activeClan?.logo_path ? (
+                                    <img src={activeClan.logo_path} alt="Logo" className="h-full w-full object-cover" />
                                 ) : (
-                                    <div className="text-2xl font-bold text-[var(--gold)]">{user?.dong_ho?.ten_dong_ho?.charAt(0) || 'G'}</div>
+                                    <div className="text-2xl font-bold text-[var(--gold)]">{activeClan?.ten_dong_ho?.charAt(0) || 'G'}</div>
                                 )}
                             </div>
                             <div>
@@ -171,23 +310,35 @@ export default function ClientDashboard() {
                                     Không gian gia tộc số
                                 </span>
                                 <h1 className="font-serif text-[24px] leading-tight font-bold tracking-[0.5px] md:text-[32px]">
-                                    {user?.dong_ho?.ten_dong_ho || 'Gia tộc'}
+                                    {activeClan?.ten_dong_ho || 'Gia tộc'}
                                 </h1>
                                 <p className="mt-1 max-w-xl truncate text-[12px] text-white/80 md:text-[13px]">
-                                    {user?.dong_ho?.dia_chi_tu_duong
-                                        ? `Từ đường: ${user.dong_ho.dia_chi_tu_duong}`
+                                    {activeClan?.dia_chi_tu_duong
+                                        ? `Từ đường: ${activeClan.dia_chi_tu_duong}`
                                         : 'Địa chỉ từ đường chưa cập nhật'}
                                 </p>
                             </div>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setProfileModalOpen(true)}
-                            className="gp-btn gp-btn-primary flex shrink-0 items-center gap-2 border-none bg-[var(--gold)] text-white shadow-md hover:bg-[var(--brown)]"
-                        >
-                            <Icon name="edit" size={15} />
-                            Cập nhật tiểu sử
-                        </button>
+                        <div className="flex shrink-0 flex-wrap justify-center gap-2 md:justify-end">
+                            {canManageClan && (
+                                <button
+                                    type="button"
+                                    onClick={openClanProfileModal}
+                                    className="gp-btn flex items-center gap-2 border border-white/25 bg-white/15 text-white shadow-md backdrop-blur hover:bg-white/25"
+                                >
+                                    <Icon name="settings" size={15} />
+                                    Hồ sơ dòng họ
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setProfileModalOpen(true)}
+                                className="gp-btn gp-btn-primary flex items-center gap-2 border-none bg-[var(--gold)] text-white shadow-md hover:bg-[var(--brown)]"
+                            >
+                                <Icon name="edit" size={15} />
+                                Cập nhật tiểu sử
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -202,9 +353,54 @@ export default function ClientDashboard() {
                     <p className="mt-1 text-[13px] text-[var(--ink-mute)]">
                         {activeMember?.doi_thu
                             ? `Bạn là thế hệ đời thứ ${activeMember.doi_thu} của dòng họ. Không gian gia phả giúp bạn kết nối nguồn cội, cập nhật tiểu sử và tra cứu danh xưng dòng tộc.`
-                            : 'Chào mừng bạn đến với không gian gia phả dòng họ. Nơi kết nối cội nguồn, giữ gìn và phát huy các giá trị truyền thống gia tộc.'}
+                            : activeClan?.mo_ta ||
+                              'Chào mừng bạn đến với không gian gia phả dòng họ. Nơi kết nối cội nguồn, giữ gìn và phát huy các giá trị truyền thống gia tộc.'}
                     </p>
                 </div>
+
+                {canManageClan && (
+                    <section className="gp-card mb-6 border-[var(--gold-soft)] bg-[linear-gradient(135deg,var(--card),var(--gold-glow))] p-5">
+                        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="min-w-0">
+                                <div className="gp-eyebrow">Quản lý dòng họ</div>
+                                <h2 className="mt-1 text-[18px] font-bold text-[var(--brown)]">Hoàn thiện hồ sơ {activeClan?.ten_dong_ho}</h2>
+                                <p className="mt-1 max-w-3xl text-[13px] leading-5 text-[var(--ink-mute)]">
+                                    Hồ sơ dòng họ là phần giới thiệu chung mà mọi thành viên nhìn thấy: nguồn gốc, gia huấn, từ đường và tư liệu nhận diện.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                <div className="min-w-[190px] rounded-xl border border-[var(--line)] bg-white/70 p-3">
+                                    <div className="flex items-center justify-between text-[12px] font-semibold text-[var(--ink-soft)]">
+                                        <span>Mức hoàn thiện</span>
+                                        <span className="text-[var(--gold)]">{clanProfilePercent}%</span>
+                                    </div>
+                                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--line-soft)]">
+                                        <div className="h-full rounded-full bg-[var(--gold)]" style={{ width: `${clanProfilePercent}%` }} />
+                                    </div>
+                                    <div className="mt-1 text-[11px] text-[var(--ink-mute)]">
+                                        {completedClanFields}/{clanProfileChecks.length} mục đã có dữ liệu
+                                    </div>
+                                </div>
+                                <button type="button" onClick={openClanProfileModal} className="gp-btn gp-btn-primary shrink-0">
+                                    <Icon name="settings" size={15} />
+                                    Cập nhật hồ sơ
+                                </button>
+                            </div>
+                        </div>
+
+                        {missingClanFields.length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-2 border-t border-[var(--gold-soft)] pt-4">
+                                <span className="text-[12px] font-semibold text-[var(--ink-soft)]">Còn thiếu:</span>
+                                {missingClanFields.map((item) => (
+                                    <span key={item.label} className="rounded-full border border-[var(--line)] bg-white/70 px-2.5 py-1 text-[11.5px] text-[var(--ink-mute)]">
+                                        {item.label}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                )}
 
                 <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
                     <div className="space-y-6">
@@ -372,8 +568,8 @@ export default function ClientDashboard() {
                                 Lịch sử & Nguồn gốc Dòng họ
                             </h2>
                             <div className="space-y-3 text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
-                                {user?.dong_ho?.loi_gioi_thieu ? (
-                                    <p className="whitespace-pre-line">{user.dong_ho.loi_gioi_thieu}</p>
+                                {activeClan?.loi_gioi_thieu ? (
+                                    <p className="whitespace-pre-line">{activeClan.loi_gioi_thieu}</p>
                                 ) : (
                                     <div>
                                         <p>
@@ -384,9 +580,9 @@ export default function ClientDashboard() {
                                             Mỗi thành viên hôm nay là một đại diện tiếp nối hào khí của thế hệ đi trước. Hãy cùng chung tay bảo tồn tư
                                             liệu, xây dựng gia phả số để kết nối cội nguồn, hướng tới tương lai rạng rỡ.
                                         </p>
-                                        {String(user?.quyen_han) === 'quan_ly' && (
+                                        {canManageClan && (
                                             <p className="mt-3 text-[12px] font-semibold text-[var(--gold)] italic">
-                                                * Quản trị viên dòng họ có thể vào phần Cấu hình để cập nhật Lịch sử chi tiết của dòng họ.
+                                                * Người quản lý dòng họ có thể dùng nút Hồ sơ dòng họ ở banner để cập nhật phần này.
                                             </p>
                                         )}
                                     </div>
@@ -400,6 +596,15 @@ export default function ClientDashboard() {
                         <section className="gp-card bg-[linear-gradient(145deg,var(--card)_0%,var(--card)_52%,var(--gold-glow)_200%)] p-[22px]">
                             <h2 className="mb-4 text-[16px] font-semibold">Tiện ích gia đình</h2>
                             <div className="grid grid-cols-2 gap-3">
+                                {canManageClan && (
+                                    <QuickAction icon="settings" label="Hồ sơ họ" color="gold" onClick={openClanProfileModal} />
+                                )}
+                                {canManageClan && (
+                                    <QuickAction icon="add-user" label="Thêm thành viên" color="jade" onClick={() => router.visit('/gia-pha/thanh-vien')} />
+                                )}
+                                {canManageClan && (
+                                    <QuickAction icon="check" label="Duyệt gia nhập" color="terracotta" onClick={() => router.visit('/gia-pha/cho-duyet')} />
+                                )}
                                 <QuickAction
                                     icon="link"
                                     label="Tra quan hệ"
@@ -412,7 +617,9 @@ export default function ClientDashboard() {
                                     color="terracotta"
                                     onClick={() => router.visit('/gia-pha/cay-gia-pha')}
                                 />
-                                <QuickAction icon="add-user" label="Xem danh sách" color="gold" onClick={() => router.visit('/gia-pha/thanh-vien')} />
+                                {!canManageClan && (
+                                    <QuickAction icon="add-user" label="Xem danh sách" color="gold" onClick={() => router.visit('/gia-pha/thanh-vien')} />
+                                )}
                             </div>
                         </section>
 
@@ -431,7 +638,7 @@ export default function ClientDashboard() {
                                 <h3 className="font-serif text-[18px] font-bold tracking-wider text-[var(--brown)] uppercase">Gia Huấn Dòng Tộc</h3>
                                 <div className="mx-auto my-2.5 h-0.5 w-16 bg-[var(--gold-soft)]" />
                                 <p className="px-2 font-serif text-[14.5px] leading-relaxed whitespace-pre-line text-[var(--ink-soft)] italic">
-                                    {user?.dong_ho?.gia_huan ||
+                                    {activeClan?.gia_huan ||
                                         `“Nước có nguồn, cây có cội, người có tông.\nCon cháu thảo hiền, hiếu kính cha mẹ,\nGiữ gìn gia phong, rạng danh tổ tiên.”\n\n(Lời răn dạy của tiền nhân)`}
                                 </p>
                             </div>
@@ -565,6 +772,154 @@ export default function ClientDashboard() {
                                     {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
                                 </button>
                             </div>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {clanModalOpen && activeClan && (
+                <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 p-4 backdrop-blur-sm">
+                    <form onSubmit={handleClanSubmit} className="gp-card max-h-[92vh] w-full max-w-4xl overflow-y-auto shadow-[var(--shadow-lg)]">
+                        <div className="bg-[linear-gradient(135deg,var(--brown),var(--gold))] px-6 py-4 text-[#fffef9]">
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="font-serif text-[24px] font-semibold">Cập nhật hồ sơ dòng họ</h3>
+                                    <p className="mt-1 text-[12px] text-white/75">Chỉ thành viên có quyền quản lý dòng họ mới lưu được thay đổi.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setClanModalOpen(false)}
+                                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/15 hover:bg-white/25"
+                                >
+                                    <Icon name="x" size={17} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="grid gap-6 p-6 lg:grid-cols-[1.4fr_0.8fr]">
+                            <div className="space-y-4">
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Tên dòng họ *</span>
+                                    <input
+                                        value={clanForm.ten_dong_ho}
+                                        onChange={(e) => setClanForm({ ...clanForm, ten_dong_ho: e.target.value })}
+                                        className="gp-input w-full"
+                                        required
+                                        maxLength={255}
+                                        placeholder="Ví dụ: Họ Nguyễn Bá"
+                                    />
+                                </label>
+
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Địa chỉ từ đường</span>
+                                    <input
+                                        value={clanForm.dia_chi_tu_duong}
+                                        onChange={(e) => setClanForm({ ...clanForm, dia_chi_tu_duong: e.target.value })}
+                                        className="gp-input w-full"
+                                        maxLength={255}
+                                        placeholder="Thôn/xã/huyện/tỉnh hoặc địa chỉ nhà thờ tổ"
+                                    />
+                                </label>
+
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Mô tả ngắn</span>
+                                    <textarea
+                                        value={clanForm.mo_ta}
+                                        onChange={(e) => setClanForm({ ...clanForm, mo_ta: e.target.value })}
+                                        rows={3}
+                                        className="gp-input w-full resize-none"
+                                        placeholder="Tóm tắt nguồn gốc, quê quán, số đời, chi phái nổi bật..."
+                                    />
+                                </label>
+
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Lời giới thiệu / lịch sử dòng họ</span>
+                                    <textarea
+                                        value={clanForm.loi_gioi_thieu}
+                                        onChange={(e) => setClanForm({ ...clanForm, loi_gioi_thieu: e.target.value })}
+                                        rows={6}
+                                        className="gp-input w-full resize-y"
+                                        placeholder="Viết câu chuyện nguồn cội, thủy tổ, quá trình di cư, các thế hệ tiêu biểu..."
+                                    />
+                                </label>
+
+                                <label className="block">
+                                    <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">Gia huấn</span>
+                                    <textarea
+                                        value={clanForm.gia_huan}
+                                        onChange={(e) => setClanForm({ ...clanForm, gia_huan: e.target.value })}
+                                        rows={5}
+                                        className="gp-input w-full resize-y font-serif"
+                                        placeholder="Nếp nhà, lời răn dạy, quy ước ứng xử, tinh thần hiếu học, hiếu nghĩa..."
+                                    />
+                                </label>
+                            </div>
+
+                            <aside className="space-y-4">
+                                <div className="rounded-xl border border-[var(--line)] bg-[var(--bg-elev)] p-4">
+                                    <h4 className="text-[14px] font-bold text-[var(--ink)]">Tư liệu hiển thị</h4>
+                                    <label className="mt-3 block">
+                                        <span className="mb-1.5 block text-xs font-semibold text-[var(--ink-soft)]">Logo URL</span>
+                                        <input
+                                            value={clanForm.logo_path}
+                                            onChange={(e) => setClanForm({ ...clanForm, logo_path: e.target.value })}
+                                            className="gp-input w-full"
+                                            placeholder="https://.../logo.png"
+                                        />
+                                    </label>
+                                    <label className="mt-3 block">
+                                        <span className="mb-1.5 block text-xs font-semibold text-[var(--ink-soft)]">Ảnh từ đường URL</span>
+                                        <input
+                                            value={clanForm.anh_tu_duong_path}
+                                            onChange={(e) => setClanForm({ ...clanForm, anh_tu_duong_path: e.target.value })}
+                                            className="gp-input w-full"
+                                            placeholder="https://.../tu-duong.jpg"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="rounded-xl border border-[var(--line)] bg-[var(--bg-elev)] p-4">
+                                    <h4 className="text-[14px] font-bold text-[var(--ink)]">Màu chủ đạo</h4>
+                                    <div className="mt-3 grid gap-2">
+                                        {themeOptions.map((option) => (
+                                            <button
+                                                key={option.key}
+                                                type="button"
+                                                onClick={() => setClanForm({ ...clanForm, theme_color: option.key })}
+                                                className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-left text-[13px] transition ${
+                                                    clanForm.theme_color === option.key
+                                                        ? 'border-[var(--gold)] bg-[var(--gold-glow)] text-[var(--brown)]'
+                                                        : 'border-[var(--line)] bg-white text-[var(--ink-soft)] hover:border-[var(--gold-soft)]'
+                                                }`}
+                                            >
+                                                <span className={`h-4 w-4 rounded-full ${option.className}`} />
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-[var(--gold-soft)] bg-[var(--gold-glow)] p-4">
+                                    <h4 className="text-[14px] font-bold text-[var(--brown)]">Gợi ý nên bổ sung</h4>
+                                    <ul className="mt-3 space-y-2 text-[12.5px] leading-5 text-[var(--ink-soft)]">
+                                        {clanInfoSuggestions.map((item) => (
+                                            <li key={item} className="flex gap-2">
+                                                <Icon name="check" size={13} className="mt-0.5 shrink-0 text-[var(--gold)]" />
+                                                <span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </aside>
+                        </div>
+
+                        <div className="flex justify-end gap-3 border-t border-[var(--line)] px-6 py-4">
+                            <button type="button" onClick={() => setClanModalOpen(false)} className="gp-btn gp-btn-ghost">
+                                Hủy
+                            </button>
+                            <button type="submit" disabled={clanSaving} className="gp-btn gp-btn-primary disabled:opacity-60">
+                                {clanSaving ? 'Đang lưu...' : 'Lưu hồ sơ dòng họ'}
+                            </button>
                         </div>
                     </form>
                 </div>

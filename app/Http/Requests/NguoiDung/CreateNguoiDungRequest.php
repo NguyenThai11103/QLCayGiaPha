@@ -19,7 +19,7 @@ class CreateNguoiDungRequest extends FormRequest
             'password'      => 'required|string|min:6',
             'dong_ho_id'    => 'nullable|integer|exists:dong_hos,id',
             'thanh_vien_id' => 'nullable|integer|exists:thanh_viens,id',
-            'quyen_han'     => 'nullable|string|in:admin,quan_ly,thanh_vien',
+            'quyen_han'     => 'nullable|string|in:admin,truong_toc,quan_ly,thanh_vien',
         ];
     }
 }

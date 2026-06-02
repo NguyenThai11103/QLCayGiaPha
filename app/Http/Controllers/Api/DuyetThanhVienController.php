@@ -16,7 +16,7 @@ class DuyetThanhVienController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        if ($user->quyen_han !== 'quan_ly') {
+        if (!in_array($user->quyen_han, ['truong_toc', 'quan_ly'], true)) {
             return response()->json(['success' => false, 'message' => 'Không có quyền truy cập.'], 403);
         }
 

@@ -19,6 +19,8 @@ export interface DongHo {
     theme_color?: 'gold' | 'crimson' | 'jade' | 'indigo' | 'bronze' | null;
 }
 
+export type DongHoUpdatePayload = Partial<Omit<DongHo, 'id'>> & { id: number };
+
 export interface Nguoi {
     id: number;
     id_dong_ho: number;
@@ -45,9 +47,28 @@ export type NguoiPayload = Omit<Nguoi, 'id' | 'vo_chong_ids'> & {
 };
 export type NguoiUpdatePayload = Partial<NguoiPayload> & { id: number };
 
+export interface NguoiDung {
+    id: number;
+    dong_ho_id: number | null;
+    ho_ten: string;
+    email: string;
+    avatar?: string | null;
+    anh_dai_dien?: string | null;
+    tieu_su?: string | null;
+    thanh_vien_id?: number | null;
+    quyen_han: 'admin' | 'truong_toc' | 'quan_ly' | 'thanh_vien' | string | null;
+    trang_thai_gia_nhap?: string | null;
+    trang_thai?: boolean | number | null;
+}
+
 export const dongHoApi = {
     async list() {
         const response = await apiClient.get<ApiResponse<DongHo[]>>('/dong-ho/list');
+        return response.data;
+    },
+
+    async update(payload: DongHoUpdatePayload) {
+        const response = await apiClient.post<ApiResponse>('/dong-ho/update', payload);
         return response.data;
     },
 };
@@ -55,6 +76,8 @@ export const dongHoApi = {
 export const nguoiDungApi = {
     list: (params?: Record<string, any>) => apiClient.get('/nguoi-dung/list', { params }),
     create: (data: Partial<NguoiDung>) => apiClient.post('/nguoi-dung/create', data),
+    provisionMemberAccount: (data: { thanh_vien_id: number; email: string }) => apiClient.post<ApiResponse>('/nguoi-dung/provision-account', data),
+    updateRole: (data: { id: number; quyen_han: 'quan_ly' | 'thanh_vien' }) => apiClient.post<ApiResponse>('/nguoi-dung/update-role', data),
     update: (data: Partial<NguoiDung>) => apiClient.post('/nguoi-dung/update', data),
     delete: (id: number) => apiClient.post('/nguoi-dung/delete', { id }),
 };

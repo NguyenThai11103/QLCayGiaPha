@@ -28,9 +28,12 @@ class KhuMoController extends Controller
             $query->where('khu_mos.dong_ho_id', $idDongHo);
         }
 
+        $data = $query->orderBy('khu_mos.ten_khu_mo')->get()
+            ->map(fn ($khuMo) => $this->attachPhotoUrls($khuMo));
+
         return response()->json([
             'success' => true,
-            'data' => $query->orderBy('khu_mos.ten_khu_mo')->get(),
+            'data' => $data,
         ]);
     }
 
@@ -42,7 +45,8 @@ class KhuMoController extends Controller
             return AccessControl::forbidden();
         }
 
-        $photo = $this->storePhoto($request, $data['dong_ho_id']);
+        $photos = $this->storePhotos($request, $data['dong_ho_id']);
+        $primaryPhoto = $photos[0] ?? null;
         $id = DB::table('khu_mos')->insertGetId([
             'dong_ho_id' => $data['dong_ho_id'],
             'ten_khu_mo' => $data['ten_khu_mo'],
@@ -50,8 +54,9 @@ class KhuMoController extends Controller
             'vi_do' => $data['vi_do'],
             'kinh_do' => $data['kinh_do'],
             'mo_ta' => $data['mo_ta'] ?? null,
-            'anh_khu_mo_path' => $photo['path'] ?? null,
-            'anh_khu_mo_disk' => $photo['disk'] ?? null,
+            'anh_khu_mo_path' => $primaryPhoto['path'] ?? null,
+            'anh_khu_mo_disk' => $primaryPhoto['disk'] ?? null,
+            'anh_khu_mo_paths' => !empty($photos) ? json_encode(array_column($photos, 'path')) : null,
             'nguoi_cap_nhat_id' => $this->nguoiDungId($request->user()),
             'created_at' => now(),
             'updated_at' => now(),
@@ -83,10 +88,15 @@ class KhuMoController extends Controller
         ];
 
         if ($request->hasFile('anh_khu_mo')) {
-            $photo = $this->storePhoto($request, $khuMo->dong_ho_id);
-            $update['anh_khu_mo_path'] = $photo['path'];
-            $update['anh_khu_mo_disk'] = $photo['disk'];
-            $this->deletePhoto($khuMo);
+            $photos = $this->storePhotos($request, $khuMo->dong_ho_id);
+            $existingPaths = $this->photoPaths($khuMo);
+            $newPaths = array_column($photos, 'path');
+            $allPaths = array_values(array_unique([...$existingPaths, ...$newPaths]));
+            $primaryPath = $allPaths[0] ?? null;
+
+            $update['anh_khu_mo_path'] = $primaryPath;
+            $update['anh_khu_mo_disk'] = $primaryPath ? 'public' : null;
+            $update['anh_khu_mo_paths'] = !empty($allPaths) ? json_encode($allPaths) : null;
         }
 
         DB::table('khu_mos')->where('id', $data['id'])->update($update);
@@ -104,7 +114,7 @@ class KhuMoController extends Controller
         }
 
         DB::table('khu_mos')->where('id', $data['id'])->delete();
-        $this->deletePhoto($khuMo);
+        $this->deletePhotos($khuMo);
 
         return response()->json(['success' => true, 'message' => 'Đã xóa khu mộ']);
     }
@@ -281,6 +291,7 @@ class KhuMoController extends Controller
                 'khu_mos.mo_ta',
                 'khu_mos.anh_khu_mo_path',
                 'khu_mos.anh_khu_mo_disk',
+                'khu_mos.anh_khu_mo_paths',
                 'khu_mos.nguoi_cap_nhat_id',
                 'khu_mos.created_at',
                 'khu_mos.updated_at',
@@ -303,29 +314,68 @@ class KhuMoController extends Controller
             'vi_do' => 'required|numeric|between:-90,90',
             'kinh_do' => 'required|numeric|between:-180,180',
             'mo_ta' => 'nullable|string|max:2000',
-            'anh_khu_mo' => 'nullable|image|max:10240',
+            'anh_khu_mo' => 'nullable',
+            'anh_khu_mo.*' => 'nullable|image|max:10240',
         ];
     }
 
-    private function storePhoto(Request $request, int|string $familyId): ?array
+    private function storePhotos(Request $request, int|string $familyId): array
     {
         if (!$request->hasFile('anh_khu_mo')) {
-            return null;
+            return [];
         }
 
         $disk = 'public';
-        $path = $request->file('anh_khu_mo')->store('khu-mo/' . $familyId, $disk);
+        $files = $request->file('anh_khu_mo');
+        $files = is_array($files) ? $files : [$files];
 
-        return ['disk' => $disk, 'path' => $path];
+        return array_map(
+            fn ($file) => ['disk' => $disk, 'path' => $file->store('khu-mo/' . $familyId, $disk)],
+            $files,
+        );
     }
 
-    private function deletePhoto(object $khuMo): void
+    private function deletePhotos(object $khuMo): void
     {
-        if (empty($khuMo->anh_khu_mo_disk) || empty($khuMo->anh_khu_mo_path)) {
+        $paths = $this->photoPaths($khuMo);
+        if (empty($paths)) {
             return;
         }
 
-        Storage::disk($khuMo->anh_khu_mo_disk)->delete($khuMo->anh_khu_mo_path);
+        Storage::disk($khuMo->anh_khu_mo_disk ?: 'public')->delete($paths);
+    }
+
+    private function photoPaths(object $khuMo): array
+    {
+        $paths = [];
+        if (!empty($khuMo->anh_khu_mo_paths)) {
+            $decoded = is_string($khuMo->anh_khu_mo_paths)
+                ? json_decode($khuMo->anh_khu_mo_paths, true)
+                : $khuMo->anh_khu_mo_paths;
+
+            if (is_array($decoded)) {
+                $paths = array_values(array_filter($decoded));
+            }
+        }
+
+        if (empty($paths) && !empty($khuMo->anh_khu_mo_path)) {
+            $paths[] = $khuMo->anh_khu_mo_path;
+        }
+
+        return array_values(array_unique($paths));
+    }
+
+    private function attachPhotoUrls(object $khuMo): object
+    {
+        $urls = array_map(
+            fn (string $path) => '/storage/' . ltrim($path, '/'),
+            $this->photoPaths($khuMo),
+        );
+
+        $khuMo->anh_khu_mo_urls = $urls;
+        $khuMo->anh_khu_mo_url = $urls[0] ?? $khuMo->anh_khu_mo_url ?? null;
+
+        return $khuMo;
     }
 
     private function nguoiDungId(?Authenticatable $user): ?int

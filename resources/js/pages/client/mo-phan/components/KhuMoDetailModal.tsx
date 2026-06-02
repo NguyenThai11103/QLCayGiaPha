@@ -46,6 +46,7 @@ export default function KhuMoDetailModal({
     onGraveDirection,
     onHistory,
 }: KhuMoDetailModalProps) {
+    const khuMoPhotos = khuMo.anh_khu_mo_urls?.length ? khuMo.anh_khu_mo_urls : (khuMo.anh_khu_mo_url ? [khuMo.anh_khu_mo_url] : []);
     const gravePhotos = rows
         .map(({ moPhan, member }) => ({ url: moPhan.anh_mo_url, title: member?.ten_day_du || moPhan.ten_thanh_vien || 'Mộ phần' }))
         .filter((item): item is { url: string; title: string } => !!item.url);
@@ -53,7 +54,7 @@ export default function KhuMoDetailModal({
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 65, display: 'grid', placeItems: 'center', background: 'rgba(0,0,0,0.48)', backdropFilter: 'blur(4px)', padding: 16 }}>
             <div style={{ width: '100%', maxWidth: 920, maxHeight: '88vh', background: 'var(--bg-elev)', borderRadius: 18, border: '1px solid var(--line)', boxShadow: '0 24px 60px rgba(0,0,0,0.28)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ minHeight: 154, background: khuMo.anh_khu_mo_url ? `linear-gradient(180deg, rgba(34,26,18,0.16), rgba(34,26,18,0.62)), url(${khuMo.anh_khu_mo_url}) center/cover` : 'linear-gradient(135deg, var(--gold), var(--brown-soft))', color: 'white', padding: 22, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+                <div style={{ minHeight: 154, background: khuMoPhotos[0] ? `linear-gradient(180deg, rgba(34,26,18,0.16), rgba(34,26,18,0.62)), url(${khuMoPhotos[0]}) center/cover` : 'linear-gradient(135deg, var(--gold), var(--brown-soft))', color: 'white', padding: 22, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
                     <div style={{ minWidth: 0 }}>
                         <div style={{ fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', fontWeight: 800, opacity: 0.86 }}>Chi tiết khu mộ</div>
                         <h2 style={{ margin: '4px 0 0', fontSize: 26, fontWeight: 800, fontFamily: 'Cormorant Garamond, serif' }}>{khuMo.ten_khu_mo}</h2>
@@ -86,6 +87,19 @@ export default function KhuMoDetailModal({
                                     <div style={{ marginTop: 12, fontSize: 13, color: 'var(--ink-soft)', lineHeight: 1.58 }}>{khuMo.mo_ta}</div>
                                 )}
                             </div>
+
+                            {khuMoPhotos.length > 0 && (
+                                <div style={{ border: '1px solid var(--line)', borderRadius: 14, background: 'var(--card-soft)', padding: 14 }}>
+                                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--ink)', marginBottom: 10 }}>Hình ảnh khu mộ</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+                                        {khuMoPhotos.slice(0, 8).map((url, index) => (
+                                            <a key={url} href={url} target="_blank" rel="noreferrer" title={`Ảnh khu mộ ${index + 1}`} style={{ height: 86, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--line-soft)', background: 'var(--bg-elev)', display: 'block' }}>
+                                                <img src={url} alt={`Ảnh khu mộ ${index + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {gravePhotos.length > 0 && (
                                 <div style={{ border: '1px solid var(--line)', borderRadius: 14, background: 'var(--card-soft)', padding: 14 }}>

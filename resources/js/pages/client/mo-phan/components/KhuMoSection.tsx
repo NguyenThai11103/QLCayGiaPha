@@ -39,10 +39,20 @@ export default function KhuMoSection({
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-                    {khuMos.map((khuMo) => (
+                    {khuMos.map((khuMo) => {
+                        const photoUrls = khuMo.anh_khu_mo_urls?.length ? khuMo.anh_khu_mo_urls : (khuMo.anh_khu_mo_url ? [khuMo.anh_khu_mo_url] : []);
+
+                        return (
                         <div key={khuMo.id} style={{ border: '1px solid var(--line)', borderRadius: 14, background: 'var(--card-soft)', overflow: 'hidden' }}>
-                            {khuMo.anh_khu_mo_url && (
-                                <img src={khuMo.anh_khu_mo_url} alt={khuMo.ten_khu_mo} style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
+                            {photoUrls[0] && (
+                                <div style={{ position: 'relative' }}>
+                                    <img src={photoUrls[0]} alt={khuMo.ten_khu_mo} style={{ width: '100%', height: 110, objectFit: 'cover', display: 'block' }} />
+                                    {photoUrls.length > 1 && (
+                                        <span style={{ position: 'absolute', right: 10, bottom: 10, borderRadius: 999, background: 'rgba(34,26,18,0.72)', color: 'white', padding: '4px 9px', fontSize: 11, fontWeight: 800 }}>
+                                            {photoUrls.length} ảnh
+                                        </span>
+                                    )}
+                                </div>
                             )}
                             <div style={{ padding: 14 }}>
                                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>{khuMo.ten_khu_mo}</div>
@@ -67,7 +77,7 @@ export default function KhuMoSection({
                                 </div>
                             </div>
                         </div>
-                    ))}
+                    );})}
                 </div>
             )}
         </div>

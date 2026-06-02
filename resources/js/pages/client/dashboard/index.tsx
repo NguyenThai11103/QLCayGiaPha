@@ -25,6 +25,13 @@ const emptyClanForm = {
     theme_color: 'gold' as NonNullable<DongHo['theme_color']>,
 };
 
+function storageUrl(path?: string | null): string | null {
+    if (!path) return null;
+    if (/^(https?:)?\/\//.test(path) || path.startsWith('/')) return path;
+
+    return `/storage/${path.replace(/^public\//, '').replace(/^storage\//, '')}`;
+}
+
 const clanInfoSuggestions = [
     'Nguồn gốc họ tộc, nơi phát tích, thủy tổ và các đời đầu.',
     'Địa chỉ từ đường, ngày giỗ tổ, nghi lễ thường niên và người phụ trách.',
@@ -272,6 +279,8 @@ export default function ClientDashboard() {
     const completedClanFields = clanProfileChecks.filter((item) => item.done).length;
     const clanProfilePercent = Math.round((completedClanFields / clanProfileChecks.length) * 100);
     const missingClanFields = clanProfileChecks.filter((item) => !item.done);
+    const clanHeroImageUrl = storageUrl(activeClan?.anh_tu_duong_path);
+    const clanLogoUrl = storageUrl(activeClan?.logo_path);
 
     return (
         <AuthenticatedLayout>
@@ -280,9 +289,9 @@ export default function ClientDashboard() {
                 {/* Banner Dòng Họ hoành tráng */}
                 <div className="relative mb-8 flex h-[200px] items-end overflow-hidden rounded-2xl border border-[var(--gold-soft)] bg-[var(--bg-elev)] shadow-lg md:h-[260px]">
                     {/* Ảnh nền từ đường */}
-                    {activeClan?.anh_tu_duong_path ? (
+                    {clanHeroImageUrl ? (
                         <img
-                            src={activeClan.anh_tu_duong_path}
+                            src={clanHeroImageUrl}
                             alt="Từ đường dòng tộc"
                             className="absolute inset-0 h-full w-full object-cover brightness-75 filter transition-all duration-300"
                         />
@@ -299,8 +308,8 @@ export default function ClientDashboard() {
                     <div className="absolute right-6 bottom-6 left-6 z-10 flex flex-col items-center justify-between gap-4 md:flex-row md:items-end">
                         <div className="flex flex-col items-center gap-4 text-center text-white md:flex-row md:items-end md:gap-6 md:text-left">
                             <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-[var(--gold-pale)] bg-[var(--bg-elev)] shadow-lg md:h-20 md:w-20">
-                                {activeClan?.logo_path ? (
-                                    <img src={activeClan.logo_path} alt="Logo" className="h-full w-full object-cover" />
+                                {clanLogoUrl ? (
+                                    <img src={clanLogoUrl} alt="Logo" className="h-full w-full object-cover" />
                                 ) : (
                                     <div className="text-2xl font-bold text-[var(--gold)]">{activeClan?.ten_dong_ho?.charAt(0) || 'G'}</div>
                                 )}

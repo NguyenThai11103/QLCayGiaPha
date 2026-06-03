@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\NhanVatTieuBieuController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\GlobalSearchController;
 use App\Http\Controllers\Api\FamilyInvitationController;
+use App\Http\Controllers\Api\ThanhVienExcelController;
 use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
 
 Route::get('/user', function (Request $request) {
@@ -98,6 +99,9 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserActive::class])
         Route::get('/list', [NguoiController::class, 'index']);
         Route::get('/detail', [NguoiController::class, 'detail']);
         Route::get('/qr-detail', [NguoiController::class, 'qrDetail']);
+        Route::get('/excel/export', [ThanhVienExcelController::class, 'export']);
+        Route::get('/excel/template', [ThanhVienExcelController::class, 'template'])->middleware('check.permission:quan_ly');
+        Route::post('/excel/import', [ThanhVienExcelController::class, 'import'])->middleware('check.permission:quan_ly');
         Route::post('/create', [NguoiController::class, 'store'])->middleware('check.permission:quan_ly');
         Route::post('/update', [NguoiController::class, 'update'])->middleware('check.permission:quan_ly');
         Route::post('/delete', [NguoiController::class, 'destroy'])->middleware('check.permission:quan_ly');

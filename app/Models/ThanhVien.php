@@ -12,6 +12,7 @@ class ThanhVien extends Model
     protected $table = 'thanh_viens';
 
     protected $fillable = [
+        'ma_thanh_vien',
         'dong_ho_id',
         'ho_ten',
         'ten_thuong_goi',
@@ -20,6 +21,8 @@ class ThanhVien extends Model
         'doi_thu',
         'tinh_trang_song',
         'ngay_sinh_duong',
+        'ngay_sinh_am',
+        'nam_sinh_uoc_tinh',
         'ngay_mat_am',
         'anh_dai_dien',
         'nghe_nghiep',

@@ -9,6 +9,8 @@ class FamilyInvitation extends Model
 {
     use HasFactory;
 
+    protected $table = 'loi_moi_tham_gias';
+
     protected $fillable = [
         'dong_ho_id',
         'thanh_vien_id',

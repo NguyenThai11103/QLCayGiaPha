@@ -35,6 +35,10 @@ Route::get('/reset-password', function () {
     return Inertia::render('auth/reset-password');
 });
 
+Route::get('/loi-moi/{token}', function ($token) {
+    return Inertia::render('auth/invitation', ['token' => $token]);
+});
+
 Route::get('/admin/login', function () {
     return Inertia::render('admin/auth/login');
 })->name('admin.login');

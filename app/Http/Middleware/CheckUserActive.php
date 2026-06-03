@@ -67,6 +67,8 @@ class CheckUserActive
                     'api/auth/me',
                     'auth/logout',
                     'api/auth/logout',
+                    'loi-moi',
+                    'api/invitations',
                     'login',
                     'logout'
                 ];

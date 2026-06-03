@@ -12,6 +12,7 @@ type PersonPanelProps = {
     onAddChild: (parent: Nguoi) => void;
     onAddSpouse: (spouse: Nguoi) => void;
     onAddParent: (child: Nguoi) => void;
+    onInvite: (person: Nguoi) => void;
     onEditQuick: (person: Nguoi) => void;
     onDeleteQuick: (person: Nguoi) => void;
 };
@@ -35,6 +36,7 @@ export default function PersonPanel({
     onAddChild,
     onAddSpouse,
     onAddParent,
+    onInvite,
     onEditQuick,
     onDeleteQuick,
 }: PersonPanelProps) {
@@ -187,7 +189,7 @@ export default function PersonPanel({
 
                 {/* Quick actions (admin only) */}
                 {isMaster && (
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-4 gap-2">
                         <ActionButton
                             label="Thêm cha/mẹ"
                             icon="branch"
@@ -210,6 +212,13 @@ export default function PersonPanel({
                             colorClass="border-amber-200 bg-amber-50 text-amber-600 hover:bg-amber-100"
                             iconBg="bg-amber-200"
                             onClick={() => onAddChild(person)}
+                        />
+                        <ActionButton
+                            label="Mời tham gia"
+                            icon="add-user"
+                            colorClass="border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100"
+                            iconBg="bg-sky-200"
+                            onClick={() => onInvite(person)}
                         />
                     </div>
                 )}

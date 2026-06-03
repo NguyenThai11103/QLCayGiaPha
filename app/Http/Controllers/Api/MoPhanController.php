@@ -12,6 +12,7 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class MoPhanController extends Controller
 {
@@ -356,7 +357,10 @@ class MoPhanController extends Controller
         }
 
         $disk = 'public';
-        $path = $request->file('anh_mo')->store('mo-phan/' . $familyId, $disk);
+        $file = $request->file('anh_mo');
+        $directory = 'mo-phan/dong-ho-' . $familyId . '/' . now()->format('Y/m');
+        $filename = Str::uuid() . '.' . $file->extension();
+        $path = $file->storeAs($directory, $filename, $disk);
 
         return ['disk' => $disk, 'path' => $path];
     }

@@ -47,6 +47,18 @@ export type NguoiPayload = Omit<Nguoi, 'id' | 'vo_chong_ids'> & {
 };
 export type NguoiUpdatePayload = Partial<NguoiPayload> & { id: number };
 
+export interface ThanhVienImportSummary {
+    rows: number;
+    created: number;
+    updated: number;
+    relations_created: number;
+    relations_skipped: number;
+    errors: Array<{
+        row: number;
+        message: string;
+    }>;
+}
+
 export interface NguoiDung {
     id: number;
     dong_ho_id: number | null;
@@ -165,6 +177,25 @@ export const nguoiApi = {
 
     async delete(id: number) {
         const response = await apiClient.post<ApiResponse>('/nguoi/delete', { id });
+        return response.data;
+    },
+
+    async exportExcel(params?: { dong_ho_id?: number | string }) {
+        return apiClient.get<Blob>('/nguoi/excel/export', {
+            params,
+            responseType: 'blob',
+        });
+    },
+
+    async templateExcel(params?: { dong_ho_id?: number | string }) {
+        return apiClient.get<Blob>('/nguoi/excel/template', {
+            params,
+            responseType: 'blob',
+        });
+    },
+
+    async importExcel(payload: FormData) {
+        const response = await apiClient.post<ApiResponse<ThanhVienImportSummary>>('/nguoi/excel/import', payload);
         return response.data;
     },
 };

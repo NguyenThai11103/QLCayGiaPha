@@ -2,7 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import Icon from '../../../components/gia-pha/Icon';
-import { DongHo, dongHoApi, Nguoi, nguoiApi, NguoiDung, nguoiDungApi } from '../../../services/gia-pha.api';
+import { DongHo, dongHoApi, Nguoi, nguoiApi, NguoiDung, nguoiDungApi, ThanhVienImportSummary } from '../../../services/gia-pha.api';
 import { useAuth } from '../../../contexts/auth.context';
 import toast from '../../../lib/toast.util';
 import InviteMemberModal from '../gia-pha/components/InviteMemberModal';
@@ -36,6 +36,30 @@ function initials(name: string): string {
     return parts[parts.length - 1]?.charAt(0)?.toUpperCase() ?? name.charAt(0).toUpperCase();
 }
 
+function downloadBlobResponse(response: any, fallbackName: string) {
+    const disposition = response.headers?.['content-disposition'] as string | undefined;
+    let filename = fallbackName;
+
+    const utf8Match = disposition?.match(/filename\*=UTF-8''([^;]+)/);
+    const regularMatch = disposition?.match(/filename="?([^";]+)"?/);
+
+    if (utf8Match?.[1]) {
+        filename = decodeURIComponent(utf8Match[1]);
+    } else if (regularMatch?.[1]) {
+        filename = regularMatch[1];
+    }
+
+    const blob = response.data instanceof Blob ? response.data : new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+}
+
 export default function ClientDanhSachThanhVien() {
     const { user } = useAuth();
     const [members,      setMembers]      = useState<Nguoi[]>([]);
@@ -63,6 +87,12 @@ export default function ClientDanhSachThanhVien() {
     const [roleSaving, setRoleSaving] = useState(false);
     const [selectedRoleAccountId, setSelectedRoleAccountId] = useState('');
     const [selectedRole, setSelectedRole] = useState<'quan_ly' | 'thanh_vien'>('quan_ly');
+    const [importModalOpen, setImportModalOpen] = useState(false);
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importing, setImporting] = useState(false);
+    const [exporting, setExporting] = useState(false);
+    const [templateLoading, setTemplateLoading] = useState(false);
+    const [importSummary, setImportSummary] = useState<ThanhVienImportSummary | null>(null);
     const loaderRef = useRef<HTMLDivElement>(null);
     const canManage = ['truong_toc', 'quan_ly'].includes(user?.quyen_han || '');
 
@@ -165,6 +195,83 @@ export default function ClientDanhSachThanhVien() {
         }
 
         return '';
+    };
+
+    const excelParams = () => {
+        const dongHoId = defaultDongHoId();
+        return dongHoId ? { dong_ho_id: dongHoId } : undefined;
+    };
+
+    const openImportModal = () => {
+        setImportFile(null);
+        setImportSummary(null);
+        setImportModalOpen(true);
+    };
+
+    const closeImportModal = () => {
+        setImportModalOpen(false);
+        setImportFile(null);
+        setImportSummary(null);
+    };
+
+    const handleExportExcel = async () => {
+        setExporting(true);
+        try {
+            const response = await nguoiApi.exportExcel(excelParams());
+            downloadBlobResponse(response, 'thanh-vien.xlsx');
+            toast.success('Đã xuất danh sách thành viên.');
+            await loadData();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Không thể xuất Excel thành viên.');
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    const handleDownloadTemplate = async () => {
+        setTemplateLoading(true);
+        try {
+            const response = await nguoiApi.templateExcel(excelParams());
+            downloadBlobResponse(response, 'mau-import-thanh-vien.xlsx');
+            toast.success('Đã tải file mẫu import.');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Không thể tải file mẫu.');
+        } finally {
+            setTemplateLoading(false);
+        }
+    };
+
+    const handleImportExcel = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!importFile) {
+            toast.error('Vui lòng chọn file Excel cần import.');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', importFile);
+
+        const dongHoId = defaultDongHoId();
+        if (dongHoId) {
+            formData.append('dong_ho_id', dongHoId);
+        }
+
+        setImporting(true);
+        try {
+            const result = await nguoiApi.importExcel(formData);
+            if (result.success && result.data) {
+                setImportSummary(result.data);
+                toast.success(result.message || 'Import thành viên thành công.');
+                await loadData();
+            } else {
+                toast.error(result.message || 'Không thể import file Excel.');
+            }
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Có lỗi xảy ra khi import Excel.');
+        } finally {
+            setImporting(false);
+        }
     };
 
     const openCreateForm = () => {
@@ -372,6 +479,23 @@ export default function ClientDanhSachThanhVien() {
                         </div>
                         {canManage && (
                             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                <button
+                                    type="button"
+                                    onClick={handleExportExcel}
+                                    disabled={exporting}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--bg-elev)', color: 'var(--ink)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.65 : 1, boxShadow: 'var(--shadow-sm)' }}
+                                >
+                                    <Icon name="download" size={15} />
+                                    {exporting ? 'Đang xuất...' : 'Xuất Excel'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={openImportModal}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 10, border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', background: 'var(--bg-elev)', color: 'var(--gold-dark)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
+                                >
+                                    <Icon name="book" size={15} />
+                                    Import Excel
+                                </button>
                                 <button
                                     type="button"
                                     onClick={() => setRoleModalOpen(true)}
@@ -639,6 +763,116 @@ export default function ClientDanhSachThanhVien() {
                 )}
 
             </div>
+
+            {importModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <form
+                        onSubmit={handleImportExcel}
+                        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg-elev)] text-[var(--ink)] shadow-2xl"
+                    >
+                        <div className="px-6 py-4" style={{ background: 'linear-gradient(135deg, var(--brown), var(--gold))' }}>
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">Import Excel thành viên</h3>
+                                    <p className="mt-0.5 text-xs text-white/75">Nhập dữ liệu thành viên và liên kết hồ sơ trong cây.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closeImportModal}
+                                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                                >
+                                    <Icon name="x" size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-5 p-6">
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--line)] bg-[var(--card-soft)] px-4 py-3">
+                                <div>
+                                    <div className="text-sm font-bold text-[var(--ink)]">File mẫu Excel</div>
+                                    <div className="mt-0.5 text-xs text-[var(--ink-mute)]">Gồm các cột chuẩn và bảng ghi chú cột.</div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadTemplate}
+                                    disabled={templateLoading}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--bg-elev)] px-4 py-2 text-sm font-bold text-[var(--ink)] shadow-sm transition hover:bg-[var(--gold-glow)] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <Icon name="download" size={15} />
+                                    {templateLoading ? 'Đang tải...' : 'Tải file mẫu'}
+                                </button>
+                            </div>
+
+                            <label className="block">
+                                <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">
+                                    File import <span className="text-red-500">*</span>
+                                </span>
+                                <input
+                                    type="file"
+                                    accept=".xlsx,.xls,.csv"
+                                    onChange={(event) => {
+                                        setImportFile(event.currentTarget.files?.[0] || null);
+                                        setImportSummary(null);
+                                    }}
+                                    className="block w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--ink)] file:mr-4 file:rounded-md file:border-0 file:bg-[var(--gold-glow)] file:px-3 file:py-1.5 file:text-sm file:font-bold file:text-[var(--gold-dark)]"
+                                    required
+                                />
+                                {importFile && (
+                                    <div className="mt-2 text-xs text-[var(--ink-mute)]">{importFile.name}</div>
+                                )}
+                            </label>
+
+                            {importSummary && (
+                                <div className="space-y-3">
+                                    <div className="grid gap-3 sm:grid-cols-4">
+                                        {[
+                                            { label: 'Dòng xử lý', value: importSummary.rows },
+                                            { label: 'Tạo mới', value: importSummary.created },
+                                            { label: 'Cập nhật', value: importSummary.updated },
+                                            { label: 'Liên kết', value: importSummary.relations_created },
+                                        ].map((item) => (
+                                            <div key={item.label} className="rounded-xl border border-[var(--line)] bg-[var(--card)] px-4 py-3">
+                                                <div className="text-xl font-bold text-[var(--ink)]">{item.value}</div>
+                                                <div className="mt-1 text-xs text-[var(--ink-mute)]">{item.label}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {importSummary.errors.length > 0 && (
+                                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+                                            <div className="text-sm font-bold">Cần kiểm tra {importSummary.errors.length} dòng</div>
+                                            <div className="mt-2 max-h-40 space-y-1 overflow-auto text-xs leading-5">
+                                                {importSummary.errors.slice(0, 10).map((error, index) => (
+                                                    <div key={`${error.row}-${index}`}>
+                                                        Dòng {error.row}: {error.message}
+                                                    </div>
+                                                ))}
+                                                {importSummary.errors.length > 10 && (
+                                                    <div>Còn {importSummary.errors.length - 10} lỗi khác trong phản hồi import.</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button type="button" onClick={closeImportModal} className="rounded-lg border border-[var(--line)] bg-[var(--card)] px-4 py-2 font-semibold text-[var(--ink-soft)] transition hover:bg-[var(--card-soft)]">
+                                    Đóng
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={importing || !importFile}
+                                    className="rounded-lg px-5 py-2 font-semibold text-white shadow transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    style={{ background: 'linear-gradient(135deg, var(--gold), var(--terracotta))' }}
+                                >
+                                    {importing ? 'Đang import...' : 'Import Excel'}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            )}
 
             {roleModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">

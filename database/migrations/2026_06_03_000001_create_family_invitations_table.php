@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('family_invitations', function (Blueprint $table) {
+        Schema::create('loi_moi_tham_gias', function (Blueprint $table) {
             $table->id();
             $table->foreignId('dong_ho_id')->constrained('dong_hos')->cascadeOnDelete();
             $table->foreignId('thanh_vien_id')->constrained('thanh_viens')->cascadeOnDelete();
@@ -29,6 +29,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('family_invitations');
+        Schema::dropIfExists('loi_moi_tham_gias');
     }
 };

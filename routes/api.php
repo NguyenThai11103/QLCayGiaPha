@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\CacheXungHoController;
 use App\Http\Controllers\Api\MoPhanController;
 use App\Http\Controllers\Api\KhuMoController;
 use App\Http\Controllers\Api\DuyetThanhVienController;
+use App\Http\Controllers\Api\NhanVatTieuBieuController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\GlobalSearchController;
 use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
@@ -121,6 +122,14 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserActive::class])
         Route::post('/create', [TaiLieuController::class, 'store'])->middleware('check.permission:quan_ly');
         Route::post('/update', [TaiLieuController::class, 'update'])->middleware('check.permission:quan_ly');
         Route::post('/delete', [TaiLieuController::class, 'destroy'])->middleware('check.permission:quan_ly');
+    });
+
+    Route::prefix('nhan-vat-tieu-bieu')->group(function () {
+        Route::get('/list', [NhanVatTieuBieuController::class, 'index']);
+        Route::get('/detail', [NhanVatTieuBieuController::class, 'detail']);
+        Route::post('/create', [NhanVatTieuBieuController::class, 'store'])->middleware('check.permission:quan_ly');
+        Route::post('/update', [NhanVatTieuBieuController::class, 'update'])->middleware('check.permission:quan_ly');
+        Route::post('/delete', [NhanVatTieuBieuController::class, 'destroy'])->middleware('check.permission:quan_ly');
     });
 
     Route::prefix('quan-he')->group(function () {

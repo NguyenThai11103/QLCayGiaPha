@@ -119,7 +119,7 @@ export default function ChoDuyetIndex() {
         }
     };
 
-    if (user?.quyen_han !== 'quan_ly') {
+    if (!['truong_toc', 'quan_ly'].includes(user?.quyen_han || '')) {
         return (
             <AuthenticatedLayout>
                 <div className="p-8 text-center text-[var(--ink-mute)]">Bạn không có quyền truy cập trang này.</div>
@@ -146,7 +146,7 @@ export default function ChoDuyetIndex() {
                     </div>
                 ) : users.length === 0 ? (
                     <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', padding: '56px 24px', textAlign: 'center' }}>
-                        <Icon name="check-circle" size={44} color="var(--ink-faint)" />
+                        <Icon name="check" size={44} color="var(--ink-faint)" />
                         <div style={{ marginTop: 12, fontSize: 16, fontWeight: 600, color: 'var(--ink-mute)' }}>
                             Không có yêu cầu gia nhập nào đang chờ duyệt.
                         </div>

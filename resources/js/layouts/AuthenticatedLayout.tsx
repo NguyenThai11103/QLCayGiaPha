@@ -107,6 +107,16 @@ const navigation: NavigationItem[] = [
         ),
     },
     {
+        name: 'Nhân vật tiêu biểu',
+        href: '/gia-pha/nhan-vat-tieu-bieu',
+        icon: (
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l1.7 4.6L18 9.3l-4.3 1.7L12 15l-1.7-4L6 9.3l4.3-1.7z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 4l.6 1.6L21 6.2l-1.4.6L19 8l-.6-1.2L17 6.2l1.4-.6z" />
+            </svg>
+        ),
+    },
+    {
         name: 'Mộ phần',
         href: '/gia-pha/mo-phan',
         icon: (

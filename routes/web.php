@@ -1,7 +1,15 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+
+Route::get('/storage/{path}', function (string $path) {
+    abort_if(str_contains($path, '..'), 404);
+    abort_unless(Storage::disk('public')->exists($path), 404);
+
+    return response()->file(Storage::disk('public')->path($path));
+})->where('path', '.*');
 
 Route::get('/', function () {
     return Inertia::render('landing/index');
@@ -93,6 +101,14 @@ Route::get('/admin/profile', function () {
 
 Route::get('/gia-pha/tai-lieu', function () {
     return Inertia::render('client/tai-lieu/index');
+});
+
+Route::get('/gia-pha/nhan-vat-tieu-bieu', function () {
+    return Inertia::render('client/nhan-vat-tieu-bieu/index');
+});
+
+Route::get('/gia-pha/nhan-vat-tieu-bieu/{id}', function ($id) {
+    return Inertia::render('client/nhan-vat-tieu-bieu/detail', ['id' => $id]);
 });
 
 Route::get('/gia-pha/mo-phan', function () {

@@ -229,6 +229,99 @@ export const taiLieuApi = {
     },
 };
 
+// ─── Nhân Vật Tiêu Biểu ─────────────────────────────────────────────────────
+
+export interface NhanVatTieuBieu {
+    id: number;
+    dong_ho_id: number;
+    thanh_vien_id: number;
+    tieu_de?: string | null;
+    tom_tat?: string | null;
+    cau_chuyen?: string | null;
+    dong_gop?: string | null;
+    linh_vuc?: string | null;
+    giai_doan?: string | null;
+    nam_bat_dau?: number | null;
+    nam_ket_thuc?: number | null;
+    anh_bia_path?: string | null;
+    anh_bia_url?: string | null;
+    noi_bat: boolean | number;
+    trang_thai: 'draft' | 'published' | string;
+    thu_tu_hien_thi: number;
+    nguoi_cap_nhat_id?: number | null;
+    ten_nguoi_cap_nhat?: string | null;
+    ten_thanh_vien?: string | null;
+    ten_thuong_goi?: string | null;
+    gioi_tinh?: string | null;
+    doi_thu?: number | null;
+    tinh_trang_song?: number | null;
+    ngay_sinh_duong?: string | null;
+    ngay_mat_am?: string | null;
+    anh_dai_dien?: string | null;
+    nghe_nghiep?: string | null;
+    tieu_su?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface NhanVatTieuBieuPayload {
+    id?: number;
+    thanh_vien_id?: number;
+    tieu_de?: string | null;
+    tom_tat?: string | null;
+    cau_chuyen?: string | null;
+    dong_gop?: string | null;
+    linh_vuc?: string | null;
+    giai_doan?: string | null;
+    nam_bat_dau?: number | null;
+    nam_ket_thuc?: number | null;
+    noi_bat?: boolean | number;
+    trang_thai?: 'draft' | 'published';
+    thu_tu_hien_thi?: number;
+    anh_bia?: File | null;
+}
+
+export interface NhanVatTieuBieuDetail {
+    profile: NhanVatTieuBieu;
+    documents: TaiLieu[];
+}
+
+function nhanVatFormData(payload: NhanVatTieuBieuPayload) {
+    const formData = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+        if (value === undefined || value === null) return;
+        formData.append(key, value instanceof File ? value : String(value));
+    });
+    return formData;
+}
+
+export const nhanVatTieuBieuApi = {
+    async list(params?: { dong_ho_id?: number | string; trang_thai?: string }) {
+        const response = await apiClient.get<ApiResponse<NhanVatTieuBieu[]>>('/nhan-vat-tieu-bieu/list', { params });
+        return response.data;
+    },
+
+    async detail(id: number | string) {
+        const response = await apiClient.get<ApiResponse<NhanVatTieuBieuDetail>>('/nhan-vat-tieu-bieu/detail', { params: { id } });
+        return response.data;
+    },
+
+    async create(payload: NhanVatTieuBieuPayload) {
+        const response = await apiClient.post<ApiResponse>('/nhan-vat-tieu-bieu/create', nhanVatFormData(payload));
+        return response.data;
+    },
+
+    async update(payload: NhanVatTieuBieuPayload & { id: number }) {
+        const response = await apiClient.post<ApiResponse>('/nhan-vat-tieu-bieu/update', nhanVatFormData(payload));
+        return response.data;
+    },
+
+    async delete(id: number) {
+        const response = await apiClient.post<ApiResponse>('/nhan-vat-tieu-bieu/delete', { id });
+        return response.data;
+    },
+};
+
 // Mo Phan
 
 export interface MoPhan {

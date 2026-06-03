@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             // TaiLieuSeeder::class,
             ComplexClanSeeder::class,
             MoPhanSeeder::class,
+            NhanVatTieuBieuSeeder::class,
         ]);
     }
 }

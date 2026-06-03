@@ -20,6 +20,7 @@ class RegisterRequest extends FormRequest
             'dong_ho_id'       => 'nullable|exists:dong_hos,id',
             'new_clan_name'    => 'nullable|string|max:255',
             'new_clan_address' => 'nullable|string|max:255',
+            'invitation_token' => 'nullable|string|max:128',
         ];
     }
 }

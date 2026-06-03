@@ -3,6 +3,7 @@ import { FormEvent, ReactNode, useState, useEffect } from 'react';
 import Icon from '../../components/gia-pha/Icon';
 import apiClient from '../../lib/api.client';
 import toast from '../../lib/toast.util';
+import { familyInvitationApi, FamilyInvitationPreview } from '../../services/gia-pha.api';
 import AuthScaffold from './AuthScaffold';
 
 type Errors = {
@@ -13,6 +14,9 @@ type Errors = {
 };
 
 export default function Register() {
+    const invitationToken = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('invitation') || ''
+        : '';
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -22,6 +26,7 @@ export default function Register() {
     const [errors, setErrors] = useState<Errors>({});
     const [submitting, setSubmitting] = useState(false);
     const [created, setCreated] = useState(false);
+    const [invitationPreview, setInvitationPreview] = useState<FamilyInvitationPreview | null>(null);
 
     // Dòng họ states
     const [availableClans, setAvailableClans] = useState<any[]>([]);
@@ -41,6 +46,24 @@ export default function Register() {
             })
             .catch(err => console.error('Lỗi tải danh sách dòng họ:', err));
     }, []);
+
+    useEffect(() => {
+        if (!invitationToken) return;
+
+        familyInvitationApi.detail(invitationToken)
+            .then((res) => {
+                if (!res.success || !res.data) return;
+
+                setInvitationPreview(res.data);
+                if (res.data.email) {
+                    setEmail(res.data.email);
+                }
+                if (res.data.thanh_vien?.ho_ten) {
+                    setName((current) => current || res.data?.thanh_vien?.ho_ten || '');
+                }
+            })
+            .catch(() => {});
+    }, [invitationToken]);
 
     const validate = () => {
         const nextErrors: Errors = {};
@@ -65,7 +88,7 @@ export default function Register() {
             nextErrors.confirmPassword = 'Mật khẩu xác nhận chưa khớp.';
         }
 
-        if (createNewClan && !newClanName.trim()) {
+        if (!invitationToken && createNewClan && !newClanName.trim()) {
             toast.error('Vui lòng nhập tên dòng họ muốn tạo mới.');
             return false;
         }
@@ -106,9 +129,10 @@ export default function Register() {
                 ho_ten: name.trim(),
                 email: email.trim(),
                 password,
-                dong_ho_id: createNewClan ? undefined : selectedClanId || undefined,
-                new_clan_name: createNewClan ? newClanName.trim() : undefined,
-                new_clan_address: createNewClan ? newClanAddress.trim() : undefined,
+                invitation_token: invitationToken || undefined,
+                dong_ho_id: invitationToken || createNewClan ? undefined : selectedClanId || undefined,
+                new_clan_name: invitationToken || !createNewClan ? undefined : newClanName.trim(),
+                new_clan_address: invitationToken || !createNewClan ? undefined : newClanAddress.trim(),
             });
 
             if (response.data?.success) {
@@ -119,6 +143,10 @@ export default function Register() {
             setSubmitting(false);
         }
     };
+
+    const loginAfterRegisterUrl = invitationToken
+        ? `/login?redirect=${encodeURIComponent('/gia-pha/cay-gia-pha')}`
+        : '/login';
 
     return (
         <>
@@ -133,23 +161,29 @@ export default function Register() {
                         <p className="mt-2 text-[13.5px] leading-6 text-[var(--ink-soft)]">
                             Bạn có thể đăng nhập bằng email <strong className="text-[var(--ink)]">{email}</strong> để tiếp tục vào không gian gia phả.
                         </p>
-                        <button type="button" onClick={() => router.visit('/login')} className="gp-btn gp-btn-primary mt-6 w-full">
+                        <button type="button" onClick={() => router.visit(loginAfterRegisterUrl)} className="gp-btn gp-btn-primary mt-6 w-full">
                             Đến trang đăng nhập
                             <Icon name="arrow-right" size={16} />
                         </button>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
+                        {invitationToken && invitationPreview && (
+                            <div className="rounded-[10px] border border-[var(--gold-pale)] bg-[var(--gold-glow)] px-3.5 py-3 text-[12.5px] leading-5 text-[var(--brown)]">
+                                Đăng ký theo lời mời cho <strong>{invitationPreview.thanh_vien?.ho_ten}</strong>
+                                {invitationPreview.dong_ho?.ten_dong_ho ? ` - ${invitationPreview.dong_ho.ten_dong_ho}` : ''}.
+                            </div>
+                        )}
+                        {!invitationToken && <div className="grid grid-cols-2 gap-3">
                             <SocialButton label="Google" onClick={handleGoogleLogin} />
                             <SocialButton label="Facebook" />
-                        </div>
+                        </div>}
 
-                        <div className="flex items-center gap-3 text-[12px] text-[var(--ink-faint)]">
+                        {!invitationToken && <div className="flex items-center gap-3 text-[12px] text-[var(--ink-faint)]">
                             <span className="h-px flex-1 bg-[var(--line)]" />
                             hoặc đăng kí bằng email
                             <span className="h-px flex-1 bg-[var(--line)]" />
-                        </div>
+                        </div>}
 
                         <AuthField label="Họ và tên" error={errors.name}>
                             <Icon name="users" size={17} className="text-[var(--ink-mute)]" />
@@ -202,7 +236,7 @@ export default function Register() {
                             />
                         </AuthField>
 
-                        <div className="space-y-3">
+                        <div className={invitationToken ? 'hidden' : 'space-y-3'}>
                             <div className="flex gap-2 p-1 bg-[var(--card-soft)] rounded-xl border border-[var(--card-border)]">
                                 <button
                                     type="button"

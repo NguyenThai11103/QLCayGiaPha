@@ -5,6 +5,7 @@ import Icon from '../../../components/gia-pha/Icon';
 import { DongHo, dongHoApi, Nguoi, nguoiApi, NguoiDung, nguoiDungApi } from '../../../services/gia-pha.api';
 import { useAuth } from '../../../contexts/auth.context';
 import toast from '../../../lib/toast.util';
+import InviteMemberModal from '../gia-pha/components/InviteMemberModal';
 import MemberFormModal from '../gia-pha/components/MemberFormModal';
 import {
     buildPayload,
@@ -51,6 +52,9 @@ export default function ClientDanhSachThanhVien() {
     const [selectedParentId, setSelectedParentId] = useState('');
     const [saving,       setSaving]       = useState(false);
     const [accountModalOpen, setAccountModalOpen] = useState(false);
+    const [invitePerson, setInvitePerson] = useState<Nguoi | null>(null);
+    const [invitePickerOpen, setInvitePickerOpen] = useState(false);
+    const [selectedInviteMemberId, setSelectedInviteMemberId] = useState('');
     const [accountSaving, setAccountSaving] = useState(false);
     const [accountEmail, setAccountEmail] = useState('');
     const [selectedAccountMemberId, setSelectedAccountMemberId] = useState('');
@@ -189,6 +193,22 @@ export default function ClientDanhSachThanhVien() {
         setAccountModalOpen(false);
         setSelectedAccountMemberId('');
         setAccountEmail('');
+    };
+
+    const closeInvitePicker = () => {
+        setInvitePickerOpen(false);
+        setSelectedInviteMemberId('');
+    };
+
+    const continueInvitePicker = () => {
+        const selected = membersWithoutAccount.find((member) => String(member.id) === selectedInviteMemberId);
+        if (!selected) {
+            toast.error('Vui lòng chọn thành viên cần mời.');
+            return;
+        }
+
+        closeInvitePicker();
+        setInvitePerson(selected);
     };
 
     const closeRoleModal = () => {
@@ -370,6 +390,14 @@ export default function ClientDanhSachThanhVien() {
                                 </button>
                                 <button
                                     type="button"
+                                    onClick={() => setInvitePickerOpen(true)}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 10, border: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', background: 'var(--bg-elev)', color: 'var(--gold-dark)', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
+                                >
+                                    <Icon name="add-user" size={15} />
+                                    Mời tham gia
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={openCreateForm}
                                     style={{ display: 'inline-flex', alignItems: 'center', gap: 8, border: 'none', borderRadius: 10, background: 'linear-gradient(135deg, var(--gold), var(--terracotta))', color: 'white', padding: '10px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: 'var(--shadow-sm)' }}
                                 >
@@ -468,7 +496,8 @@ export default function ClientDanhSachThanhVien() {
                             const spouseNames = (member.vo_chong_ids || []).map(sid => getMemberById(members, sid)?.ten_day_du).filter(Boolean).join(', ');
 
                             return (
-                                <Link key={member.id} href={`/gia-pha/thanh-vien/${member.id}`} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                <div key={member.id} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                <Link href={`/gia-pha/thanh-vien/${member.id}`} style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', height: '100%' }}>
                                     <div
                                         style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', overflow: 'hidden', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', cursor: 'pointer', display: 'flex', flexDirection: 'column', flex: 1, position: 'relative' }}
                                         onMouseEnter={e => {
@@ -520,6 +549,7 @@ export default function ClientDanhSachThanhVien() {
                                         </div>
                                     </div>
                                 </Link>
+                                </div>
                             );
                         })}
                     </div>
@@ -559,18 +589,34 @@ export default function ClientDanhSachThanhVien() {
                                             <td style={{ padding: '12px 16px' }}>
                                                 <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 12%, transparent)' : 'color-mix(in srgb, var(--terracotta) 12%, transparent)', color: member.gioi_tinh === 'nam' ? 'var(--gold)' : 'var(--terracotta)', border: `1px solid ${member.gioi_tinh === 'nam' ? 'color-mix(in srgb, var(--gold) 25%, transparent)' : 'color-mix(in srgb, var(--terracotta) 25%, transparent)'}` }}>
                                                     {member.gioi_tinh === 'nam' ? 'Nam' : 'Nữ'}
-                                                </span>
+                                                    </span>
                                             </td>
                                             <td style={{ padding: '12px 16px', fontSize: 13, color: 'var(--ink-soft)' }}>{member.ngay_sinh || '—'}</td>
                                             <td style={{ padding: '12px 16px' }}>
                                                 <span style={{ padding: '3px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700, background: member.da_mat ? 'var(--card-soft)' : 'color-mix(in srgb, var(--jade) 12%, transparent)', color: member.da_mat ? 'var(--ink-mute)' : 'var(--jade)', border: `1px solid ${member.da_mat ? 'var(--line)' : 'color-mix(in srgb, var(--jade) 25%, transparent)'}` }}>
                                                     {member.da_mat ? '✝ Đã mất' : '● Còn sống'}
-                                                </span>
+                                                    </span>
                                             </td>
                                             <td style={{ padding: '12px 16px', textAlign: 'right' }}>
-                                                <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--gold)', textDecoration: 'none' }}>
+                                                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+                                                    {canManage && !provisionedMemberIds.has(member.id) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(event) => {
+                                                                event.preventDefault();
+                                                                event.stopPropagation();
+                                                                setInvitePerson(member);
+                                                            }}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, border: '1px solid color-mix(in srgb, var(--gold) 30%, transparent)', borderRadius: 999, background: 'var(--bg-elev)', color: 'var(--gold-dark)', padding: '6px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}
+                                                        >
+                                                            <Icon name="add-user" size={12} />
+                                                            Mời
+                                                        </button>
+                                                    )}
+                                                    <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--gold)', textDecoration: 'none' }}>
                                                     Xem →
-                                                </span>
+                                                    </span>
+                                                </div>
                                             </td>
                                         </tr>
                                     );
@@ -792,6 +838,76 @@ export default function ClientDanhSachThanhVien() {
                         </div>
                     </form>
                 </div>
+            )}
+
+            {invitePickerOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--bg-elev)] text-[var(--ink)] shadow-2xl">
+                        <div className="px-6 py-4" style={{ background: 'linear-gradient(135deg, var(--brown), var(--gold))' }}>
+                            <div className="flex items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-white">Mời tham gia dòng họ</h3>
+                                    <p className="mt-0.5 text-xs text-white/75">Chọn hồ sơ trong cây để tạo link mời qua email hoặc Zalo.</p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closeInvitePicker}
+                                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/20 text-white hover:bg-white/30"
+                                >
+                                    <Icon name="x" size={16} />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4 p-6">
+                            <label className="block">
+                                <span className="mb-1.5 block text-sm font-semibold text-[var(--ink-soft)]">
+                                    Hồ sơ thành viên <span className="text-red-500">*</span>
+                                </span>
+                                <select
+                                    value={selectedInviteMemberId}
+                                    onChange={(event) => setSelectedInviteMemberId(event.target.value)}
+                                    className="w-full rounded-lg border border-[var(--line)] bg-[var(--card)] px-3 py-2 text-[var(--ink)] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 focus:outline-none"
+                                >
+                                    <option value="">-- Chọn thành viên chưa có tài khoản --</option>
+                                    {membersWithoutAccount.map((member) => (
+                                        <option key={member.id} value={member.id}>
+                                            {member.ten_day_du} {member.doi_thu ? `(Đời ${member.doi_thu})` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            {membersWithoutAccount.length === 0 && (
+                                <div className="rounded-xl border border-[var(--gold-soft)] bg-[var(--gold-glow)] px-4 py-3 text-[12.5px] leading-5 text-[var(--ink-soft)]">
+                                    Tất cả thành viên hiện đã có tài khoản liên kết.
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button type="button" onClick={closeInvitePicker} className="rounded-lg border border-[var(--line)] bg-[var(--card)] px-4 py-2 font-semibold text-[var(--ink-soft)] transition hover:bg-[var(--card-soft)]">
+                                    Hủy
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={continueInvitePicker}
+                                    disabled={membersWithoutAccount.length === 0}
+                                    className="rounded-lg px-5 py-2 font-semibold text-white shadow transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                                    style={{ background: 'linear-gradient(135deg, var(--gold), var(--terracotta))' }}
+                                >
+                                    Tiếp tục
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {invitePerson && (
+                <InviteMemberModal
+                    person={invitePerson}
+                    onClose={() => setInvitePerson(null)}
+                />
             )}
 
             {formOpen && (

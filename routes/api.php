@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\KhuMoController;
 use App\Http\Controllers\Api\DuyetThanhVienController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\GlobalSearchController;
+use App\Http\Controllers\Api\FamilyInvitationController;
 use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
 
 Route::get('/user', function (Request $request) {
@@ -39,6 +40,10 @@ Route::prefix('auth')->group(function () {
         Route::post('/profile', [AuthController::class, 'updateProfile']);
         Route::post('/change-password', [AuthController::class, 'changePassword']);
     });
+});
+
+Route::prefix('invitations')->group(function () {
+    Route::get('/{token}', [FamilyInvitationController::class, 'show']);
 });
 
 Route::prefix('admin/auth')->group(function () {
@@ -69,6 +74,11 @@ Route::prefix('admin')->middleware(['auth:sanctum', 'check.admin.system'])->grou
 
 Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserActive::class])->group(function () {
     Route::get('/global-search', GlobalSearchController::class);
+
+    Route::prefix('invitations')->group(function () {
+        Route::post('/create', [FamilyInvitationController::class, 'store'])->middleware('check.permission:quan_ly');
+        Route::post('/accept', [FamilyInvitationController::class, 'accept']);
+    });
     
     Route::prefix('onboarding')->group(function () {
         Route::get('/search-clan', [OnboardingController::class, 'searchClan']);

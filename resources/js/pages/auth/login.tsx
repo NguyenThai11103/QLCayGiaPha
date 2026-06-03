@@ -13,6 +13,12 @@ type Errors = {
 
 export default function Login() {
     const { login, isLoading } = useAuth();
+    const redirectQuery = typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('redirect') || ''
+        : '';
+    const safeRedirect = redirectQuery.startsWith('/') && !redirectQuery.startsWith('//') ? redirectQuery : '';
+    const invitationToken = safeRedirect.match(/^\/loi-moi\/([^/?#]+)/)?.[1] || '';
+    const registerUrl = invitationToken ? `/register?invitation=${encodeURIComponent(invitationToken)}` : '/register';
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [rememberMe, setRememberMe] = useState(true);
@@ -62,7 +68,7 @@ export default function Login() {
         try {
             await login({ email, password });
             toast.success('Đăng nhập thành công!');
-            router.visit('/gia-pha/dashboard');
+            router.visit(safeRedirect || '/gia-pha/dashboard');
         } finally {
             setIsSubmitting(false);
         }
@@ -153,7 +159,7 @@ export default function Login() {
 
                     <div className="border-t border-[var(--line)] pt-5 text-center text-[13.5px] text-[var(--ink-mute)]">
                         Chưa có tài khoản?{' '}
-                        <button type="button" onClick={() => router.visit('/register')} className="font-bold text-[var(--gold)] hover:text-[var(--brown-soft)]">
+                            <button type="button" onClick={() => router.visit(registerUrl)} className="font-bold text-[var(--gold)] hover:text-[var(--brown-soft)]">
                             Đăng kí ngay
                         </button>
                     </div>

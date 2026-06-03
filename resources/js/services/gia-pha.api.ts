@@ -61,6 +61,57 @@ export interface NguoiDung {
     trang_thai?: boolean | number | null;
 }
 
+export interface FamilyInvitationPreview {
+    id: number;
+    email: string | null;
+    token: string;
+    invite_url: string;
+    status: 'pending' | 'accepted' | 'revoked' | 'expired' | string;
+    can_accept: boolean;
+    expires_at: string | null;
+    accepted_at: string | null;
+    dong_ho: {
+        id: number;
+        ten_dong_ho: string;
+        dia_chi_tu_duong?: string | null;
+    } | null;
+    thanh_vien: {
+        id: number;
+        ho_ten: string;
+        gioi_tinh?: string | null;
+        ngay_sinh_duong?: string | null;
+        anh_dai_dien?: string | null;
+        doi_thu?: number | null;
+    } | null;
+    nguoi_moi?: {
+        id: number;
+        ho_ten: string;
+        email: string;
+    } | null;
+}
+
+export const familyInvitationApi = {
+    async detail(token: string) {
+        const response = await apiClient.get<ApiResponse<FamilyInvitationPreview>>(`/invitations/${token}`);
+        return response.data;
+    },
+
+    async create(payload: { thanh_vien_id: number; email?: string | null }) {
+        const response = await apiClient.post<ApiResponse<{
+            invitation: FamilyInvitationPreview;
+            invite_url: string;
+            email_sent: boolean;
+            email_error?: string | null;
+        }>>('/invitations/create', payload);
+        return response.data;
+    },
+
+    async accept(token: string) {
+        const response = await apiClient.post<ApiResponse<{ user: NguoiDung }>>('/invitations/accept', { token });
+        return response.data;
+    },
+};
+
 export const dongHoApi = {
     async list() {
         const response = await apiClient.get<ApiResponse<DongHo[]>>('/dong-ho/list');

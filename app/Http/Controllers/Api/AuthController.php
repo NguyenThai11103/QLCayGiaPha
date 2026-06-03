@@ -11,7 +11,10 @@ use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\GoogleVerifyOtpRequest;
 use App\Http\Requests\Auth\UpdateProfileRequest;
 use App\Http\Requests\Auth\ChangePasswordRequest;
+use App\Models\DongHo;
+use App\Models\FamilyInvitation;
 use App\Models\NguoiDung;
+use App\Models\ThanhVien;
 use App\Mail\WelcomeEmail;
 use App\Mail\ResetPasswordEmail;
 use App\Mail\GoogleLoginOtpEmail;
@@ -45,9 +48,56 @@ class AuthController extends Controller
             $dongHoId = null;
             $quyenHan = 'thanh_vien';
             $trangThaiGiaNhap = 'da_duyet';
+            $invitation = null;
+            $invitedMember = null;
 
-            if (!empty($data['new_clan_name'])) {
-                $dongHo = \App\Models\DongHo::create([
+            if (!empty($data['invitation_token'])) {
+                $invitation = FamilyInvitation::where('token_hash', hash('sha256', $data['invitation_token']))
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$invitation || !$invitation->isUsable()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Loi moi khong hop le hoac da het han.',
+                    ], 422);
+                }
+
+                if ($invitation->email && strcasecmp($invitation->email, $data['email']) !== 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Email dang ky khong trung voi email nhan loi moi.',
+                    ], 422);
+                }
+
+                $invitedMember = ThanhVien::find($invitation->thanh_vien_id);
+                if (!$invitedMember) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Ho so thanh vien trong loi moi khong con ton tai.',
+                    ], 404);
+                }
+
+                $dongHo = DongHo::find($invitedMember->dong_ho_id);
+                if (!$dongHo || !$dongHo->trang_thai) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Dong ho trong loi moi hien khong kha dung.',
+                    ], 422);
+                }
+
+                if (NguoiDung::where('thanh_vien_id', $invitedMember->id)->exists()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Ho so nay da duoc lien ket voi tai khoan khac.',
+                    ], 422);
+                }
+
+                $dongHoId = $invitedMember->dong_ho_id;
+                $quyenHan = 'thanh_vien';
+                $trangThaiGiaNhap = 'da_duyet';
+            } elseif (!empty($data['new_clan_name'])) {
+                $dongHo = DongHo::create([
                     'ten_dong_ho'      => $data['new_clan_name'],
                     'dia_chi_tu_duong' => $data['new_clan_address'] ?? null,
                     'trang_thai'       => false,
@@ -73,12 +123,22 @@ class AuthController extends Controller
                 'email'               => $data['email'],
                 'password'            => Hash::make($data['password']),
                 'dong_ho_id'          => $dongHoId,
+                'thanh_vien_id'       => $invitedMember?->id,
+                'avatar'              => $invitedMember?->anh_dai_dien,
+                'tieu_su'             => $invitedMember?->tieu_su,
                 'quyen_han'           => $quyenHan,
                 'trang_thai_gia_nhap' => $trangThaiGiaNhap,
             ]);
 
-            if ($quyenHan === 'quan_ly' && $dongHoId) {
-                $thanhVien = \App\Models\ThanhVien::create([
+            if ($invitation) {
+                $invitation->update([
+                    'accepted_at' => now(),
+                    'accepted_by' => $user->id,
+                ]);
+            }
+
+            if (!$invitation && $quyenHan === 'quan_ly' && $dongHoId) {
+                $thanhVien = ThanhVien::create([
                     'dong_ho_id'      => $dongHoId,
                     'ho_ten'          => $user->ho_ten,
                     'gioi_tinh'       => 'nam',
@@ -89,7 +149,7 @@ class AuthController extends Controller
 
                 $user->update(['thanh_vien_id' => $thanhVien->id]);
 
-                $clan = \App\Models\DongHo::find($dongHoId);
+                $clan = DongHo::find($dongHoId);
                 if ($clan && !$clan->thuy_to_id) {
                     $clan->update(['thuy_to_id' => $thanhVien->id]);
                 }
@@ -115,7 +175,9 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Tao tai khoan thanh cong',
+                'message' => $invitation
+                    ? 'Tao tai khoan thanh cong va da lien ket voi ho so trong cay gia pha.'
+                    : 'Tao tai khoan thanh cong',
                 'data'    => [
                     'id'    => $user->id,
                     'email' => $user->email,

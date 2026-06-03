@@ -6,6 +6,7 @@ import AuthenticatedLayout from '../../../layouts/AuthenticatedLayout';
 import toast from '../../../lib/toast.util';
 import { DongHo, dongHoApi, Nguoi, nguoiApi } from '../../../services/gia-pha.api';
 import FamilyTree from './components/FamilyTree';
+import InviteMemberModal from './components/InviteMemberModal';
 import MemberFormModal from './components/MemberFormModal';
 import PersonPanel from './components/PersonPanel';
 import {
@@ -30,6 +31,7 @@ export default function CayGiaPha() {
     const [searchFocused, setSearchFocused] = useState(false);
     const [bloodlineOnly, setBloodlineOnly] = useState(true);
     const [selectedPerson, setSelectedPerson] = useState<Nguoi | null>(null);
+    const [invitePerson, setInvitePerson] = useState<Nguoi | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const treeViewportRef = useRef<HTMLElement | null>(null);
     const treeScaleRef = useRef<HTMLDivElement | null>(null);
@@ -927,6 +929,7 @@ export default function CayGiaPha() {
                                     onAddChild={handleAddChildQuick}
                                     onAddSpouse={handleAddSpouseQuick}
                                     onAddParent={handleAddParentQuick}
+                                    onInvite={setInvitePerson}
                                     onEditQuick={handleEditQuick}
                                     onDeleteQuick={handleDeleteQuick}
                                 />
@@ -950,6 +953,13 @@ export default function CayGiaPha() {
                     onClose={closeForm}
                     onSubmit={handleSubmit}
                     onParentChange={handleParentChange}
+                />
+            )}
+
+            {invitePerson && (
+                <InviteMemberModal
+                    person={invitePerson}
+                    onClose={() => setInvitePerson(null)}
                 />
             )}
         </AuthenticatedLayout>

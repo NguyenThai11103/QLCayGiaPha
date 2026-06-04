@@ -176,7 +176,7 @@ export default function AlbumAnhDetailPage({ id }: AlbumAnhDetailPageProps) {
     return (
         <AuthenticatedLayout>
             <Head title={album ? `${album.ten_album} - Album ảnh` : 'Chi tiết album'} />
-            <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+            <div style={{ width: '100%' }}>
                 
                 {/* Back button */}
                 <button 
@@ -239,20 +239,30 @@ export default function AlbumAnhDetailPage({ id }: AlbumAnhDetailPageProps) {
                             </div>
                         </div>
 
+                        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 14, borderBottom: '1px solid var(--line-soft)', paddingBottom: 6 }}>
+                            Hình ảnh ({photos.length})
+                        </h3>
+
                         {/* Image grid & upload space */}
-                        <div style={{ display: 'grid', gridTemplateColumns: canManage ? '1fr 320px' : '1fr', gap: 24, alignItems: 'start' }}>
+                        <div
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: canManage ? 'minmax(0, 1fr) minmax(280px, 320px)' : 'minmax(0, 1fr)',
+                                gap: 24,
+                                alignItems: 'start',
+                                width: '100%',
+                            }}
+                        >
                             
                             {/* Left: Photos grid */}
                             <div>
-                                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--ink)', marginBottom: 14, borderBottom: '1px solid var(--line-soft)', paddingBottom: 6 }}>
-                                    Hình ảnh ({photos.length})
-                                </h3>
-
                                 {photos.length === 0 ? (
-                                    <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', padding: '48px 24px', textAlign: 'center' }}>
+                                    <div style={{ background: 'var(--bg-elev)', borderRadius: 16, border: '1px solid var(--line)', minHeight: 220, padding: '48px 24px', textAlign: 'center', display: 'grid', placeItems: 'center' }}>
+                                        <div>
                                         <Icon name="photo" size={40} color="var(--ink-faint)" />
                                         <div style={{ marginTop: 12, fontSize: 14, fontWeight: 600, color: 'var(--ink-mute)' }}>Album chưa có hình ảnh nào.</div>
                                         {canManage && <p style={{ fontSize: 12.5, color: 'var(--ink-faint)', marginTop: 4 }}>Hãy kéo thả hoặc chọn hình ảnh bên cạnh để tải lên.</p>}
+                                        </div>
                                     </div>
                                 ) : (
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 14 }}>

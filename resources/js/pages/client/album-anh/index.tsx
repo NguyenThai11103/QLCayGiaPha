@@ -125,7 +125,7 @@ export default function AlbumAnhListPage() {
     return (
         <AuthenticatedLayout>
             <Head title="Album ảnh dòng họ" />
-            <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+            <div style={{ width: '100%' }}>
 
                 {/* Header */}
                 <div style={{ marginBottom: 24 }}>

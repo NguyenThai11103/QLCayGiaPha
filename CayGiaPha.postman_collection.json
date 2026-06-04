@@ -1,0 +1,455 @@
+{
+    "info": {
+        "_postman_id": "1d8b9d81-b5f7-41ab-8ea2-e22e23d7729b",
+        "name": "Cây Gia Phả API",
+        "description": "Bộ API đầy đủ cho ứng dụng Cây Gia Phả (Dòng họ, Người, Người Dùng, Sự kiện, Tài liệu, Quan hệ, Cache xưng hô, Auth).",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "Auth",
+            "item": [
+                {
+                    "name": "Đăng nhập",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"email\": \"admin@test.com\",\r\n    \"password\": \"123456\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/auth/login", "host": ["{{base_url}}"], "path": ["api", "auth", "login"]} },
+                    "response": []
+                },
+                {
+                    "name"     : "Đăng nhập bằng Google - Lấy URL",
+                    "request"  : {
+                        "method" : "GET",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/google/url",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "google",
+                                "url"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"     : "Đăng nhập bằng Google - Callback",
+                    "request"  : {
+                        "method" : "POST",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "body"   : {
+                            "mode"    : "raw",
+                            "raw"     : "{\n    \"code\": \"mã_code_từ_google\"\n}",
+                            "options" : {
+                                "raw" : {
+                                    "language" : "json"
+                                }
+                            }
+                        },
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/google/callback",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "google",
+                                "callback"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"     : "Đăng nhập bằng Google - Xác minh OTP",
+                    "request"  : {
+                        "method" : "POST",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "body"   : {
+                            "mode"    : "raw",
+                            "raw"     : "{\n    \"email\" : \"nguyenvanky20005@gmail.com\",\n    \"token\" : \"mã_OTP_6_chữ_số\"\n}",
+                            "options" : {
+                                "raw" : {
+                                    "language" : "json"
+                                }
+                            }
+                        },
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/google/verify-otp",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "google",
+                                "verify-otp"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"     : "Yêu cầu khôi phục mật khẩu (Quên mật khẩu)",
+                    "request"  : {
+                        "method" : "POST",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "body"   : {
+                            "mode"    : "raw",
+                            "raw"     : "{\n    \"email\": \"test@example.com\"\n}",
+                            "options" : {
+                                "raw" : {
+                                    "language" : "json"
+                                }
+                            }
+                        },
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/forgot-password",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "forgot-password"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"     : "Đặt lại mật khẩu mới",
+                    "request"  : {
+                        "method" : "POST",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "body"   : {
+                            "mode"    : "raw",
+                            "raw"     : "{\n    \"email\"           : \"test@example.com\",\n    \"token\"           : \"mã_OTP_6_chữ_số\",\n    \"password\"        : \"mật_khẩu_mới_123\",\n    \"confirmPassword\" : \"mật_khẩu_mới_123\"\n}",
+                            "options" : {
+                                "raw" : {
+                                    "language" : "json"
+                                }
+                            }
+                        },
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/reset-password",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "reset-password"
+                            ]
+                        }
+                    },
+                    "response" : []
+                }
+            ]
+        },
+        {
+            "name": "Dòng Họ",
+            "item": [
+                {
+                    "name": "Danh sách Dòng họ",
+                    "request": { "method": "GET", "header": [{"key": "Accept", "value": "application/json"}], "url": {"raw": "{{base_url}}/api/dong-ho/list", "host": ["{{base_url}}"], "path": ["api", "dong-ho", "list"]} },
+                    "response": []
+                },
+                {
+                    "name": "Tạo Dòng họ",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"ten_dong_ho\": \"Họ Nguyễn\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/dong-ho/create", "host": ["{{base_url}}"], "path": ["api", "dong-ho", "create"]} },
+                    "response": []
+                },
+                {
+                    "name": "Cập nhật Dòng họ",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1,\r\n    \"ten_dong_ho\": \"Họ Nguyễn (Cập nhật)\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/dong-ho/update", "host": ["{{base_url}}"], "path": ["api", "dong-ho", "update"]} },
+                    "response": []
+                },
+                {
+                    "name": "Xóa Dòng họ",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/dong-ho/delete", "host": ["{{base_url}}"], "path": ["api", "dong-ho", "delete"]} },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Người (Thành Viên)",
+            "item": [
+                {
+                    "name": "Danh sách Người",
+                    "request": { "method": "GET", "header": [{"key": "Accept", "value": "application/json"}], "url": {"raw": "{{base_url}}/api/nguoi/list?id_dong_ho=1", "host": ["{{base_url}}"], "path": ["api", "nguoi", "list"], "query": [{"key": "id_dong_ho", "value": "1"}]} },
+                    "response": []
+                },
+                {
+                    "name": "Chi tiết & Quan hệ",
+                    "request": { "method": "GET", "header": [{"key": "Accept", "value": "application/json"}], "url": {"raw": "{{base_url}}/api/nguoi/detail?id=1", "host": ["{{base_url}}"], "path": ["api", "nguoi", "detail"], "query": [{"key": "id", "value": "1"}]} },
+                    "response": []
+                },
+                {
+                    "name": "Tạo Người",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id_dong_ho\": 1,\r\n    \"ten_day_du\": \"Nguyễn Văn A\",\r\n    \"gioi_tinh\": \"nam\",\r\n    \"ngay_sinh\": \"1990-01-01\",\r\n    \"da_mat\": false,\r\n    \"thu_tu_sinh\": 1,\r\n    \"id_cha\": null,\r\n    \"id_me\": null,\r\n    \"id_vo_chong_list\": [],\r\n    \"tieu_su\": \"Giới thiệu bản thân...\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/nguoi/create", "host": ["{{base_url}}"], "path": ["api", "nguoi", "create"]} },
+                    "response": []
+                },
+                {
+                    "name": "Cập nhật Người",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1,\r\n    \"ten_day_du\": \"Nguyễn Văn A (Cập nhật)\",\r\n    \"gioi_tinh\": \"nam\",\r\n    \"da_mat\": false\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/nguoi/update", "host": ["{{base_url}}"], "path": ["api", "nguoi", "update"]} },
+                    "response": []
+                },
+                {
+                    "name": "Xóa Người",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/nguoi/delete", "host": ["{{base_url}}"], "path": ["api", "nguoi", "delete"]} },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Người Dùng",
+            "item": [
+                {
+                    "name": "Danh sách Người dùng",
+                    "request": { "method": "GET", "header": [{"key": "Accept", "value": "application/json"}], "url": {"raw": "{{base_url}}/api/nguoi-dung/list", "host": ["{{base_url}}"], "path": ["api", "nguoi-dung", "list"]} },
+                    "response": []
+                },
+                {
+                    "name": "Tạo Người dùng",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"ho_ten\": \"Admin User\",\r\n    \"email\": \"admin@test.com\",\r\n    \"password\": \"123456\",\r\n    \"quyen_han\": \"admin\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/nguoi-dung/create", "host": ["{{base_url}}"], "path": ["api", "nguoi-dung", "create"]} },
+                    "response": []
+                },
+                {
+                    "name": "Cập nhật Người dùng",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1,\r\n    \"ho_ten\": \"Admin User Updated\",\r\n    \"password\": \"654321\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/nguoi-dung/update", "host": ["{{base_url}}"], "path": ["api", "nguoi-dung", "update"]} },
+                    "response": []
+                },
+                {
+                    "name": "Xóa Người dùng",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/nguoi-dung/delete", "host": ["{{base_url}}"], "path": ["api", "nguoi-dung", "delete"]} },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Sự Kiện",
+            "item": [
+                {
+                    "name": "Danh sách Sự kiện",
+                    "request": { "method": "GET", "header": [{"key": "Accept", "value": "application/json"}], "url": {"raw": "{{base_url}}/api/su-kien/list", "host": ["{{base_url}}"], "path": ["api", "su-kien", "list"]} },
+                    "response": []
+                },
+                {
+                    "name": "Tạo Sự kiện",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"dong_ho_id\": 1,\r\n    \"ten_su_kien\": \"Giỗ tổ\",\r\n    \"ngay_am\": \"2024-03-10\",\r\n    \"lap_lai_hang_nam\": true,\r\n    \"dia_diem\": \"Nhà thờ tổ\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/su-kien/create", "host": ["{{base_url}}"], "path": ["api", "su-kien", "create"]} },
+                    "response": []
+                },
+                {
+                    "name": "Cập nhật Sự kiện",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1,\r\n    \"ten_su_kien\": \"Giỗ tổ họ Nguyễn\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/su-kien/update", "host": ["{{base_url}}"], "path": ["api", "su-kien", "update"]} },
+                    "response": []
+                },
+                {
+                    "name": "Xóa Sự kiện",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/su-kien/delete", "host": ["{{base_url}}"], "path": ["api", "su-kien", "delete"]} },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Tài Liệu",
+            "item": [
+                {
+                    "name": "Danh sách Tài liệu",
+                    "request": { "method": "GET", "header": [{"key": "Accept", "value": "application/json"}], "url": {"raw": "{{base_url}}/api/tai-lieu/list", "host": ["{{base_url}}"], "path": ["api", "tai-lieu", "list"]} },
+                    "response": []
+                },
+                {
+                    "name": "Tạo Tài liệu",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"dong_ho_id\": 1,\r\n    \"duong_dan_file\": \"/uploads/giapha.pdf\",\r\n    \"loai_file\": \"pdf\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/tai-lieu/create", "host": ["{{base_url}}"], "path": ["api", "tai-lieu", "create"]} },
+                    "response": []
+                },
+                {
+                    "name": "Cập nhật Tài liệu",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1,\r\n    \"duong_dan_file\": \"/uploads/giapha_v2.pdf\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/tai-lieu/update", "host": ["{{base_url}}"], "path": ["api", "tai-lieu", "update"]} },
+                    "response": []
+                },
+                {
+                    "name": "Xóa Tài liệu",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/tai-lieu/delete", "host": ["{{base_url}}"], "path": ["api", "tai-lieu", "delete"]} },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Quan Hệ",
+            "item": [
+                {
+                    "name": "Danh sách Quan hệ",
+                    "request": { "method": "GET", "header": [{"key": "Accept", "value": "application/json"}], "url": {"raw": "{{base_url}}/api/quan-he/list", "host": ["{{base_url}}"], "path": ["api", "quan-he", "list"]} },
+                    "response": []
+                },
+                {
+                    "name": "Tạo Quan hệ",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"node_1_id\": 1,\r\n    \"node_2_id\": 2,\r\n    \"loai_quan_he\": \"cha_con\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/quan-he/create", "host": ["{{base_url}}"], "path": ["api", "quan-he", "create"]} },
+                    "response": []
+                },
+                {
+                    "name": "Cập nhật Quan hệ",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1,\r\n    \"tinh_chat_quan_he\": \"ruot_thit\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/quan-he/update", "host": ["{{base_url}}"], "path": ["api", "quan-he", "update"]} },
+                    "response": []
+                },
+                {
+                    "name": "Xóa Quan hệ",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/quan-he/delete", "host": ["{{base_url}}"], "path": ["api", "quan-he", "delete"]} },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Cache Xưng Hô",
+            "item": [
+                {
+                    "name": "Danh sách Cache xưng hô",
+                    "request": { "method": "GET", "header": [{"key": "Accept", "value": "application/json"}], "url": {"raw": "{{base_url}}/api/cache-xung-ho/list", "host": ["{{base_url}}"], "path": ["api", "cache-xung-ho", "list"]} },
+                    "response": []
+                },
+                {
+                    "name": "Tạo Cache xưng hô",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"dong_ho_id\": 1,\r\n    \"nguoi_goi_id\": 1,\r\n    \"nguoi_nghe_id\": 2,\r\n    \"danh_xung_a\": \"Con\",\r\n    \"danh_xung_b\": \"Cha\",\r\n    \"khoang_cach_doi\": 1\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/cache-xung-ho/create", "host": ["{{base_url}}"], "path": ["api", "cache-xung-ho", "create"]} },
+                    "response": []
+                },
+                {
+                    "name": "Cập nhật Cache xưng hô",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1,\r\n    \"danh_xung_a\": \"Con trai\"\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/cache-xung-ho/update", "host": ["{{base_url}}"], "path": ["api", "cache-xung-ho", "update"]} },
+                    "response": []
+                },
+                {
+                    "name": "Xóa Cache xưng hô",
+                    "request": { "method": "POST", "header": [{"key": "Accept", "value": "application/json"}], "body": {"mode": "raw", "raw": "{\r\n    \"id\": 1\r\n}", "options": {"raw": {"language": "json"}}}, "url": {"raw": "{{base_url}}/api/cache-xung-ho/delete", "host": ["{{base_url}}"], "path": ["api", "cache-xung-ho", "delete"]} },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name" : "QR & Tra cứu Một chạm",
+            "item" : [
+                {
+                    "name"    : "1. Lấy thông tin tài khoản hiện tại (Me)",
+                    "request" : {
+                        "method" : "GET",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "url"    : {
+                            "raw"  : "{{base_url}}/api/auth/me",
+                            "host" : [
+                                "{{base_url}}"
+                            ],
+                            "path" : [
+                                "api",
+                                "auth",
+                                "me"
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"    : "2. Tra cứu chi tiết thành viên cùng dòng họ",
+                    "request" : {
+                        "method" : "GET",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "url"    : {
+                            "raw"   : "{{base_url}}/api/nguoi/detail?id=1",
+                            "host"  : [
+                                "{{base_url}}"
+                            ],
+                            "path"  : [
+                                "api",
+                                "nguoi",
+                                "detail"
+                            ],
+                            "query" : [
+                                {
+                                    "key"   : "id",
+                                    "value" : "1"
+                                }
+                            ]
+                        }
+                    },
+                    "response" : []
+                },
+                {
+                    "name"    : "3. Tra cứu thành viên khác dòng họ (Bảo mật chéo)",
+                    "request" : {
+                        "method" : "GET",
+                        "header" : [
+                            {
+                                "key"   : "Accept",
+                                "value" : "application/json"
+                            }
+                        ],
+                        "url"    : {
+                            "raw"   : "{{base_url}}/api/nguoi/detail?id=99",
+                            "host"  : [
+                                "{{base_url}}"
+                            ],
+                            "path"  : [
+                                "api",
+                                "nguoi",
+                                "detail"
+                            ],
+                            "query" : [
+                                {
+                                    "key"   : "id",
+                                    "value" : "99"
+                                }
+                            ]
+                        }
+                    },
+                    "response" : []
+                }
+            ]
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000",
+            "type": "string"
+        }
+    ]
+}

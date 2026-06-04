@@ -1,0 +1,49 @@
+---
+alwaysApply: true
+---
+<git-flow-rules>
+# Git Flow Rules
+
+## Nhanh chinh
+- `develop` la nhanh chinh cho tat ca code moi trong giai doan phat trien.
+- Neu repository chua co `develop`, tao `develop` tu `master`.
+- Khong phat trien truc tiep tren `master`.
+- `master` chi nhan code da on dinh, da review va da kiem thu tu `develop`.
+
+## Nhanh tinh nang
+- Moi task moi phai duoc lam tren mot feature branch tach tu `develop`.
+- Ten nhanh dung dang `feature/ten-task`, viet ngan gon, ro nghia, uu tien kebab-case.
+- Vi du:
+  ```bash
+  git checkout develop
+  git pull
+  git checkout -b feature/ten-task develop
+  ```
+
+## Dong bo truoc khi code hoac push
+- Truoc khi bat dau code, cap nhat `develop` moi nhat.
+- Truoc khi push feature branch, merge code moi nhat tu `develop` de giam xung dot.
+- Quy trinh chuan:
+  ```bash
+  git checkout develop
+  git pull
+  git checkout feature/ten-task
+  git merge develop
+  ```
+
+## Pull Request / Merge Request
+- Sau khi hoan thanh task, push feature branch len remote.
+- Tao Pull Request hoac Merge Request tu feature branch vao `develop`.
+- Gan reviewer theo yeu cau cua team, bao gom nguoi phu trach review/merge.
+- Chi merge vao `develop` sau khi da duoc review va CI pass neu co.
+
+## Khong merge truc tiep vao master
+- Khong tao Pull Request tu feature branch vao `master`.
+- Khong merge truc tiep code moi vao `master`.
+- Viec dua code tu `develop` sang `master` chi thuc hien khi release on dinh va theo quy trinh rieng cua team.
+
+## Quy uoc nhanh
+- `develop`: code base chinh cho giai doan phat trien.
+- `feature/*`: nhanh lam task moi, tach tu `develop`, merge ve `develop`.
+- `master`: nhanh on dinh, chi nhan code da qua review va kiem thu.
+</git-flow-rules>

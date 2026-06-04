@@ -1,0 +1,32 @@
+name: mirror-to-gitlab
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Mirror repository to GitLab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLAB_REPOSITORY: gitlab.com/Kinghazard/QLCayGiaPha.git
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --bare "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" repository.git
+          cd repository.git
+          git push --mirror "https://oauth2:${GITLAB_TOKEN}@${GITLAB_REPOSITORY}"
+
+      - name: Trigger FlashPanel deploy
+        run: |
+          curl -X POST "${{ secrets.FLASHPANEL_DEPLOY_URL }}"

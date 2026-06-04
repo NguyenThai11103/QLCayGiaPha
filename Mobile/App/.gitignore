@@ -1,0 +1,60 @@
+# ─── Node ───────────────────────────────────────────
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+.yarn-integrity
+
+# ─── React Native ────────────────────────────────────
+.expo/
+.expo-shared/
+
+# Metro bundler
+.metro-health-check*
+
+# ─── Android ─────────────────────────────────────────
+android/app/build/
+android/build/
+android/.gradle/
+android/app/.cxx/
+android/local.properties
+android/app/debug.keystore
+*.apk
+*.aab
+
+# ─── iOS ─────────────────────────────────────────────
+ios/build/
+ios/Pods/
+ios/*.xcworkspace
+ios/DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# ─── Environment ─────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ─── OS ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Editor ──────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── TypeScript ──────────────────────────────────────
+*.tsbuildinfo
+
+# ─── Jest ────────────────────────────────────────────
+coverage/
+
+# ─── Buck ────────────────────────────────────────────
+buck-out/
+\.buckd/
+*.keystore
+!debug.keystore

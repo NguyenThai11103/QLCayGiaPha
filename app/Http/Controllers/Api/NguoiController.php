@@ -306,8 +306,26 @@ class NguoiController extends Controller
                 $this->capNhatDoiThuDeQuy($id, $insertData['doi_thu']);
             }
 
+            // Ghi nhận nhật ký gia phả khi tạo mới
+            \App\Models\NhatKyGiaPha::create([
+                'dong_ho_id' => $insertData['dong_ho_id'],
+                'thanh_vien_id' => $id,
+                'nguoi_thuc_hien_id' => auth()->id(),
+                'hanh_dong' => 'create',
+                'du_lieu_cu' => null,
+                'du_lieu_moi' => array_merge($insertData, [
+                    'id' => $id,
+                    'id_cha' => $idCon ? null : $idCha,
+                    'id_me' => $idCon ? null : $idMe,
+                    'vo_chong_ids' => $voChongList,
+                ]),
+                'mo_ta' => 'Thêm thành viên mới "' . $insertData['ho_ten'] . '"',
+                'created_at' => now(),
+            ]);
+
             return $id;
         });
+
 
         return response()->json([
             'success' => true,
@@ -371,10 +389,42 @@ class NguoiController extends Controller
         if (array_key_exists('anh_dai_dien', $data)) $updateData['anh_dai_dien'] = $data['anh_dai_dien'];
         if (array_key_exists('thu_tu_sinh', $data)) $updateData['thu_tu_sinh'] = $data['thu_tu_sinh'];
 
-        DB::transaction(function () use ($id, $updateData, $data) {
+        $tvOld = DB::table('thanh_viens')->where('id', $id)->first();
+        $chaOld = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'cha_con')->value('node_1_id');
+        $meOld = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'me_con')->value('node_1_id');
+        $voChongOld = DB::table('quan_hes')
+            ->where('loai_quan_he', 'vo_chong')
+            ->where(function ($q) use ($id) {
+                $q->where('node_1_id', $id)->orWhere('node_2_id', $id);
+            })
+            ->get()
+            ->map(function ($qh) use ($id) {
+                return $qh->node_1_id == $id ? (int) $qh->node_2_id : (int) $qh->node_1_id;
+            })
+            ->toArray();
+
+        $duLieuCu = [
+            'id' => $tvOld->id,
+            'id_dong_ho' => $tvOld->dong_ho_id,
+            'ten_day_du' => $tvOld->ho_ten,
+            'gioi_tinh' => $tvOld->gioi_tinh,
+            'ngay_sinh' => $tvOld->ngay_sinh_duong,
+            'ngay_sinh_am' => $tvOld->ngay_sinh_am,
+            'da_mat' => in_array($tvOld->tinh_trang_song, [0, '0', 'mat'], true),
+            'ngay_mat' => $tvOld->ngay_mat_am,
+            'tieu_su' => $tvOld->tieu_su,
+            'anh_dai_dien' => $tvOld->anh_dai_dien,
+            'doi_thu' => $tvOld->doi_thu,
+            'id_cha' => $chaOld ? (int) $chaOld : null,
+            'id_me' => $meOld ? (int) $meOld : null,
+            'vo_chong_ids' => array_values(array_unique($voChongOld)),
+        ];
+
+        DB::transaction(function () use ($id, $updateData, $data, $duLieuCu) {
             if (!empty($updateData)) {
                 DB::table('thanh_viens')->where('id', $id)->update($updateData);
             }
+
 
             if (array_key_exists('id_vo_chong_list', $data) || array_key_exists('id_vo_chong', $data)) {
                 $voChongList = $data['id_vo_chong_list'] ?? [];
@@ -423,7 +473,78 @@ class NguoiController extends Controller
                 }
                 $this->capNhatDoiThuDeQuy($id, $doiThuMoi);
             }
+
+            // Ghi nhận nhật ký gia phả khi cập nhật thành công
+            $tvNew = DB::table('thanh_viens')->where('id', $id)->first();
+            $chaNew = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'cha_con')->value('node_1_id');
+            $meNew = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'me_con')->value('node_1_id');
+            $voChongNew = DB::table('quan_hes')
+                ->where('loai_quan_he', 'vo_chong')
+                ->where(function ($q) use ($id) {
+                    $q->where('node_1_id', $id)->orWhere('node_2_id', $id);
+                })
+                ->get()
+                ->map(function ($qh) use ($id) {
+                    return $qh->node_1_id == $id ? (int) $qh->node_2_id : (int) $qh->node_1_id;
+                })
+                ->toArray();
+
+            $duLieuMoi = [
+                'id' => $tvNew->id,
+                'id_dong_ho' => $tvNew->dong_ho_id,
+                'ten_day_du' => $tvNew->ho_ten,
+                'gioi_tinh' => $tvNew->gioi_tinh,
+                'ngay_sinh' => $tvNew->ngay_sinh_duong,
+                'ngay_sinh_am' => $tvNew->ngay_sinh_am,
+                'da_mat' => in_array($tvNew->tinh_trang_song, [0, '0', 'mat'], true),
+                'ngay_mat' => $tvNew->ngay_mat_am,
+                'tieu_su' => $tvNew->tieu_su,
+                'anh_dai_dien' => $tvNew->anh_dai_dien,
+                'doi_thu' => $tvNew->doi_thu,
+                'id_cha' => $chaNew ? (int) $chaNew : null,
+                'id_me' => $meNew ? (int) $meNew : null,
+                'vo_chong_ids' => array_values(array_unique($voChongNew)),
+            ];
+
+            // Build change description
+            $changes = [];
+            if ($duLieuCu['ten_day_du'] !== $duLieuMoi['ten_day_du']) {
+                $changes[] = 'tên ("' . $duLieuCu['ten_day_du'] . '" -> "' . $duLieuMoi['ten_day_du'] . '")';
+            }
+            if ($duLieuCu['gioi_tinh'] !== $duLieuMoi['gioi_tinh']) {
+                $changes[] = 'giới tính';
+            }
+            if ($duLieuCu['ngay_sinh'] !== $duLieuMoi['ngay_sinh']) {
+                $changes[] = 'ngày sinh';
+            }
+            if ($duLieuCu['da_mat'] !== $duLieuMoi['da_mat']) {
+                $changes[] = 'trạng thái sống/mất';
+            }
+            if ($duLieuCu['id_cha'] !== $duLieuMoi['id_cha']) {
+                $changes[] = 'cha';
+            }
+            if ($duLieuCu['id_me'] !== $duLieuMoi['id_me']) {
+                $changes[] = 'mẹ';
+            }
+            if (array_diff($duLieuCu['vo_chong_ids'], $duLieuMoi['vo_chong_ids']) || array_diff($duLieuMoi['vo_chong_ids'], $duLieuCu['vo_chong_ids'])) {
+                $changes[] = 'vợ/chồng';
+            }
+
+            $moTa = 'Cập nhật thành viên "' . $duLieuCu['ten_day_du'] . '"' . 
+                (!empty($changes) ? ' (Thay đổi: ' . implode(', ', $changes) . ')' : '');
+
+            \App\Models\NhatKyGiaPha::create([
+                'dong_ho_id' => $tvNew->dong_ho_id,
+                'thanh_vien_id' => $id,
+                'nguoi_thuc_hien_id' => auth()->id(),
+                'hanh_dong' => 'update',
+                'du_lieu_cu' => $duLieuCu,
+                'du_lieu_moi' => $duLieuMoi,
+                'mo_ta' => $moTa,
+                'created_at' => now(),
+            ]);
         });
+
 
         return response()->json([
             'success' => true,
@@ -444,7 +565,39 @@ class NguoiController extends Controller
             return AccessControl::forbidden();
         }
 
-        DB::transaction(function () use ($data) {
+        $id = $data['id'];
+        $tvOld = DB::table('thanh_viens')->where('id', $id)->first();
+        $chaOld = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'cha_con')->value('node_1_id');
+        $meOld = DB::table('quan_hes')->where('node_2_id', $id)->where('loai_quan_he', 'me_con')->value('node_1_id');
+        $voChongOld = DB::table('quan_hes')
+            ->where('loai_quan_he', 'vo_chong')
+            ->where(function ($q) use ($id) {
+                $q->where('node_1_id', $id)->orWhere('node_2_id', $id);
+            })
+            ->get()
+            ->map(function ($qh) use ($id) {
+                return $qh->node_1_id == $id ? (int) $qh->node_2_id : (int) $qh->node_1_id;
+            })
+            ->toArray();
+
+        $duLieuCu = [
+            'id' => $tvOld->id,
+            'id_dong_ho' => $tvOld->dong_ho_id,
+            'ten_day_du' => $tvOld->ho_ten,
+            'gioi_tinh' => $tvOld->gioi_tinh,
+            'ngay_sinh' => $tvOld->ngay_sinh_duong,
+            'ngay_sinh_am' => $tvOld->ngay_sinh_am,
+            'da_mat' => in_array($tvOld->tinh_trang_song, [0, '0', 'mat'], true),
+            'ngay_mat' => $tvOld->ngay_mat_am,
+            'tieu_su' => $tvOld->tieu_su,
+            'anh_dai_dien' => $tvOld->anh_dai_dien,
+            'doi_thu' => $tvOld->doi_thu,
+            'id_cha' => $chaOld ? (int) $chaOld : null,
+            'id_me' => $meOld ? (int) $meOld : null,
+            'vo_chong_ids' => array_values(array_unique($voChongOld)),
+        ];
+
+        DB::transaction(function () use ($data, $duLieuCu) {
             // 1. Xử lý tài khoản người dùng liên kết
             $linkedUser = \App\Models\NguoiDung::where('thanh_vien_id', $data['id'])->first();
             if ($linkedUser) {
@@ -471,9 +624,22 @@ class NguoiController extends Controller
             // 3. Dọn dẹp mộ phần (mo_phans)
             DB::table('mo_phans')->where('thanh_vien_id', $data['id'])->delete();
 
+            // Ghi nhận nhật ký gia phả khi xóa (Ghi trước khi xóa để tránh lỗi khóa ngoại)
+            \App\Models\NhatKyGiaPha::create([
+                'dong_ho_id' => $duLieuCu['id_dong_ho'],
+                'thanh_vien_id' => $data['id'],
+                'nguoi_thuc_hien_id' => auth()->id(),
+                'hanh_dong' => 'delete',
+                'du_lieu_cu' => $duLieuCu,
+                'du_lieu_moi' => null,
+                'mo_ta' => 'Xóa thành viên "' . $duLieuCu['ten_day_du'] . '"',
+                'created_at' => now(),
+            ]);
+
             // 4. Xóa thành viên
             DB::table('thanh_viens')->where('id', $data['id'])->delete();
         });
+
 
         return response()->json([
             'success' => true,

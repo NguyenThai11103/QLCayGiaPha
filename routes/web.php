@@ -107,6 +107,18 @@ Route::get('/gia-pha/tai-lieu', function () {
     return Inertia::render('client/tai-lieu/index');
 });
 
+Route::get('/gia-pha/album-anh', function () {
+    return Inertia::render('client/album-anh/index');
+});
+
+Route::get('/gia-pha/album-anh/{id}', function ($id) {
+    return Inertia::render('client/album-anh/detail', ['id' => $id]);
+});
+
+Route::get('/gia-pha/nhat-ky-gia-pha', function () {
+    return Inertia::render('client/nhat-ky-gia-pha/index');
+});
+
 Route::get('/gia-pha/nhan-vat-tieu-bieu', function () {
     return Inertia::render('client/nhan-vat-tieu-bieu/index');
 });

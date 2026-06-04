@@ -19,6 +19,9 @@ use App\Http\Controllers\Api\GlobalSearchController;
 use App\Http\Controllers\Api\FamilyInvitationController;
 use App\Http\Controllers\Api\ThanhVienExcelController;
 use App\Http\Controllers\Api\Admin\AuthController as AdminAuthController;
+use App\Http\Controllers\Api\AlbumAnhController;
+use App\Http\Controllers\Api\NhatKyGiaPhaController;
+
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -182,4 +185,20 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\CheckUserActive::class])
         Route::post('/read', [\App\Http\Controllers\Api\ThongBaoController::class, 'read']);
         Route::post('/read-all', [\App\Http\Controllers\Api\ThongBaoController::class, 'readAll']);
     });
+
+    Route::prefix('album-anh')->group(function () {
+        Route::get('/list', [AlbumAnhController::class, 'index']);
+        Route::get('/{id}', [AlbumAnhController::class, 'show']);
+        Route::post('/create', [AlbumAnhController::class, 'store'])->middleware('check.permission:quan_ly');
+        Route::post('/update', [AlbumAnhController::class, 'update'])->middleware('check.permission:quan_ly');
+        Route::post('/delete', [AlbumAnhController::class, 'destroy'])->middleware('check.permission:quan_ly');
+        Route::post('/upload-anh', [AlbumAnhController::class, 'uploadPhoto'])->middleware('check.permission:quan_ly');
+        Route::post('/delete-anh', [AlbumAnhController::class, 'deletePhoto'])->middleware('check.permission:quan_ly');
+    });
+
+    Route::prefix('nhat-ky-gia-pha')->group(function () {
+        Route::get('/list', [NhatKyGiaPhaController::class, 'index']);
+        Route::post('/restore', [NhatKyGiaPhaController::class, 'restore'])->middleware('check.permission:quan_ly');
+    });
 });
+

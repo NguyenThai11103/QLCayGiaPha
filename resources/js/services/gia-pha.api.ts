@@ -612,3 +612,114 @@ export const khuMoApi = {
         return response.data.success ? { ...response.data, data: directionSummary(response.data.data) } : response.data;
     },
 };
+
+// ─── Album Ảnh Dòng Họ ────────────────────────────────────────────────────────
+
+export interface AnhAlbum {
+    id: number;
+    album_id: number;
+    duong_dan_file: string;
+    path: string;
+    disk: string;
+    caption: string | null;
+    nguoi_tai_len_id: number | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface AlbumAnh {
+    id: number;
+    dong_ho_id: number;
+    ten_album: string;
+    loai_album: 'tu_duong' | 'hop_ho' | 'gioi_to' | 'mo_phan' | 'tu_lieu';
+    nam: number;
+    mo_ta: string | null;
+    nguoi_tao_id: number | null;
+    photos_count?: number;
+    photos?: AnhAlbum[];
+    created_at: string;
+    updated_at: string;
+}
+
+export const albumAnhApi = {
+    async list(params: { dong_ho_id: number | string; loai_album?: string; nam?: number | string }) {
+        const response = await apiClient.get<ApiResponse<AlbumAnh[]>>('/album-anh/list', { params });
+        return response.data;
+    },
+
+    async detail(id: number | string) {
+        const response = await apiClient.get<ApiResponse<AlbumAnh>>(`/album-anh/${id}`);
+        return response.data;
+    },
+
+    async create(payload: { dong_ho_id: number; ten_album: string; loai_album: string; nam: number; mo_ta?: string | null }) {
+        const response = await apiClient.post<ApiResponse<AlbumAnh>>('/album-anh/create', payload);
+        return response.data;
+    },
+
+    async update(payload: { id: number; ten_album: string; loai_album: string; nam: number; mo_ta?: string | null }) {
+        const response = await apiClient.post<ApiResponse<AlbumAnh>>('/album-anh/update', payload);
+        return response.data;
+    },
+
+    async delete(id: number) {
+        const response = await apiClient.post<ApiResponse>('/album-anh/delete', { id });
+        return response.data;
+    },
+
+    async uploadPhotos(albumId: number, files: File[], captions?: string[]) {
+        const formData = new FormData();
+        formData.append('album_id', String(albumId));
+        files.forEach((file, index) => {
+            formData.append('files[]', file);
+            if (captions && captions[index]) {
+                formData.append('captions[]', captions[index]);
+            }
+        });
+        const response = await apiClient.post<ApiResponse<AnhAlbum[]>>('/album-anh/upload-anh', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    },
+
+    async deletePhoto(id: number) {
+        const response = await apiClient.post<ApiResponse>('/album-anh/delete-anh', { id });
+        return response.data;
+    },
+};
+
+// ─── Nhật Ký Gia Phả ─────────────────────────────────────────────────────────
+
+export interface NhatKyGiaPha {
+    id: number;
+    dong_ho_id: number;
+    thanh_vien_id: number | null;
+    nguoi_thuc_hien_id: number | null;
+    hanh_dong: 'create' | 'update' | 'delete' | 'restore';
+    du_lieu_cu: Record<string, any> | null;
+    du_lieu_moi: Record<string, any> | null;
+    mo_ta: string | null;
+    created_at: string;
+    nguoi_thuc_hien?: {
+        id: number;
+        ho_ten: string;
+        email: string;
+    } | null;
+}
+
+export const nhatKyGiaPhaApi = {
+    async list(dongHoId: number | string) {
+        const response = await apiClient.get<ApiResponse<NhatKyGiaPha[]>>('/nhat-ky-gia-pha/list', {
+            params: { dong_ho_id: dongHoId },
+        });
+        return response.data;
+    },
+
+    async restore(id: number) {
+        const response = await apiClient.post<ApiResponse>('/nhat-ky-gia-pha/restore', { id });
+        return response.data;
+    },
+};
+

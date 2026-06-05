@@ -262,21 +262,21 @@ export default function ChiTietThanhVien({ id }: { id: number | string }) {
                             {/* Hero Card */}
                             <div style={{ background: 'var(--bg-elev)', borderRadius: 20, border: '1px solid var(--line)', overflow: 'hidden', boxShadow: 'var(--shadow-md)' }}>
                                 {/* Banner gradient */}
-                                <div style={{ height: 88, background: avatarGrad(tv.ten_day_du), position: 'relative' }}>
+                                <div style={{ height: 104, background: avatarGrad(tv.ten_day_du), position: 'relative' }}>
                                     <div style={{ position: 'absolute', inset: 0, opacity: 0.15, backgroundImage: 'radial-gradient(circle at 30% 40%, white 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
                                 </div>
 
                                 <div style={{ padding: '0 24px 24px' }}>
                                     {/* Avatar */}
-                                    <div style={{ marginTop: -42, marginBottom: 14 }}>
+                                    <div style={{ marginTop: -60, marginBottom: 18, position: 'relative', zIndex: 1 }}>
                                         {tv.anh_dai_dien ? (
                                             <img
                                                 src={tv.anh_dai_dien}
                                                 alt={tv.ten_day_du}
-                                                style={{ width: 80, height: 80, borderRadius: '50%', border: '3px solid var(--bg-elev)', objectFit: 'cover', boxShadow: 'var(--shadow-md)', display: 'block' }}
+                                                style={{ width: 112, height: 112, borderRadius: '50%', border: '5px solid var(--bg-elev)', outline: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', objectFit: 'cover', boxShadow: '0 18px 38px rgba(92, 58, 30, 0.22), 0 0 0 8px color-mix(in srgb, var(--gold) 10%, transparent)', display: 'block', background: 'var(--bg-elev)' }}
                                             />
                                         ) : (
-                                            <div style={{ width: 80, height: 80, borderRadius: '50%', border: '3px solid var(--bg-elev)', background: avatarGrad(tv.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 28, fontWeight: 700, color: 'white', boxShadow: 'var(--shadow-md)' }}>
+                                            <div style={{ width: 112, height: 112, borderRadius: '50%', border: '5px solid var(--bg-elev)', outline: '1px solid color-mix(in srgb, var(--gold) 35%, transparent)', background: avatarGrad(tv.ten_day_du), display: 'grid', placeItems: 'center', fontSize: 38, fontWeight: 700, color: 'white', boxShadow: '0 18px 38px rgba(92, 58, 30, 0.22), 0 0 0 8px color-mix(in srgb, var(--gold) 10%, transparent)' }}>
                                                 {initials(tv.ten_day_du)}
                                             </div>
                                         )}
